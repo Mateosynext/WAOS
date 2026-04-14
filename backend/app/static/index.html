@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WAOS Console</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <div class="brand">WAOS</div>
+      <p class="muted">WhatsApp Agent Operating System</p>
+      <label>Email</label>
+      <input id="login-email" value="" placeholder="correo@empresa.com" autocomplete="username" />
+      <label>Password</label>
+      <input id="login-password" type="password" value="" placeholder="Ingresa tu contraseña" autocomplete="current-password" />
+      <button id="login-btn">Ingresar</button>
+      <div id="login-error" class="error"></div>
+    </div>
+  </div>
+
+  <div id="app-shell" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand large">WAOS</div>
+      <div class="sidebar-caption">Torre de control</div>
+      <nav>
+        <button class="nav-item active" data-section="dashboard">Dashboard</button>
+        <button class="nav-item" data-section="bots">Bots</button>
+        <button class="nav-item" data-section="inbox">Inbox</button>
+        <button class="nav-item" data-section="leads">Clientes</button>
+        <button class="nav-item" data-section="automations">Automatizaciones</button>
+        <button class="nav-item" data-section="audit">Auditoría</button>
+        <button class="nav-item" data-section="settings">Settings</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="current-user"></div>
+        <button id="logout-btn" class="secondary">Salir</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="section-title">Dashboard</h1>
+          <div class="muted" id="section-subtitle">Operación centralizada de agentes de WhatsApp</div>
+        </div>
+        <div class="toolbar">
+          <select id="org-filter"></select>
+          <button id="refresh-btn" class="secondary">Actualizar</button>
+        </div>
+      </header>
+
+      <section id="section-dashboard" class="section active">
+        <div id="dashboard-cards" class="cards"></div>
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Bots</h3>
+          </div>
+          <div id="dashboard-bots"></div>
+        </div>
+      </section>
+
+      <section id="section-bots" class="section">
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Lista de bots</h3>
+            </div>
+            <div id="bots-list"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Crear bot</h3>
+            </div>
+            <form id="bot-form" class="form-grid">
+              <div class="form-group full"><div class="step-label">Paso 1 — Negocio</div></div>
+              <div class="form-group"><label>Organización</label><select id="bot-org-id"></select></div>
+              <div class="form-group"><label>Nombre negocio</label><input id="bot-business-name" value="Nuevo Negocio" /></div>
+              <div class="form-group"><label>Vertical</label><input id="bot-vertical" value="servicios" /></div>
+              <div class="form-group"><label>Nombre del bot</label><input id="bot-name" value="Bot Ventas" /></div>
+
+              <div class="form-group full"><div class="step-label">Paso 2 — Estilo</div></div>
+              <div class="form-group"><label>Objetivo</label><input id="bot-objective" value="agendar" /></div>
+              <div class="form-group"><label>Tono</label><input id="bot-tone" value="amable" /></div>
+              <div class="form-group"><label>Idioma</label><input id="bot-language" value="es" /></div>
+              <div class="form-group"><label>Zona horaria</label><input id="bot-timezone" value="America/Mexico_City" /></div>
+
+              <div class="form-group full"><div class="step-label">Paso 3 — Knowledge</div></div>
+              <div class="form-group full"><label>Servicios (coma separados)</label><input id="bot-services" value="Consulta, Seguimiento" /></div>
+              <div class="form-group full"><label>Horarios</label><input id="bot-hours" value="Lunes a viernes de 9 a 18 h" /></div>
+              <div class="form-group full"><label>FAQs (formato: pregunta|respuesta ; pregunta|respuesta)</label><textarea id="bot-faqs">Horario|Lunes a viernes de 9 a 18 h; Ubicación|CDMX</textarea></div>
+
+              <div class="form-group full"><div class="step-label">Paso 4 — Canal</div></div>
+              <div class="form-group"><label>Número WhatsApp</label><input id="bot-whatsapp" value="+525500001234" /></div>
+              <div class="form-group"><label>Publicar</label><select id="bot-publish"><option value="true">Sí</option><option value="false">No</option></select></div>
+
+              <div class="form-group full">
+                <button type="submit">Crear bot</button>
+                <div id="bot-form-result" class="muted"></div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-inbox" class="section">
+        <div class="grid inbox-grid">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Conversaciones</h3>
+            </div>
+            <div id="conversation-list"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Chat</h3>
+            </div>
+            <div id="conversation-detail" class="chat-empty">Selecciona una conversación.</div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Cliente</h3>
+            </div>
+            <div id="lead-context" class="lead-empty">Sin cliente seleccionado.</div>
+            <div class="panel-header top-space">
+              <h3>Tester de canal</h3>
+            </div>
+            <form id="simulate-form" class="form-grid">
+              <div class="form-group"><label>Modo</label><select id="simulate-mode"><option value="simulate">Simulación</option><option value="webhook">Webhook real WhatsApp</option></select></div>
+              <div class="form-group"><label>Bot</label><select id="simulate-bot-id"></select></div>
+              <div class="form-group"><label>Nombre</label><input id="simulate-name" value="María" /></div>
+              <div class="form-group"><label>Teléfono</label><input id="simulate-phone" value="+525511119999" /></div>
+              <div class="form-group"><label>Phone number id</label><input id="simulate-number-id" value="123" /></div>
+              <div class="form-group full"><label>Mensaje</label><textarea id="simulate-body">Hola, quiero precio y agendar</textarea></div>
+              <div class="form-group full">
+                <button type="submit">Simular</button>
+                <div id="simulate-result" class="muted"></div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-leads" class="section">
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Clientes</h3>
+          </div>
+          <div id="leads-table"></div>
+        </div>
+      </section>
+
+      <section id="section-automations" class="section">
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Reglas</h3>
+            </div>
+            <div id="rules-list"></div>
+            <form id="rule-form" class="form-grid top-space">
+              <div class="form-group"><label>Organización</label><select id="rule-org-id"></select></div>
+              <div class="form-group"><label>Bot</label><select id="rule-bot-id"></select></div>
+              <div class="form-group"><label>Tipo</label><select id="rule-type"><option value="no_response">no_response</option><option value="post_quote">post_quote</option><option value="no_show">no_show</option><option value="reactivation">reactivation</option></select></div>
+              <div class="form-group"><label>Nombre</label><input id="rule-name" value="Follow-up sin respuesta" /></div>
+              <div class="form-group"><label>Delay minutos</label><input id="rule-delay" type="number" value="120" /></div>
+              <div class="form-group"><label>Max intentos</label><input id="rule-attempts" type="number" value="2" /></div>
+              <div class="form-group full"><label>Mensaje base</label><textarea id="rule-message">Solo dando seguimiento a tu consulta. ¿Te gustaría que te ayude a avanzar?</textarea></div>
+              <div class="form-group full">
+                <button type="submit">Crear regla</button>
+                <div id="rule-form-result" class="muted"></div>
+              </div>
+            </form>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Jobs</h3>
+              <button id="process-jobs-btn" class="secondary">Procesar due</button>
+            </div>
+            <div id="jobs-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-audit" class="section">
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Logs / auditoría</h3>
+          </div>
+          <div id="audit-list"></div>
+        </div>
+      </section>
+
+      <section id="section-settings" class="section">
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Settings globales</h3>
+            </div>
+            <form id="settings-form" class="form-grid">
+              <div class="form-group full"><label>Global policy</label><textarea id="global-policy"></textarea></div>
+              <div class="form-group"><label>Modelo default</label><input id="global-model" /></div>
+              <div class="form-group"><label>Freeze takeover (min)</label><input id="global-freeze" type="number" /></div>
+              <div class="form-group full">
+                <button type="submit">Guardar</button>
+                <div id="settings-result" class="muted"></div>
+              </div>
+            </form>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Crear organización</h3>
+            </div>
+            <form id="organization-form" class="form-grid">
+              <div class="form-group"><label>Nombre</label><input id="org-name" value="Nuevo Cliente" /></div>
+              <div class="form-group"><label>Vertical</label><input id="org-vertical" value="servicios" /></div>
+              <div class="form-group"><label>Timezone</label><input id="org-timezone" value="America/Mexico_City" /></div>
+              <div class="form-group full">
+                <button type="submit">Crear organización</button>
+                <div id="org-form-result" class="muted"></div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

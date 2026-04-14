@@ -1,0 +1,5 @@
+"use server";
+import { postJson, readString, runAndRefresh } from "./shared";
+export async function requestReleaseAction(formData: FormData) { const botId = readString(formData, "bot_id"); const title = readString(formData, "title"); const notes = readString(formData, "notes"); const redirectTo = readString(formData, "redirect_to") || "/releases"; await runAndRefresh(redirectTo, () => postJson(`/api/v1/bots/${botId}/release-requests`, { title, notes })); }
+export async function approveReleaseAction(formData: FormData) { const releaseId = readString(formData, "release_id"); const note = readString(formData, "note"); const redirectTo = readString(formData, "redirect_to") || "/releases"; await runAndRefresh(redirectTo, () => postJson(`/api/v1/release-requests/${releaseId}/approve`, { note })); }
+export async function publishReleaseAction(formData: FormData) { const releaseId = readString(formData, "release_id"); const notes = readString(formData, "notes"); const redirectTo = readString(formData, "redirect_to") || "/releases"; await runAndRefresh(redirectTo, () => postJson(`/api/v1/release-requests/${releaseId}/publish`, { notes })); }

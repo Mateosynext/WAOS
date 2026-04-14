@@ -1,0 +1,35 @@
+Attempted final-mile browser E2E verification from the packaged artifact.
+
+What was verified green:
+- PYTHONPATH=. pytest -q backend/tests
+- frontend npm install
+- frontend npm run typecheck
+- frontend npm run test:node
+- frontend npm run smoke
+
+What was attempted for browser E2E:
+- Started backend browser E2E server from backend/scripts/run_browser_e2e_server.py
+- Started frontend dev server on port 3000
+- Verified backend health endpoint returned 200
+- Verified frontend /login returned 200 via urllib
+- Launched Playwright against system Chromium at /usr/bin/chromium
+
+Observed blocker in this environment:
+- Chromium returns net::ERR_BLOCKED_BY_ADMINISTRATOR for navigation attempts
+- Reproduced against:
+  - http://<loopback>:3000/login
+  - http://<loopback>:3000/login
+  - http://<bind-all>:3000/login
+  - http://example.com/
+  - https://example.com/
+  - data:text/html,hello
+- about:blank remained navigable
+
+Interpretation:
+- The packaged app was reachable from the host environment.
+- The blocker is the available Chromium/browser policy in this execution environment, not the app route wiring itself.
+- Downloading Playwright-managed Chromium was also not possible here because outbound DNS/network resolution to cdn.playwright.dev failed.
+
+Conclusion:
+- Browser E2E critical could not be honestly marked green from this environment.
+- The artifact remains a strong release candidate with frontend typecheck verified green, pending execution of browser E2E critical on a runner with an unrestricted browser.

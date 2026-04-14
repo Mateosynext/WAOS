@@ -1,0 +1,118 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Space Grotesk", Inter, Arial, sans-serif;
+  --font-body: Inter, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  color-scheme: dark;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body), sans-serif;
+  background:
+    radial-gradient(circle at top, rgba(16, 185, 129, 0.12), transparent 24%),
+    radial-gradient(circle at right, rgba(14, 165, 233, 0.08), transparent 18%),
+    linear-gradient(180deg, #07111f 0%, #0b1220 100%);
+  color: #f8fafc;
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: rgba(16, 185, 129, 0.24);
+  color: #fff;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(34, 197, 94, 0.35) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(34, 197, 94, 0.28);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-display {
+    font-family: var(--font-display), sans-serif;
+    letter-spacing: -0.04em;
+  }
+
+  code,
+  pre,
+  .font-mono {
+    font-family: var(--font-mono), monospace;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-[30px] border border-white/[0.08] bg-slate-900/75 shadow-[0_22px_80px_rgba(2,6,23,0.42)] backdrop-blur;
+  }
+
+  .panel-soft {
+    @apply rounded-[24px] border border-white/[0.08] bg-white/[0.04];
+  }
+
+  .primary-btn {
+    @apply inline-flex items-center justify-center rounded-2xl border border-emerald-400/[0.20] bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-slate-950 transition duration-200 hover:-translate-y-0.5 hover:bg-emerald-300;
+  }
+
+  .secondary-btn {
+    @apply inline-flex items-center justify-center rounded-2xl border border-white/[0.12] bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-slate-100 transition duration-200 hover:-translate-y-0.5 hover:border-emerald-400/[0.20] hover:bg-emerald-400/[0.10];
+  }
+
+  .danger-btn {
+    @apply inline-flex items-center justify-center rounded-2xl border border-rose-500/[0.25] bg-rose-500/[0.12] px-4 py-2.5 text-sm font-semibold text-rose-100 transition duration-200 hover:-translate-y-0.5 hover:bg-rose-500/[0.18];
+  }
+
+  .nav-link {
+    @apply block rounded-2xl border border-transparent bg-transparent px-4 py-3 text-sm text-slate-300 transition duration-200 hover:border-emerald-400/[0.18] hover:bg-emerald-400/[0.08] hover:text-white;
+  }
+
+  .field-label {
+    @apply flex flex-col gap-2 text-sm font-medium text-slate-300;
+  }
+
+  .field-input {
+    @apply rounded-2xl border border-white/[0.10] bg-slate-950/60 px-4 py-3 text-sm text-slate-100 outline-none transition duration-200 placeholder:text-slate-500 focus:border-emerald-400/[0.30] focus:bg-slate-950/80;
+  }
+
+  .eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-[0.22em] text-slate-400;
+  }
+
+  .surface-row {
+    @apply rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-3;
+  }
+
+  .mono-pill {
+    @apply inline-flex items-center rounded-full border border-white/[0.10] px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-200;
+  }
+}

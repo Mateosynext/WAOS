@@ -1,0 +1,5 @@
+{
+  "global_policy": "No inventar precios, políticas ni disponibilidad.",
+  "default_model": "gpt-5",
+  "freeze_minutes_after_takeover": 30
+}

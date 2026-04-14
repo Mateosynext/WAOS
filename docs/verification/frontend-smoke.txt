@@ -1,0 +1,1 @@
+Smoke OK: 7 critical files present.
