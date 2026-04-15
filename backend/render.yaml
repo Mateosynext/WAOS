@@ -3,6 +3,7 @@ services:
     name: waos-api
     runtime: python
     plan: starter
+    rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: bash scripts/bootstrap.sh
     healthCheckPath: /healthz
@@ -19,10 +20,8 @@ services:
         value: false
       - key: AUTO_RUN_MIGRATIONS
         value: true
-      - key: RUN_BOOTSTRAP_SEED
-        value: false
       - key: APP_VERSION
-        value: 0.16.8
+        value: 0.17.5
       - key: DEFAULT_TIMEZONE
         value: America/Mexico_City
       - key: LOG_LEVEL
@@ -68,10 +67,15 @@ services:
       - key: META_GRAPH_API_BASE
         value: https://graph.facebook.com/v23.0
 
+    buildFilter:
+      paths:
+        - backend/**
+
   - type: worker
     name: waos-worker
     runtime: python
     plan: starter
+    rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: bash scripts/worker_bootstrap.sh
     envVars:
@@ -88,7 +92,7 @@ services:
       - key: RUN_BOOTSTRAP_SEED
         value: false
       - key: APP_VERSION
-        value: 0.16.8
+        value: 0.17.5
       - key: DEFAULT_TIMEZONE
         value: America/Mexico_City
       - key: LOG_LEVEL
@@ -129,6 +133,10 @@ services:
         value: 5
       - key: WORKER_BATCH_SIZE
         value: 50
+
+    buildFilter:
+      paths:
+        - backend/**
 
 databases:
   - name: waos-postgres
