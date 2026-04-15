@@ -19,6 +19,7 @@ from .routers.public import router as public_router
 from .routers.reports import router as reports_router
 from .routers.runtime import router as runtime_router
 from .routers.security import router as security_router
+from .routers.talent import router as talent_router
 from .routers.system import router as system_router
 from .routers.transactions import router as transactions_router
 from .routers.vertical_domains import router as vertical_domains_router
@@ -37,6 +38,7 @@ api_router.include_router(system_router)
 api_router.include_router(runtime_router)
 api_router.include_router(integrations_router)
 api_router.include_router(security_router)
+api_router.include_router(talent_router)
 api_router.include_router(automations_router)
 api_router.include_router(analytics_router)
 api_router.include_router(reports_router)

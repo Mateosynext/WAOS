@@ -12,7 +12,23 @@ export default async function BotStudioPage() {
   const [behavior, templates, verticals, bots] = await Promise.all([getBotBehavior(), getBotTemplates(), getVerticalCatalog(), getBots()]);
   const selectedBot = bots.find((item) => item.id === currentBotId) || null;
   const selectedVerticalId = selectedBot?.vertical || currentOrg?.vertical || verticals[0]?.id;
-  const selectedVertical = await getVerticalProfile(selectedVerticalId);
+  const selectedVertical = selectedVerticalId ? await getVerticalProfile(selectedVerticalId) : null;
+
+  if (!verticals.length) {
+    return (
+      <Shell
+        title="Crear bot"
+        subtitle="No se pudo cargar el catálogo de verticales desde el backend."
+        action={<><Link href="/organizations" className="secondary-btn">Organizaciones</Link><Link href="/verticals" className="secondary-btn">Reintentar catálogo</Link></>}
+      >
+        <EmptyActionState
+          title="Catálogo de verticales no disponible"
+          description="La sesión está activa, pero la UI no recibió verticales. Revisa el endpoint /api/v1/verticals o vuelve a iniciar sesión."
+          primaryAction={<Link href="/verticals" className="primary-btn">Abrir verticales</Link>}
+        />
+      </Shell>
+    );
+  }
 
   return (
     <Shell
@@ -112,10 +128,10 @@ export default async function BotStudioPage() {
 
       <Section title="Preview de la vertical activa" subtitle="Esto es lo que WAOS ya entiende como problema, flujos e integraciones recomendadas para la vertical que hoy tienes enfrente." icon="layers">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <ModuleCard title={safeText(selectedVertical.name, "Vertical")} description={safeText(selectedVertical.problem, "Vertical lista para operar.")} icon="wand" tone="green" footer={<span className="mono-pill">{safeText(selectedVertical.short_name, "perfil")}</span>} />
-          <ModuleCard title="Objetos operativos" description={selectedVertical.objects.join(", ") || "Sin objetos definidos"} icon="catalog" tone="blue" />
-          <ModuleCard title="Flujos clave" description={selectedVertical.flows.join(" · ") || "Sin flujos definidos"} icon="route" tone="gold" />
-          <ModuleCard title="Integraciones recomendadas" description={selectedVertical.recommended_integrations.join(" · ") || "base operativa"} icon="plug" tone="slate" />
+          <ModuleCard title={safeText(selectedVertical?.name, "Vertical")} description={safeText(selectedVertical?.problem, "Vertical lista para operar.")} icon="wand" tone="green" footer={<span className="mono-pill">{safeText(selectedVertical?.short_name, "perfil")}</span>} />
+          <ModuleCard title="Objetos operativos" description={selectedVertical?.objects.join(", ") || "Sin objetos definidos"} icon="catalog" tone="blue" />
+          <ModuleCard title="Flujos clave" description={selectedVertical?.flows.join(" · ") || "Sin flujos definidos"} icon="route" tone="gold" />
+          <ModuleCard title="Integraciones recomendadas" description={selectedVertical?.recommended_integrations.join(" · ") || "base operativa"} icon="plug" tone="slate" />
         </div>
       </Section>
 

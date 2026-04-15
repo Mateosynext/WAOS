@@ -9,6 +9,7 @@ import { createSecretAction as createSecretActionImpl, rotateSecretAction as rot
 import { generateExecutiveReportAction as generateExecutiveReportActionImpl } from "./actions/reports";
 import { requeueDeadLetterAction as requeueDeadLetterActionImpl } from "./actions/operations";
 import { updateOrganizationVerticalAction as updateOrganizationVerticalActionImpl } from "./actions/organizations";
+import { updateTalentPolicyAction as updateTalentPolicyActionImpl, createTalentVacancyAction as createTalentVacancyActionImpl, confirmTalentCandidateAction as confirmTalentCandidateActionImpl } from "./actions/talent";
 export async function loginAction(...args: Parameters<typeof loginActionImpl>) { return loginActionImpl(...args); }
 export async function logoutAction(...args: Parameters<typeof logoutActionImpl>) { return logoutActionImpl(...args); }
 export async function switchOrganizationAction(...args: Parameters<typeof switchOrganizationActionImpl>) { return switchOrganizationActionImpl(...args); }
@@ -37,3 +38,7 @@ export async function generateExecutiveReportAction(...args: Parameters<typeof g
 export async function requeueDeadLetterAction(...args: Parameters<typeof requeueDeadLetterActionImpl>) { return requeueDeadLetterActionImpl(...args); }
 
 export async function updateOrganizationVerticalAction(...args: Parameters<typeof updateOrganizationVerticalActionImpl>) { return updateOrganizationVerticalActionImpl(...args); }
+
+export async function updateTalentPolicyAction(...args: Parameters<typeof updateTalentPolicyActionImpl>) { return updateTalentPolicyActionImpl(...args); }
+export async function createTalentVacancyAction(...args: Parameters<typeof createTalentVacancyActionImpl>) { return createTalentVacancyActionImpl(...args); }
+export async function confirmTalentCandidateAction(...args: Parameters<typeof confirmTalentCandidateActionImpl>) { return confirmTalentCandidateActionImpl(...args); }

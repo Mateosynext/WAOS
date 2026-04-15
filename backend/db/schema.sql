@@ -1304,3 +1304,37 @@ CREATE INDEX IF NOT EXISTS idx_delivery_attempts_entity ON delivery_attempts(ent
 CREATE INDEX IF NOT EXISTS idx_delivery_attempts_org ON delivery_attempts(organization_id, channel, created_at);
 CREATE INDEX IF NOT EXISTS idx_followup_assignments_experiment ON followup_experiment_assignments(experiment_id, assigned_at);
 CREATE INDEX IF NOT EXISTS idx_followup_assignments_conversation ON followup_experiment_assignments(conversation_id, assigned_at);
+
+
+CREATE TABLE IF NOT EXISTS agenda_reminder_preferences (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL UNIQUE,
+    tone TEXT NOT NULL DEFAULT 'amable',
+    hours_before INTEGER NOT NULL DEFAULT 24,
+    last_hours INTEGER NOT NULL DEFAULT 2,
+    count INTEGER NOT NULL DEFAULT 2,
+    updated_by_user_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (updated_by_user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS agenda_blocked_slots (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT,
+    start_at TEXT NOT NULL,
+    end_at TEXT NOT NULL,
+    reason TEXT,
+    created_by_user_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id),
+    FOREIGN KEY (created_by_user_id) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agenda_reminder_preferences_org ON agenda_reminder_preferences(organization_id, updated_at);
+CREATE INDEX IF NOT EXISTS idx_agenda_blocked_slots_org ON agenda_blocked_slots(organization_id, start_at);
+CREATE INDEX IF NOT EXISTS idx_agenda_blocked_slots_bot ON agenda_blocked_slots(bot_id, start_at);

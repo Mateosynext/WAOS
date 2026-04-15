@@ -44,7 +44,7 @@ export async function loginAction(_: ActionState, formData: FormData): Promise<A
   store.set(ACCESS_COOKIE, data.access_token, sessionCookieOptions.access());
   store.set(REFRESH_COOKIE, data.refresh_token, sessionCookieOptions.refresh());
   if (orgId) store.set(ORG_COOKIE, orgId, sessionCookieOptions.scope()); else store.delete(ORG_COOKIE);
-  if (organizations.length > 1 && data.user?.global_role !== "client") redirect("/organizations");
+  if (organizations.length > 1 && data.user?.global_role !== "client") redirect("/organizations?source=login");
   redirect(data.user?.global_role === "client" ? "/client" : "/");
 }
 

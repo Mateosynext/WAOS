@@ -1,11 +1,16 @@
 import { switchOrganizationAction, updateOrganizationVerticalAction } from "../actions";
 import OrganizationSwitcher from "../components/OrganizationSwitcher";
-import { EmptyActionState, ModuleCard, Section, Shell, StatCard, SuccessState } from "../components";
+import { ContextTip, EmptyActionState, ModuleCard, Section, Shell, StatCard, SuccessState } from "../components";
 import { getSession } from "../lib/session";
 import { safeText } from "../lib/ui";
 import { getVerticalCatalog, getVerticalProfile } from "../lib/waos";
 
-export default async function OrganizationsPage() {
+type SearchParams = Record<string, string | string[] | undefined>;
+function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }
+
+export default async function OrganizationsPage({ searchParams }: { searchParams?: Promise<SearchParams> }) {
+  const params = (await searchParams) || {};
+  const source = first(params.source) || "";
   const session = await getSession();
   const organizations = session?.user.organizations || [];
   const selectedOrg = organizations.find((item) => item.id === session?.organizationId) || null;
@@ -15,7 +20,8 @@ export default async function OrganizationsPage() {
   ]);
 
   return (
-    <Shell title="Seleccionar organizacion" subtitle="Fija una organizacion explicita antes de operar y ahora tambien puedes aplicar una vertical madre real al tenant activo sin tocar codigo.">
+    <Shell title="Confirmar contexto" subtitle="Después del login, este paso deja claro por qué elegir organización es obligatorio y qué contexto vas a activar antes de operar.">
+      {source === "login" ? <ContextTip title="Paso final del acceso">Tu cuenta ve varias organizaciones. Antes de entrar al producto, confirma cuál vas a operar para que el contexto cargue bots, inbox, integraciones y releases correctos.</ContextTip> : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Organizaciones visibles" value={String(organizations.length)} hint="Contextos a los que esta cuenta puede entrar" icon="client" tone="green" />
         <StatCard label="Verticales madre" value={String(verticals.length)} hint="Catalogo habilitado para super admin" icon="layers" tone="blue" />
@@ -25,7 +31,7 @@ export default async function OrganizationsPage() {
 
       <Section title="Contexto de trabajo" subtitle="Elige una organizacion para cargar bots, integraciones, inbox y releases con el contexto correcto." icon="client">
         {organizations.length ? (
-          <OrganizationSwitcher organizations={organizations.map((item) => ({ id: item.id, name: item.name }))} selectedId={session?.organizationId || null} redirectTo="/organizations" action={switchOrganizationAction} />
+          <OrganizationSwitcher organizations={organizations.map((item) => ({ id: item.id, name: item.name, vertical: item.vertical }))} selectedId={session?.organizationId || null} redirectTo="/organizations" action={switchOrganizationAction} />
         ) : (
           <EmptyActionState title="No hay organizaciones disponibles" description="Esta cuenta todavia no tiene organizaciones asignadas o no pudimos cargarlas." />
         )}

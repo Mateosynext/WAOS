@@ -30,7 +30,7 @@ export const studioVariants: Record<StudioVariant, { label: string; headline: st
 export type FlowScenarioKey = "catalog" | "appointment" | "reactivation";
 export const flowScenarios: Record<FlowScenarioKey, { label: string; description: string; steps: Array<{ id: string; title: string; detail: string; user: string; bot: string; outcome: string }>; }> = {
   catalog: { label: "Catalogo + cierre", description: "Flujo para descubrir producto, resolver objecion de precio y cerrar con CTA directo.", steps: [
-    { id: "intent", title: "Intencion", detail: "El cliente pregunta por fotos, specs y precio.", user: "Hola, quiero ver el modelo negro y saber precio.", bot: "Claro. Te comparto foto principal, especificaciones clave y precio actualizado.", outcome: "WAOS detecta producto e interes comercial." },
+    { id: "intent", title: "Intencion", detail: "El lead pregunta por fotos, specs y precio.", user: "Hola, quiero ver el modelo negro y saber precio.", bot: "Claro. Te comparto foto principal, especificaciones clave y precio actualizado.", outcome: "WAOS detecta producto e interes comercial." },
     { id: "offer", title: "Oferta", detail: "El bot muestra ficha enriquecida y promo si aplica.", user: "Si, y si hay promo mejor.", bot: "Tengo promo activa hoy. Te paso el precio promocional y te lo aparto si quieres.", outcome: "Se reduce friccion y sube urgencia controlada." },
     { id: "close", title: "Cierre", detail: "Se empuja el siguiente paso directo.", user: "Va, me interesa.", bot: "Perfecto. Te mando link de pago o si prefieres te lo aparto ahora mismo.", outcome: "Conversacion lista para pago o apartado." },
   ] },
@@ -40,7 +40,7 @@ export const flowScenarios: Record<FlowScenarioKey, { label: string; description
     { id: "confirm", title: "Confirmacion", detail: "Se cierra con tarjeta de cita e instrucciones.", user: "Jueves 4:00 pm.", bot: "Listo. Tu cita queda confirmada para jueves 4:00 pm. Te mando ubicacion y preparacion previa.", outcome: "Agenda confirmada con menos fuga." },
   ] },
   reactivation: { label: "Reactivacion", description: "Flujo para recuperar conversaciones frias con prueba, urgencia y CTA unico.", steps: [
-    { id: "nudge", title: "Nudge", detail: "Se reactiva con contexto corto y directo.", user: "(cliente sin respuesta 48h)", bot: "Hola. Te dejo aqui la opcion que viste y la promo vigente por si aun te interesa.", outcome: "Se reabre la conversacion sin friccion." },
+    { id: "nudge", title: "Nudge", detail: "Se reactiva con contexto corto y directo.", user: "(lead sin respuesta 48h)", bot: "Hola. Te dejo aqui la opcion que viste y la promo vigente por si aun te interesa.", outcome: "Se reabre la conversacion sin friccion." },
     { id: "proof", title: "Prueba", detail: "Se resuelve objecion con valor o evidencia.", user: "Si me interesa, pero sigo viendo opciones.", bot: "Te comparto por que este paquete se mueve mas: mejor margen de valor, entrega rapida y promo activa hoy.", outcome: "Se sostiene interes con argumento util." },
     { id: "action", title: "Accion", detail: "Se deja un CTA unico para cerrar.", user: "Ok.", bot: "Si quieres, te lo aparto ahora y te mando el siguiente paso en un mensaje.", outcome: "Listo para cierre o escalamiento humano." },
   ] },

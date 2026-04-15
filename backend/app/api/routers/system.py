@@ -32,3 +32,8 @@ def get_global_settings(user: CurrentUser) -> dict:
 @router.post("/api/v1/settings/global")
 def update_global_settings(payload: SettingsUpdateRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return system_service.update_global_settings(uow, payload=payload, user=user)
+
+
+@router.get("/api/v1/runtime/health-panel")
+def runtime_health_panel(uow: CurrentUoW) -> dict:
+    return system_service.runtime_health_panel(uow)

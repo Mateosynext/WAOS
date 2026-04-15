@@ -303,6 +303,15 @@ export type ConversationItem = {
   owner_name?: string;
   lead_stage?: string;
   summary?: string;
+  relationship_label?: string;
+  relationship_key?: string;
+  relationship_status?: string;
+  relationship_confidence?: number;
+  urgency_level?: string;
+  urgency_score?: number;
+  attention_tier?: string;
+  recommended_mode?: string;
+  known_contact?: boolean;
   latest_message_preview?: string;
   last_outbound_at?: string;
   last_inbound_at?: string;
@@ -326,6 +335,15 @@ export function normalizeConversation(raw: unknown): ConversationItem {
     owner_name: stringOrNull(record.owner_name) ?? undefined,
     lead_stage: stringOrNull(record.lead_stage) ?? undefined,
     summary: stringOrNull(record.summary) ?? undefined,
+    relationship_label: stringOrNull(record.relationship_label) ?? undefined,
+    relationship_key: stringOrNull(record.relationship_key) ?? undefined,
+    relationship_status: stringOrNull(record.relationship_status) ?? undefined,
+    relationship_confidence: nullableNumber(record.relationship_confidence) ?? undefined,
+    urgency_level: stringOrNull(record.urgency_level) ?? undefined,
+    urgency_score: nullableNumber(record.urgency_score) ?? undefined,
+    attention_tier: stringOrNull(record.attention_tier) ?? undefined,
+    recommended_mode: stringOrNull(record.recommended_mode) ?? undefined,
+    known_contact: booleanValue(record.known_contact, false),
     latest_message_preview: stringOrNull(record.latest_message_preview ?? record.last_message ?? record.preview) ?? undefined,
     last_outbound_at: pickTimestamp(record, "last_outbound_at") ?? undefined,
     last_inbound_at: pickTimestamp(record, "last_inbound_at") ?? undefined,
@@ -1587,4 +1605,100 @@ export function normalizeCollection<T>(raw: unknown, normalizeItem: (value: unkn
 
 export function normalizeRecord<T>(raw: unknown, normalizeItem: (value: unknown) => T): T {
   return normalizeItem(unwrapApiEnvelope(raw));
+}
+
+
+export type TalentVacancyContract = {
+  id: string;
+  title: string;
+  status?: string;
+  summary?: string;
+  description?: string;
+  requirements: string[];
+  benefits: string[];
+  location_label?: string;
+  address?: string;
+  modality?: string;
+  work_days?: string;
+  work_hours?: string;
+  salary_visible: boolean;
+  salary_min?: number | null;
+  salary_max?: number | null;
+  currency?: string;
+  interview_schedule?: string;
+  interview_location?: string;
+  interview_notes?: string;
+  documents_required: string[];
+};
+
+export type TalentCandidateContract = {
+  id: string;
+  contact_id: string;
+  conversation_id?: string | null;
+  vacancy_id?: string | null;
+  vacancy_title?: string | null;
+  status?: string;
+  interview_confirmed_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type TalentOverviewContract = {
+  bot_id: string;
+  bot_name?: string;
+  config: JsonMap;
+  vacancies: TalentVacancyContract[];
+  candidates: TalentCandidateContract[];
+  summary: Record<string, unknown>;
+};
+
+export function normalizeTalentVacancy(raw: unknown): TalentVacancyContract {
+  const record = asRecord(raw);
+  return {
+    id: stringValue(record.id),
+    title: stringValue(record.title, 'Vacante'),
+    status: stringOrNull(record.status) ?? undefined,
+    summary: stringOrNull(record.summary) ?? undefined,
+    description: stringOrNull(record.description) ?? undefined,
+    requirements: stringList(record.requirements),
+    benefits: stringList(record.benefits),
+    location_label: stringOrNull(record.location_label) ?? undefined,
+    address: stringOrNull(record.address) ?? undefined,
+    modality: stringOrNull(record.modality) ?? undefined,
+    work_days: stringOrNull(record.work_days) ?? undefined,
+    work_hours: stringOrNull(record.work_hours) ?? undefined,
+    salary_visible: booleanValue(record.salary_visible),
+    salary_min: nullableNumber(record.salary_min),
+    salary_max: nullableNumber(record.salary_max),
+    currency: stringOrNull(record.currency) ?? undefined,
+    interview_schedule: stringOrNull(record.interview_schedule) ?? undefined,
+    interview_location: stringOrNull(record.interview_location) ?? undefined,
+    interview_notes: stringOrNull(record.interview_notes) ?? undefined,
+    documents_required: stringList(record.documents_required),
+  };
+}
+
+export function normalizeTalentCandidate(raw: unknown): TalentCandidateContract {
+  const record = asRecord(raw);
+  return {
+    id: stringValue(record.id),
+    contact_id: stringValue(record.contact_id),
+    conversation_id: stringOrNull(record.conversation_id),
+    vacancy_id: stringOrNull(record.vacancy_id),
+    vacancy_title: stringOrNull(record.vacancy_title),
+    status: stringOrNull(record.status) ?? undefined,
+    interview_confirmed_at: stringOrNull(record.interview_confirmed_at),
+    updated_at: stringOrNull(record.updated_at),
+  };
+}
+
+export function normalizeTalentOverview(raw: unknown): TalentOverviewContract {
+  const record = asRecord(unwrapApiEnvelope(raw));
+  return {
+    bot_id: stringValue(record.bot_id),
+    bot_name: stringOrNull(record.bot_name) ?? undefined,
+    config: asRecord(record.config),
+    vacancies: asArray(record.vacancies).map(normalizeTalentVacancy).filter((item) => Boolean(item.id)),
+    candidates: asArray(record.candidates).map(normalizeTalentCandidate).filter((item) => Boolean(item.id)),
+    summary: asRecord(record.summary),
+  };
 }

@@ -37,6 +37,7 @@ import {
   type SSOProviderContract,
   type Summary,
   type SyncRunContract,
+  type TalentOverviewContract,
   type TraceabilityContract,
   type VerticalProfileContract,
   normalizeAgendaOverview,
@@ -77,6 +78,7 @@ import {
   normalizeSecurityPolicy,
   normalizeSSOProvider,
   normalizeSyncRun,
+  normalizeTalentOverview,
   normalizeTraceability,
   normalizeVerticalProfile,
 } from "./contracts";
@@ -555,3 +557,10 @@ export async function getV16FollowupPerformance(experimentId?: string) {
   if (!selectedExperimentId) return { experiment: {}, variants: [], assignments: [] };
   return apiFetchOrDefault<Record<string, unknown>>(`/api/v1/followups/experiments/${selectedExperimentId}/performance`, { experiment: {}, variants: [], assignments: [] });
 }
+
+export async function getTalentOverview(botId?: string): Promise<TalentOverviewContract> {
+  const currentBotId = await selectedBotId(botId);
+  if (!currentBotId) return { bot_id: "", config: {}, vacancies: [], candidates: [], summary: {} };
+  return fetchRecord(`/api/v1/bots/${currentBotId}/talent/overview`, { bot_id: currentBotId, config: {}, vacancies: [], candidates: [], summary: {} }, normalizeTalentOverview);
+}
+

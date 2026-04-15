@@ -1,11 +1,81 @@
 "use client";
-import { useEffect, useRef } from "react";
-export default function OrganizationSwitcher({ organizations, selectedId, redirectTo, action }: { organizations: Array<{ id: string; name: string }>; selectedId?: string | null; redirectTo: string; action: (formData: FormData) => void | Promise<void> }) {
-  const formRef = useRef<HTMLFormElement | null>(null);
-  useEffect(() => {
-    const form = formRef.current; if (!form) return;
-    const select = form.querySelector("select[name='organization_id']") as HTMLSelectElement | null; if (!select) return;
-    const handler = () => form.requestSubmit(); select.addEventListener("change", handler); return () => select.removeEventListener("change", handler);
-  }, []);
-  return <form ref={formRef} action={action}><input type="hidden" name="redirect_to" value={redirectTo} /><select name="organization_id" defaultValue={selectedId || ""} className="field-input min-w-[240px] py-2" aria-label="Seleccionar organización"><option value="">Selecciona una organización</option>{organizations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></form>;
+
+import { useMemo, useState } from "react";
+
+type OrganizationOption = {
+  id: string;
+  name: string;
+  vertical?: string | null;
+  botCount?: number;
+  channelCount?: number;
+  pendingCount?: number;
+};
+
+export default function OrganizationSwitcher({
+  organizations,
+  selectedId,
+  redirectTo,
+  action,
+}: {
+  organizations: OrganizationOption[];
+  selectedId?: string | null;
+  redirectTo: string;
+  action: (formData: FormData) => void | Promise<void>;
+}) {
+  const [value, setValue] = useState(selectedId || organizations[0]?.id || "");
+  const selected = useMemo(() => organizations.find((item) => item.id === value) || null, [organizations, value]);
+
+  return (
+    <form action={action} className="space-y-4">
+      <input type="hidden" name="redirect_to" value={redirectTo} />
+      <label className="field-label">
+        Organización
+        <select
+          name="organization_id"
+          value={value}
+          onChange={(event) => setValue(event.currentTarget.value)}
+          className="field-input min-w-[240px] py-2"
+          aria-label="Seleccionar organización"
+        >
+          <option value="">Selecciona una organización</option>
+          {organizations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+      </label>
+
+      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 text-sm text-slate-300">
+        <div className="eyebrow">Vista previa del contexto</div>
+        {selected ? (
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="surface-row">
+              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Organización</div>
+              <div className="mt-1 font-medium text-white">{selected.name}</div>
+            </div>
+            <div className="surface-row">
+              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Vertical</div>
+              <div className="mt-1 font-medium text-white">{selected.vertical || "Se define al confirmar"}</div>
+            </div>
+            <div className="surface-row">
+              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Bots visibles</div>
+              <div className="mt-1 font-medium text-white">{typeof selected.botCount === "number" ? selected.botCount : "—"}</div>
+            </div>
+            <div className="surface-row">
+              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Canales / pendientes</div>
+              <div className="mt-1 font-medium text-white">{typeof selected.channelCount === "number" ? selected.channelCount : "—"} · {typeof selected.pendingCount === "number" ? selected.pendingCount : "—"}</div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 text-sm text-slate-400">Selecciona una organización para ver el contexto que activará inbox, bots, integraciones y releases.</div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 text-sm text-slate-300">
+        <div className="font-medium text-white">Qué cambia al confirmar</div>
+        <p className="mt-2 leading-6">Fijas el tenant activo para inbox, bots, integraciones, agenda y publicaciones. Así evitas mezclar conversaciones o configuración entre clientes.</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button type="submit" className="primary-btn" disabled={!value}>Confirmar contexto</button>
+          <span className="text-xs leading-6 text-slate-400">Puedes cambiarlo después desde el header compartido.</span>
+        </div>
+      </div>
+    </form>
+  );
 }

@@ -50,6 +50,3 @@ bash scripts/validate_release_in_ci.sh
 - El modo real arranca `backend/scripts/run_browser_e2e_server.py`.
 - Ese script levanta FastAPI con base SQLite efímera, seeds reproducibles y providers falsos solo para pruebas de navegador.
 - Los artifacts del modo real se publican desde Playwright (`playwright-report`, `test-results`, traces, screenshots y video en fallos).
-
-
-

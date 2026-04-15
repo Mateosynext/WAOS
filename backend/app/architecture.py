@@ -7,9 +7,13 @@ ARCHITECTURE_SOURCES_OF_TRUTH = {
     "vertical_domain_runtime": "backend.app.vertical_domain_runtime",
     "integrations_runtime": "backend.app.integrations_runtime",
     "api_entrypoint": "backend.app.main",
+    "canonical_inbound_service": "backend.app.application.inbound_service",
+    "runtime_pipeline": "backend.app.runtime_pipeline",
+    "policy_engine": "backend.app.policy_engine",
 }
 
 DEPRECATED_NAMESPACE = "backend.app.legacy"
+DEPRECATED_ROOT_MODULES = ["backend.app.v8"]
 
 ACTIVE_BOUNDARIES = {
     "api": "backend.app.api",
@@ -21,3 +25,10 @@ ACTIVE_BOUNDARIES = {
     "schemas": "backend.app.schemas",
     "services": "backend.app.services",
 }
+
+CANONICAL_REQUEST_FLOW = [
+    "api.router -> application service",
+    "application service -> repositories/platform/providers",
+    "application service -> runtime pipeline (understand / decide / generate / schedule)",
+    "platform + providers -> external systems",
+]

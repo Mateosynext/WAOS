@@ -1,5 +1,5 @@
 from __future__ import annotations
 
-from .domains.appointments import appointment_dashboard, cancel_appointment, confirm_appointment, create_appointment_bundle, mark_appointment_no_show, reschedule_appointment, send_appointment_followup
-from .domains.language import upsert_language_config, get_language_config, language_analytics
-from .domains.reporting import build_report_pdf, ensure_executive_report_pdf, generate_executive_report, omnichannel_overview
+from ..domains.appointments import appointment_dashboard, cancel_appointment, confirm_appointment, create_appointment_bundle, mark_appointment_no_show, reschedule_appointment, send_appointment_followup
+from ..domains.language import upsert_language_config, get_language_config, language_analytics
+from ..domains.reporting import build_report_pdf, ensure_executive_report_pdf, generate_executive_report, omnichannel_overview

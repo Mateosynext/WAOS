@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { ReactNode } from "react";
 import { logoutAction, switchOrganizationAction } from "./actions";
+import AppBreadcrumbs from "./components/AppBreadcrumbs";
+import AppNavLink from "./components/AppNavLink";
 import OrganizationSwitcher from "./components/OrganizationSwitcher";
+import CommandPalette from "./components/CommandPalette";
 import { UiMessage } from "./components/UiMessage";
 import { getSession } from "./lib/session";
 
@@ -47,49 +50,42 @@ type IconName =
 
 const superAdminNavigation = [
   {
-    group: "Inicio y enfoque",
+    group: "Empezar",
     items: [
-      { label: "Home", href: "/", icon: "dashboard" as const },
-      { label: "Onboarding", href: "/onboarding", icon: "route" as const },
-      { label: "Verticales", href: "/verticals", icon: "layers" as const },
-      { label: "Búsqueda", href: "/search", icon: "target" as const },
+      { label: "Inicio", href: "/", icon: "dashboard" as const, exact: true },
+      { label: "Puesta en marcha", href: "/onboarding", icon: "route" as const },
+      { label: "Bot", href: "/bot-studio", icon: "bot" as const },
+      { label: "Organizaciones", href: "/organizations", icon: "client" as const },
     ],
   },
   {
-    group: "Trabajo diario",
+    group: "Operación diaria",
     items: [
       { label: "Inbox", href: "/inbox", icon: "chat" as const },
       { label: "Agenda", href: "/agenda", icon: "calendar" as const },
-      { label: "Resultados", href: "/insights", icon: "insights" as const },
-      { label: "Clientes", href: "/client", icon: "client" as const },
+      { label: "Operaciones", href: "/operations", icon: "stats" as const },
+      { label: "Vacantes", href: "/vacantes", icon: "briefcase" as const },
+      { label: "Publicaciones", href: "/releases", icon: "rocket" as const },
     ],
   },
   {
-    group: "Configuración y salida",
+    group: "Comercial y cliente",
     items: [
-      { label: "Bots", href: "/bots", icon: "bot" as const },
-      { label: "Integraciones", href: "/integrations", icon: "plug" as const },
-      { label: "Releases", href: "/releases", icon: "layers" as const },
-    ],
-  },
-  {
-    group: "Mantenimiento",
-    items: [
-      { label: "Estado", href: "/status", icon: "stats" as const },
+      { label: "Comercial", href: "/business-hub", icon: "briefcase" as const },
+      { label: "Portal cliente", href: "/client/resumen", icon: "client" as const },
+      { label: "Búsqueda", href: "/search", icon: "target" as const },
       { label: "Seguridad", href: "/security", icon: "shield" as const },
-      { label: "Scheduler", href: "/scheduler", icon: "clock" as const },
-      { label: "Soporte", href: "/support", icon: "support" as const },
     ],
   },
 ] as const;
 
 const clientNavigation = [
-  { label: "Resumen", href: "/client?section=resumen", icon: "dashboard" as const },
-  { label: "Conversaciones", href: "/client?section=conversaciones", icon: "chat" as const },
-  { label: "Agenda", href: "/client?section=agenda", icon: "calendar" as const },
-  { label: "Promociones", href: "/client?section=promociones", icon: "promo" as const },
-  { label: "Solicitudes", href: "/client?section=solicitudes", icon: "folder" as const },
-  { label: "Estado del bot", href: "/client?section=bot", icon: "bot" as const },
+  { label: "Resumen", href: "/client/resumen", icon: "dashboard" as const },
+  { label: "Conversaciones", href: "/client/conversaciones", icon: "chat" as const },
+  { label: "Agenda", href: "/client/agenda", icon: "calendar" as const },
+  { label: "Promociones", href: "/client/promociones", icon: "promo" as const },
+  { label: "Solicitudes", href: "/client/solicitudes", icon: "folder" as const },
+  { label: "Bot", href: "/client/bot", icon: "bot" as const },
 ] as const;
 
 export function Icon({ name, className = "h-4 w-4" }: { name: IconName; className?: string }) {
@@ -162,6 +158,25 @@ function formatLabel(label: string) {
   return label.length > 26 ? `${label.slice(0, 26)}…` : label;
 }
 
+function QuickLinks({ mode }: { mode: AppMode }) {
+  if (mode === "client") {
+    return (
+      <>
+        <AppNavLink href="/client/resumen" className="primary-btn" exact>Inicio cliente</AppNavLink>
+        <AppNavLink href="/client/solicitudes" className="secondary-btn">Solicitudes</AppNavLink>
+      </>
+    );
+  }
+  return (
+    <>
+      <AppNavLink href="/" className="primary-btn" exact>Inicio</AppNavLink>
+      <AppNavLink href="/onboarding" className="secondary-btn">Puesta en marcha</AppNavLink>
+      <AppNavLink href="/inbox" className="secondary-btn">Inbox</AppNavLink>
+      <AppNavLink href="/client/resumen" className="secondary-btn">Portal cliente</AppNavLink>
+    </>
+  );
+}
+
 export async function Shell({
   title,
   subtitle,
@@ -179,102 +194,169 @@ export async function Shell({
   const org = session?.user.organizations?.find((item) => item.id === session?.organizationId) || null;
   const name = session?.user.full_name || session?.user.email || "Sin sesión";
   const navigation = mode === "client" ? [] : superAdminNavigation;
+  const requiresOrganization = mode === "superadmin" && Boolean(session?.user.organizations?.length && session.user.organizations.length > 1 && !session.organizationId);
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.12),_transparent_24%),radial-gradient(circle_at_right,_rgba(34,197,94,0.12),_transparent_18%),linear-gradient(180deg,#07111f_0%,#0b1220_100%)] text-slate-50">
-      <div className="mx-auto grid min-h-screen max-w-[1600px] gap-6 px-4 py-4 lg:grid-cols-[292px_minmax(0,1fr)] lg:px-6">
+    <main id="main-content" className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.12),_transparent_24%),radial-gradient(circle_at_right,_rgba(34,197,94,0.12),_transparent_18%),linear-gradient(180deg,#07111f_0%,#0b1220_100%)] text-slate-50">
+      <div className="mx-auto max-w-[1600px] px-4 py-4 lg:px-6">
         {mode === "superadmin" ? (
-          <aside className="panel sticky top-4 hidden h-[calc(100vh-2rem)] overflow-hidden lg:flex lg:flex-col">
-            <div className="border-b border-white/[0.08] px-5 py-5">
-              <div className="flex items-center gap-3">
-                <div className="grid h-12 w-12 place-items-center rounded-2xl border border-emerald-400/[0.25] bg-emerald-400/[0.12] text-emerald-200">
-                  <Icon name="bot" className="h-6 w-6" />
-                </div>
-                <div>
-                  <div className="text-lg font-semibold text-white">WAOS</div>
-                  <div className="text-sm text-slate-400">Modo super admin</div>
-                </div>
-              </div>
-              <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm text-slate-300">
+          <details className="panel mb-4 overflow-hidden lg:hidden">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 font-medium text-white">
+              <span className="inline-flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-2xl border border-emerald-400/[0.25] bg-emerald-400/[0.12] text-emerald-200">
+                  <Icon name="bot" className="h-5 w-5" />
+                </span>
+                <span>Menú principal</span>
+              </span>
+              <span className="text-xs uppercase tracking-[0.16em] text-slate-400">Abrir</span>
+            </summary>
+            <div className="border-t border-white/[0.08] px-4 py-4">
+              <div className="mb-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm text-slate-300">
                 <div className="font-medium text-white">{org?.name || "Organización"}</div>
                 <div className="mt-1 text-slate-400">{org?.vertical || "Operación omnicanal"}</div>
               </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-4 py-4">
-              <nav className="space-y-5">
+              <nav className="space-y-4">
                 {navigation.map((group) => (
                   <div key={group.group} className="space-y-2">
                     <div className="px-2 text-[11px] font-medium uppercase tracking-[0.22em] text-slate-500">{group.group}</div>
                     <div className="space-y-1.5">
                       {group.items.map((item) => (
-                        <Link key={item.href} href={item.href} className="nav-link flex items-center gap-3">
+                        <AppNavLink
+                          key={item.href}
+                          href={item.href}
+                          exact={item.exact}
+                          className="nav-link flex items-center gap-3"
+                          activeClassName="nav-link-active"
+                        >
                           <span className="grid h-9 w-9 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-slate-200">
                             <Icon name={item.icon} className="h-4 w-4" />
                           </span>
                           <span>{item.label}</span>
-                        </Link>
+                        </AppNavLink>
                       ))}
                     </div>
                   </div>
                 ))}
               </nav>
             </div>
-
-            <div className="border-t border-white/[0.08] px-4 py-4">
-              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4">
-                <div className="text-sm font-medium text-white">{formatLabel(name)}</div>
-                <div className="mt-1 text-xs text-slate-400">{session?.user.global_role || "super_admin"}</div>
-                <div className="mt-3 flex gap-2">
-                  <Link href="/search" className="secondary-btn flex-1">Buscar</Link>
-                  <Link href="/client" className="secondary-btn flex-1">Portal cliente</Link>
-                  <form action={logoutAction} className="flex-1">
-                    <button type="submit" className="secondary-btn w-full">Salir</button>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </aside>
+          </details>
         ) : null}
 
-        <section className="min-w-0 pb-6">
-          <header className="panel px-5 py-5 lg:px-6 lg:py-6">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={mode === "client" ? "sky" : "green"}>{mode === "client" ? "Portal cliente" : "Modo super admin"}</Badge>
-                  {org?.name ? <Badge tone="slate">{org.name}</Badge> : null}
-                  {session?.user.organizations && session.user.organizations.length > 1 ? (
-                    <OrganizationSwitcher organizations={session.user.organizations.map((item) => ({ id: item.id, name: item.name }))} selectedId={session.organizationId || null} redirectTo={mode === "client" ? "/client" : "/"} action={switchOrganizationAction} />
-                  ) : null}
+        <div className={`grid min-h-[calc(100vh-2rem)] gap-6 ${mode === "superadmin" ? "lg:grid-cols-[292px_minmax(0,1fr)]" : ""}`}>
+          {mode === "superadmin" ? (
+            <aside className="panel sticky top-4 hidden h-[calc(100vh-2rem)] overflow-hidden lg:flex lg:flex-col">
+              <div className="border-b border-white/[0.08] px-5 py-5">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-12 w-12 place-items-center rounded-2xl border border-emerald-400/[0.25] bg-emerald-400/[0.12] text-emerald-200">
+                    <Icon name="bot" className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <div className="text-lg font-semibold text-white">WAOS</div>
+                    <div className="text-sm text-slate-400">Opera claro y sin ruido</div>
+                  </div>
                 </div>
-                <div>
-                  <h1 className="text-3xl font-semibold tracking-[-0.05em] text-white lg:text-4xl">{title}</h1>
-                  <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-300 lg:text-[15px]">{subtitle}</p>
+                <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm text-slate-300">
+                  <div className="font-medium text-white">{org?.name || "Organización"}</div>
+                  <div className="mt-1 text-slate-400">{org?.vertical || "Sin vertical activa"}</div>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-3">{action}</div>
-            </div>
-            {mode === "superadmin" && session?.user.organizations && session.user.organizations.length > 1 && !session.organizationId ? (
-              <div className="mt-5"><UiMessage title="Selecciona una organización" tone="warning">Tu sesión tiene más de una organización disponible. Elige una arriba o ve a <a className="underline" href="/organizations">/organizations</a> para fijar el contexto antes de operar.</UiMessage></div>
-            ) : null}
-            <div className="mt-5 flex flex-wrap gap-3 border-t border-white/[0.08] pt-5">
-              {mode === "superadmin" ? (
-                <>
-                  <Link href="/" className="primary-btn">Home super admin</Link>
-                  <Link href="/onboarding" className="secondary-btn">Onboarding</Link>
-                  <Link href="/client" className="secondary-btn">Portal cliente</Link>
-                </>
-              ) : (
-                <>
-                  <Link href="/client?section=resumen" className="primary-btn">Home cliente</Link>
-                  <Link href="/client?section=solicitudes" className="secondary-btn">Solicitudes</Link>
-                </>
-              )}
-            </div>
-          </header>
-          <div className="mt-6 space-y-6">{children}</div>
-        </section>
+
+              <div className="flex-1 overflow-y-auto px-4 py-4">
+                <nav className="space-y-5">
+                  {navigation.map((group) => (
+                    <div key={group.group} className="space-y-2">
+                      <div className="px-2 text-[11px] font-medium uppercase tracking-[0.22em] text-slate-500">{group.group}</div>
+                      <div className="space-y-1.5">
+                        {group.items.map((item) => (
+                          <AppNavLink
+                            key={item.href}
+                            href={item.href}
+                            exact={item.exact}
+                            className="nav-link flex items-center gap-3"
+                            activeClassName="nav-link-active"
+                          >
+                            <span className="grid h-9 w-9 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-slate-200">
+                              <Icon name={item.icon} className="h-4 w-4" />
+                            </span>
+                            <span>{item.label}</span>
+                          </AppNavLink>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </nav>
+              </div>
+
+              <div className="border-t border-white/[0.08] px-4 py-4">
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4">
+                  <div className="text-sm font-medium text-white">{formatLabel(name)}</div>
+                  <div className="mt-1 text-xs text-slate-400">{session?.user.global_role || "super_admin"}</div>
+                  <div className="mt-3 flex gap-2">
+                    <CommandPalette />
+                    <AppNavLink href="/client/resumen" className="secondary-btn flex-1">Portal cliente</AppNavLink>
+                    <form action={logoutAction} className="flex-1">
+                      <button type="submit" className="secondary-btn w-full">Salir</button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          ) : null}
+
+          <section className="min-w-0 pb-6">
+            <header className="panel px-5 py-5 lg:px-6 lg:py-6">
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={mode === "client" ? "sky" : "green"}>{mode === "client" ? "Portal cliente" : "Super admin"}</Badge>
+                  {org?.name ? <Badge tone="slate">{org.name}</Badge> : null}
+                  {org?.vertical ? <Badge tone="gold">{org.vertical}</Badge> : null}
+                </div>
+
+                <AppBreadcrumbs />
+
+                {session?.user.organizations && session.user.organizations.length > 1 ? (
+                  <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
+                    <div className="mb-1 text-sm font-medium text-white">Contexto activo</div><p className="mb-3 text-sm leading-6 text-slate-300">Cambia la organización aquí cuando necesites revisar otro tenant, sin salir del flujo actual.</p>
+                    <OrganizationSwitcher
+                      organizations={session.user.organizations.map((item) => ({ id: item.id, name: item.name, vertical: item.vertical }))}
+                      selectedId={session.organizationId || null}
+                      redirectTo={mode === "client" ? "/client/resumen" : "/organizations"}
+                      action={switchOrganizationAction}
+                    />
+                  </div>
+                ) : null}
+
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+                  <div className="space-y-3">
+                    <h1 className="text-3xl font-semibold tracking-[-0.05em] text-white lg:text-4xl">{title}</h1>
+                    <p className="max-w-4xl text-sm leading-7 text-slate-300 lg:text-[15px]">{subtitle}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    {mode === "superadmin" ? <CommandPalette /> : null}
+                    <QuickLinks mode={mode} />
+                    {action}
+                  </div>
+                </div>
+              </div>
+
+              {!requiresOrganization ? (
+                <div className="mt-5 flex flex-wrap gap-2 text-xs text-slate-300">
+                  <span className="mono-pill">Usa Ctrl/⌘ K para saltar</span>
+                  <span className="mono-pill">Tu contexto activo se mantiene visible</span>
+                  <span className="mono-pill">Portal cliente separado del modo interno</span>
+                </div>
+              ) : null}
+              {requiresOrganization ? (
+                <div className="mt-5">
+                  <UiMessage title="Primero fija una organización" tone="warning">
+                    Tu cuenta ve varias organizaciones. Selecciona una para no mezclar inbox, bots, integraciones ni releases.
+                  </UiMessage>
+                </div>
+              ) : null}
+            </header>
+            <div className="mt-6 space-y-6">{requiresOrganization ? <EmptyActionState title="Antes de operar, confirma el contexto" description="La app ya bloquea pantallas críticas cuando no hay organización activa. Elige una organización desde el bloque superior o entra a Organizaciones para revisar el contexto completo antes de seguir." primaryAction={<AppNavLink href="/organizations" className="primary-btn">Elegir organización</AppNavLink>} secondaryAction={<AppNavLink href="/client/resumen" className="secondary-btn">Abrir vista cliente</AppNavLink>} /> : children}</div>
+          </section>
+        </div>
       </div>
     </main>
   );
@@ -362,16 +444,18 @@ export function DataTable({ columns, rows }: { columns: string[]; rows: Array<Ar
   if (!rows.length) return <EmptyState title="Todavía no hay datos" description="Cuando haya información disponible, aparecerá aquí de forma clara y ordenada." />;
   return (
     <div className="overflow-hidden rounded-3xl border border-white/[0.08]">
-      <table className="min-w-full divide-y divide-white/[0.08] text-left text-sm">
-        <thead className="bg-white/[0.05] text-slate-300">
-          <tr>{columns.map((column) => <th key={column} className="px-4 py-3 text-[11px] font-medium uppercase tracking-[0.18em]">{column}</th>)}</tr>
-        </thead>
-        <tbody className="divide-y divide-white/[0.08] bg-slate-950/20 text-slate-100">
-          {rows.map((row, index) => (
-            <tr key={index} className="transition hover:bg-white/[0.03]">{row.map((cell, cellIndex) => <td key={cellIndex} className="px-4 py-3 align-top text-sm text-slate-100">{cell}</td>)}</tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-white/[0.08] text-left text-sm">
+          <thead className="bg-white/[0.05] text-slate-300">
+            <tr>{columns.map((column) => <th key={column} className="px-4 py-3 text-[11px] font-medium uppercase tracking-[0.18em]">{column}</th>)}</tr>
+          </thead>
+          <tbody className="divide-y divide-white/[0.08] bg-slate-950/20 text-slate-100">
+            {rows.map((row, index) => (
+              <tr key={index} className="transition hover:bg-white/[0.03]">{row.map((cell, cellIndex) => <td key={cellIndex} className="px-4 py-3 align-top text-sm text-slate-100">{cell}</td>)}</tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -416,8 +500,16 @@ export function TimelineList({ items }: { items: Array<{ title: string; detail: 
   );
 }
 
-export function PortalTabs({ current }: { current: string }) {
-  return <SegmentedLinks items={clientNavigation.map((item) => ({ ...item, active: item.href.includes(`section=${current}`) || (current === "resumen" && item.href.endsWith("resumen")) }))} />;
+export function PortalTabs() {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {clientNavigation.map((item) => (
+        <AppNavLink key={item.href} href={item.href} className="secondary-btn" activeClassName="primary-btn">
+          {item.label}
+        </AppNavLink>
+      ))}
+    </div>
+  );
 }
 
 export function StoryBeat({ step, title, description, outcome, tone = "slate" }: { step: string; title: string; description: string; outcome?: string; tone?: "slate" | "green" | "gold" | "red" | "blue" }) {
@@ -487,7 +579,6 @@ export function WhatsAppPreview({ title, scenario, userPrompt, blocks, footer, t
   );
 }
 
-
 export function SecondaryNav({ items }: { items: Array<{ href: string; label: string; active?: boolean }> }) {
   return (
     <div className="flex flex-wrap gap-2 rounded-3xl border border-white/[0.08] bg-white/[0.03] p-2">
@@ -537,7 +628,6 @@ export function EmptyActionState({ title, description, primaryAction, secondaryA
     </div>
   );
 }
-
 
 export function PermissionGate({ allowed, fallback = null, children }: { allowed: boolean; fallback?: ReactNode; children: ReactNode }) {
   return allowed ? <>{children}</> : <>{fallback}</>;

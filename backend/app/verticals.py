@@ -740,12 +740,12 @@ _VERTICALS: list[dict[str, Any]] = [
      'subverticals': ['prospectos inbound',
                       'referidos',
                       'campanas',
-                      'reactivacion de clientes frios',
+                      'reactivacion de leads frios',
                       'agenda de demos',
                       'cierres consultivos',
                       'takeover humano',
                       'instalacion'],
-     'objects': ['cliente',
+     'objects': ['lead',
                  'dolor',
                  'fuga comercial',
                  'objecion',
@@ -761,18 +761,18 @@ _VERTICALS: list[dict[str, Any]] = [
                'diagnostico -> demo',
                'demo -> propuesta',
                'propuesta -> instalacion',
-               'cliente frio -> reactivacion'],
+               'lead frio -> reactivacion'],
      'kpis': ['reply speed',
-              'cliente a demo',
+              'lead to demo',
               'demo show rate',
               'demo to propuesta',
               'propuesta a cierre',
-              'reactivacion de clientes',
+              'reactivacion de leads',
               'conversaciones que no mueren'],
      'recommended_integrations': ['whatsapp', 'crm', 'calendar', 'webhooks', 'analytics'],
      'default_services': ['diagnostico express', 'demo guiada', 'setup inicial', 'instalacion', 'takeover humano'],
      'default_faqs': [{'q': 'Que hace WAOS exactamente?',
-                       'a': 'Te ayuda a responder mejor, seguir clientes, no perder clientes y mover conversaciones a venta '
+                       'a': 'Te ayuda a responder mejor, seguir prospectos, no perder leads y mover conversaciones a venta '
                             'por WhatsApp.'},
                       {'q': 'Va a sonar como robot?',
                        'a': 'No deberia. Esta vertical esta pensada para sonar cercana, clara y comercial, sin verse tiesa '
@@ -781,11 +781,7 @@ _VERTICALS: list[dict[str, Any]] = [
                        'a': 'Si. La idea es que nunca se quede seco: conecta, responde, reubica y sigue vendiendo.'},
                       {'q': 'Tambien agenda demos o seguimiento?',
                        'a': 'Si. Puede llevar a demo, diagnostico, propuesta o takeover humano segun el momento del '
-                            'cliente.'},
-                      {'q': 'Me puedes mostrar un ejemplo en mi tipo de negocio?',
-                       'a': 'Si. Si gustas, puedo actuar como si ya fuera tu negocio y responder como un gimnasio, '
-                            'un spa, una clinica o el giro que te interese para que veas como se sentiria la '
-                            'conversacion con WAOS.'}],
+                            'prospecto.'}],
      'behavior': {'tone': 'cercano, relajado y filoso',
                   'response_length': 'media',
                   'use_emojis': False,
@@ -807,10 +803,9 @@ _VERTICALS: list[dict[str, Any]] = [
                                        'prometer resultados exactos',
                                        'fingir ser persona',
                                        'hablar como sistema'],
-                  'required_phrases': ['nunca se queda seco', 'te lo aterrizo a tu caso',
-                                       'si gustas, puedo actuar como si fuera tu negocio'],
+                  'required_phrases': ['nunca se queda seco', 'te lo aterrizo a tu caso'],
                   'fallback_message': 'Te sigo. Aunque la conversacion venga medio en caos, te ayudo a aterrizar si hoy te '
-                                      'conviene responder mejor, seguir clientes o cerrar mas por WhatsApp.'},
+                                      'conviene responder mejor, seguir leads o cerrar mas por WhatsApp.'},
      'followup_rules': [{'type': 'no_response',
                          'delay_minutes': 180,
                          'max_attempts': 2,
@@ -820,7 +815,7 @@ _VERTICALS: list[dict[str, Any]] = [
                          'delay_minutes': 1440,
                          'max_attempts': 2,
                          'message_template': 'Quedo pendiente por si quieres ver un ejemplo ya aterrizado a tu caso o '
-                                             'revisar como no dejar clientes tirados en WhatsApp.'},
+                                             'revisar como no dejar leads tirados en WhatsApp.'},
                         {'type': 'reactivation',
                          'delay_minutes': 10080,
                          'max_attempts': 1,
@@ -829,7 +824,7 @@ _VERTICALS: list[dict[str, Any]] = [
      'templates': [{'template_key': 'lead_capture',
                     'title': 'Entrada con colmillo',
                     'content': 'Que bueno que escribiste. Te ayudo a aterrizar rapido si hoy el dolor esta en responder, '
-                               'seguir clientes o cerrar mejor por WhatsApp.',
+                               'seguir prospectos o cerrar mejor por WhatsApp.',
                     'variables': []},
                    {'template_key': 'pain_diagnosis',
                     'title': 'Mini diagnostico',
@@ -838,9 +833,8 @@ _VERTICALS: list[dict[str, Any]] = [
                     'variables': []},
                    {'template_key': 'demo_offer',
                     'title': 'Invitacion a demo',
-                    'content': 'Si gustas, puedo actuar como si ya fuera tu negocio y darte un ejemplo real. Por ejemplo, '
-                               'puedo responder como un gimnasio, un spa, una clinica o el giro que te interese para '
-                               'que veas como WAOS contestaria, reubicaria y moveria la conversacion a venta.',
+                    'content': 'Si te late, te enseño con un ejemplo como se veria WAOS contestando, reubicando y moviendo '
+                               'la conversacion a venta en tu negocio.',
                     'variables': []},
                    {'template_key': 'objection_followup',
                     'title': 'Seguimiento con humor ligero',
@@ -858,7 +852,7 @@ _VERTICALS: list[dict[str, Any]] = [
                                        'No cortar conversaciones en frio',
                                        'Primero validar el momento emocional y luego vender'],
                           'can_say': ['responder mejor',
-                                      'seguir clientes',
+                                      'seguir leads',
                                       'agendar demo',
                                       'takeover humano',
                                       'recuperar conversaciones frias',

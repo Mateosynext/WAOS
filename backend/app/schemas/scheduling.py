@@ -24,6 +24,22 @@ class AppointmentStatusRequest(BaseModel):
     reason: str = ""
 
 
+class AgendaReminderPreferencesRequest(BaseModel):
+    organization_id: str
+    tone: Literal["amable", "formal", "cercano"] = "amable"
+    hours_before: int = 24
+    last_hours: int = 2
+    count: int = 2
+
+
+class AgendaBlockedSlotRequest(BaseModel):
+    organization_id: str
+    bot_id: str | None = None
+    start_at: str
+    end_at: str
+    reason: str = ""
+
+
 class I18nConfigRequest(BaseModel):
     organization_id: str
     bot_id: str

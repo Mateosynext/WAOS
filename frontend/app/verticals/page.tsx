@@ -38,12 +38,32 @@ export default async function VerticalsPage({ searchParams }: { searchParams?: P
   const selectedVerticalId = first(params.vertical);
   const verticals = await getVerticalCatalog();
   const selected = verticals.find((item) => item.id === selectedVerticalId) || verticals[0];
-  const profile = await getVerticalProfile(selected?.id);
+
+  if (!selected) {
+    return (
+      <Shell
+        title="Portafolio vertical WAOS"
+        subtitle="No se pudo cargar el catálogo de verticales."
+        action={<Link href="/bot-studio" className="primary-btn">Ir a Bot Studio</Link>}
+      >
+        <Section title="Catálogo no disponible" subtitle="La API no devolvió verticales o la sesión no pudo resolver el catálogo." icon="alert">
+          <ModuleCard
+            title="Sin verticales disponibles"
+            description="Recarga la página, vuelve a iniciar sesión o revisa la conexión del frontend con /api/v1/verticals."
+            icon="alert"
+            tone="red"
+          />
+        </Section>
+      </Shell>
+    );
+  }
+
+  const profile = await getVerticalProfile(selected.id);
 
   const segmented = verticals.map((item) => ({
     href: `/verticals?vertical=${encodeURIComponent(item.id)}`,
-    label: item.name.replace(/^WAOS\s+/i, ""),
-    active: item.id === profile.id,
+    label: safeText(item.name).replace(/^WAOS\s+/i, ""),
+    active: item.id === selected.id,
   }));
 
   const pipelineRows = [

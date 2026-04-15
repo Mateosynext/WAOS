@@ -76,11 +76,13 @@ setup_observability()
 @app.middleware("http")
 async def waos_runtime_headers(request: Request, call_next):
     request_id = request.headers.get("x-request-id") or new_id("req")
+    correlation_id = request.headers.get("x-correlation-id") or request_id
     started_at = time.perf_counter()
     org_id = extract_org_id(request)
     bot_id = extract_bot_id(request)
     user_id = extract_request_user_id(request)
     request.state.request_id = request_id
+    request.state.correlation_id = correlation_id
     request.state.organization_id = org_id
     request.state.bot_id = bot_id
     request.state.user_id = user_id
@@ -97,10 +99,12 @@ async def waos_runtime_headers(request: Request, call_next):
             path=request.url.path,
             method=request.method,
             duration_ms=elapsed_ms,
+            correlation_id=correlation_id,
         )
         return JSONResponse(status_code=500, content={"detail": "Internal server error", "request_id": request_id})
     elapsed_ms = round((time.perf_counter() - started_at) * 1000, 2)
     response.headers["X-Request-Id"] = request_id
+    response.headers["X-Correlation-Id"] = correlation_id
     response.headers["X-Process-Time-Ms"] = str(elapsed_ms)
     response.headers["X-WAOS-Version"] = settings.app_version
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
@@ -120,6 +124,8 @@ async def waos_runtime_headers(request: Request, call_next):
         path=request.url.path,
         status_code=response.status_code,
         duration_ms=elapsed_ms,
+        correlation_id=correlation_id,
+        transaction_mode=getattr(request.state, "transaction_mode", None),
     )
     return response
 

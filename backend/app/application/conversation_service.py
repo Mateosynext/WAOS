@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import HTTPException
 
 from ..config import settings
+from ..contact_intelligence import enrich_conversation_row
 from ..db import fetch_all, fetch_one
 from ..performance import clamp_limit, clamp_offset
 from ..repositories import create_audit_log, create_message, get_bot, get_contact_memory, get_conversation
@@ -32,10 +33,10 @@ class ConversationService:
         if status:
             where_sql += " AND c.status = ? "
             params.append(status)
-        return fetch_all(
+        rows = fetch_all(
             conn,
             f"""
-            SELECT c.*, ct.name as contact_name, ct.phone as contact_phone, b.name as bot_name, cm.lead_stage, cm.lead_score, cm.summary
+            SELECT c.*, ct.name as contact_name, ct.phone as contact_phone, b.name as bot_name, cm.lead_stage, cm.lead_score, cm.summary, cm.memory_json
             FROM conversations c
             JOIN contacts ct ON ct.id = c.contact_id
             JOIN bots b ON b.id = c.bot_id
@@ -46,6 +47,7 @@ class ConversationService:
             """,
             params + [clamp_limit(limit), clamp_offset(offset)],
         )
+        return [enrich_conversation_row(row) for row in rows]
 
     def get(self, uow: UnitOfWork, *, user: dict, conversation_id: str) -> dict:
         conn = uow.conn

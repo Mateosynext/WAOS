@@ -42,15 +42,12 @@ services:
         sync: false
       - key: ALLOWED_HOSTS
         sync: false
-
-      # Gemini por compatibilidad OpenAI
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL
         value: gemini-3-flash-preview
       - key: OPENAI_BASE_URL
         value: https://generativelanguage.googleapis.com/v1beta/openai/
-
       - key: META_VERIFY_TOKEN
         sync: false
       - key: SENTRY_DSN
@@ -69,7 +66,6 @@ services:
         value: 4
       - key: META_GRAPH_API_BASE
         value: https://graph.facebook.com/v23.0
-
     buildFilter:
       paths:
         - backend/**
@@ -110,8 +106,6 @@ services:
           name: waos-api
           type: web
           envVarKey: SECRET_ENCRYPTION_KEY
-
-      # hereda la key/model/base del api
       - key: OPENAI_API_KEY
         fromService:
           name: waos-api
@@ -127,7 +121,6 @@ services:
           name: waos-api
           type: web
           envVarKey: OPENAI_BASE_URL
-
       - key: META_GRAPH_API_BASE
         fromService:
           name: waos-api
@@ -139,7 +132,6 @@ services:
         value: 5
       - key: WORKER_BATCH_SIZE
         value: 50
-
     buildFilter:
       paths:
         - backend/**

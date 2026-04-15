@@ -23,6 +23,8 @@ from .backend_runtime import ensure_backend_runtime_schema
 from .domains.schema_setup import ensure_v9_schema
 from .vertical_transactions import ensure_vertical_transaction_schema
 from .vertical_domain_runtime import ensure_vertical_domain_schema
+from .talent_runtime import ensure_talent_schema
+from .migrations import apply_migrations, migration_status as _migration_status
 
 THIS_FILE = Path(__file__).resolve()
 ROOT = next(
@@ -217,7 +219,7 @@ def get_connection() -> DBConnection:
 
 
 def _column_exists(conn: DBConnection, table: str, column: str) -> bool:
-    if conn.backend == "sqlite":
+    if getattr(conn, "backend", "sqlite") == "sqlite":
         rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
         return any(row[1] == column for row in rows)
     row = conn.execute(
@@ -237,6 +239,30 @@ def _ensure_column(conn: DBConnection, table: str, column: str, definition: str)
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
+def has_column(conn: DBConnection, table: str, column: str) -> bool:
+    return _column_exists(conn, table, column)
+
+
+def table_exists(conn: DBConnection, table: str) -> bool:
+    if getattr(conn, "backend", "sqlite") == "sqlite":
+        row = conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)).fetchone()
+        return bool(row)
+    row = conn.execute(
+        """
+        SELECT 1 AS present
+        FROM information_schema.tables
+        WHERE table_schema = current_schema() AND table_name = ?
+        LIMIT 1
+        """,
+        (table,),
+    ).fetchone()
+    return bool(row)
+
+
+def migration_status(conn: DBConnection) -> dict[str, object]:
+    return _migration_status(conn)
+
+
 def init_db() -> None:
     if settings.database_backend == "sqlite":
         Path(get_db_path()).parent.mkdir(parents=True, exist_ok=True)
@@ -247,6 +273,7 @@ def init_db() -> None:
         ensure_backend_runtime_schema(conn)
         ensure_vertical_transaction_schema(conn)
         ensure_vertical_domain_schema(conn)
+        ensure_talent_schema(conn)
         _ensure_column(conn, "secret_entries", "value_encrypted", "TEXT")
         _ensure_column(conn, "secret_entries", "encryption_version", "TEXT NOT NULL DEFAULT 'v1'")
         _ensure_column(conn, "secret_entries", "metadata_json", "TEXT NOT NULL DEFAULT '{}'")
@@ -337,6 +364,8 @@ def init_db() -> None:
         _ensure_column(conn, "executive_reports", "pdf_filename", "TEXT")
         _ensure_column(conn, "executive_reports", "pdf_generated_at", "TEXT")
         _ensure_column(conn, "executive_reports", "updated_at", "TEXT")
+
+        apply_migrations(conn)
 
         conn.executescript(
             """
@@ -447,6 +476,38 @@ def init_db() -> None:
                 last_user_agent TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_auth_login_attempts_blocked ON auth_login_attempts(blocked_until, last_attempt_at);
+
+            CREATE TABLE IF NOT EXISTS agenda_reminder_preferences (
+                id TEXT PRIMARY KEY,
+                organization_id TEXT NOT NULL UNIQUE,
+                tone TEXT NOT NULL DEFAULT 'amable',
+                hours_before INTEGER NOT NULL DEFAULT 24,
+                last_hours INTEGER NOT NULL DEFAULT 2,
+                count INTEGER NOT NULL DEFAULT 2,
+                updated_by_user_id TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (organization_id) REFERENCES organizations(id),
+                FOREIGN KEY (updated_by_user_id) REFERENCES users(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_agenda_reminder_preferences_org ON agenda_reminder_preferences(organization_id, updated_at DESC);
+
+            CREATE TABLE IF NOT EXISTS agenda_blocked_slots (
+                id TEXT PRIMARY KEY,
+                organization_id TEXT NOT NULL,
+                bot_id TEXT,
+                start_at TEXT NOT NULL,
+                end_at TEXT NOT NULL,
+                reason TEXT,
+                created_by_user_id TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (organization_id) REFERENCES organizations(id),
+                FOREIGN KEY (bot_id) REFERENCES bots(id),
+                FOREIGN KEY (created_by_user_id) REFERENCES users(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_agenda_blocked_slots_org ON agenda_blocked_slots(organization_id, start_at);
+            CREATE INDEX IF NOT EXISTS idx_agenda_blocked_slots_bot ON agenda_blocked_slots(bot_id, start_at);
             """
         )
         conn.commit()

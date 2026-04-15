@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
 from ..config import settings
-from ..db import fetch_one, get_pool_stats
+from ..db import fetch_all, fetch_one, get_pool_stats, migration_status, table_exists
 from ..repositories import create_audit_log
 from .uow import UnitOfWork
 
@@ -92,6 +92,40 @@ class SystemService:
         payload = self.system_status_payload(uow)
         status_code = 503 if payload["status"] == "error" else 200
         return JSONResponse(status_code=status_code, content=payload)
+
+    def runtime_health_panel(self, uow: UnitOfWork) -> dict[str, Any]:
+        conn = uow.conn
+        migrations = migration_status(conn)
+
+        def _count(sql: str, params=()) -> int:
+            row = fetch_one(conn, sql, params)
+            return int((row or {}).get("value") or 0)
+
+        queue = {
+            "jobs_queued": _count("SELECT COUNT(*) AS value FROM automation_jobs WHERE status IN ('queued', 'retry')"),
+            "jobs_stuck": _count("SELECT COUNT(*) AS value FROM automation_jobs WHERE status = 'locked'"),
+            "outbox_queued": _count("SELECT COUNT(*) AS value FROM outbox_messages WHERE status IN ('queued', 'retry')"),
+            "outbox_dead_letters": _count("SELECT COUNT(*) AS value FROM outbox_messages WHERE status = 'dead_letter'"),
+        }
+        webhooks = {
+            "locks_processing": _count("SELECT COUNT(*) AS value FROM inbound_message_locks WHERE status = 'processing'") if table_exists(conn, 'inbound_message_locks') else 0,
+            "recent_receipts": _count("SELECT COUNT(*) AS value FROM webhook_event_receipts") if table_exists(conn, 'webhook_event_receipts') else 0,
+        }
+        releases = {
+            "blocked": _count("SELECT COUNT(*) AS value FROM release_requests WHERE status IN ('blocked', 'rejected', 'pending_approval')") if table_exists(conn, 'release_requests') else 0,
+            "ready": _count("SELECT COUNT(*) AS value FROM release_requests WHERE status IN ('approved', 'ready', 'published')") if table_exists(conn, 'release_requests') else 0,
+        }
+        providers = fetch_all(conn, "SELECT provider, status, health_status, credential_status, last_error, updated_at FROM integration_connections ORDER BY updated_at DESC LIMIT 20") if table_exists(conn, 'integration_connections') else []
+        ai_ok = bool(settings.openai_api_key)
+        return {
+            "status": "ok" if migrations["pending_count"] == 0 else "degraded",
+            "database": {"backend": settings.database_backend, "pool": get_pool_stats(), "migrations": migrations},
+            "ai": {"configured": ai_ok, "provider": "openai" if ai_ok else "heuristic_only"},
+            "queue": queue,
+            "webhooks": webhooks,
+            "releases": releases,
+            "providers": providers,
+        }
 
     def get_global_settings(self, *, user: dict) -> dict[str, Any]:
         if user["global_role"] != "super_admin":

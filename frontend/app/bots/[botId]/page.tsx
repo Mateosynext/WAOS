@@ -25,6 +25,7 @@ export default async function BotPage({ params }: { params: Promise<{ botId: str
       { href: `/bots/${botId}`, label: "Resumen", active: true },
       { href: `/bots/${botId}/studio`, label: "Studio" },
       { href: `/bots/${botId}/versions`, label: "Versiones" },
+      { href: `/vacantes`, label: "Vacantes" },
       { href: `/releases?bot_id=${encodeURIComponent(botId)}`, label: "Releases" },
     ]} />
     <ContextTip>Tu rol visible ahora es {roleLabel(role)}. Este bot ya puede fijarse como contexto para releases y otras pantallas que antes adivinaban el primer bot disponible.</ContextTip>

@@ -13,3 +13,6 @@ from .commerce import *
 from .reports import *
 
 from .transactions import *
+from .webhooks import *
+
+from .talent import *

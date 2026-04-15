@@ -7,10 +7,12 @@
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
+  <div id="toast" class="toast hidden"></div>
+
   <div id="login-screen" class="login-screen">
     <div class="login-card">
       <div class="brand">WAOS</div>
-      <p class="muted">WhatsApp Agent Operating System</p>
+      <p class="muted">Un portal más claro para conversar, agendar, cobrar y vender.</p>
       <label>Email</label>
       <input id="login-email" value="" placeholder="correo@empresa.com" autocomplete="username" />
       <label>Password</label>
@@ -22,13 +24,18 @@
 
   <div id="app-shell" class="app-shell hidden">
     <aside class="sidebar">
-      <div class="brand large">WAOS</div>
-      <div class="sidebar-caption">Torre de control</div>
+      <div>
+        <div class="brand large">WAOS</div>
+        <div class="sidebar-caption">Torre de control comercial</div>
+      </div>
       <nav>
-        <button class="nav-item active" data-section="dashboard">Dashboard</button>
+        <button class="nav-item active" data-section="dashboard">Inicio</button>
+        <button class="nav-item" data-section="inbox">Conversaciones</button>
+        <button class="nav-item" data-section="clients">Clientes</button>
+        <button class="nav-item" data-section="agenda">Agenda</button>
+        <button class="nav-item" data-section="payments">Pagos y ventas</button>
+        <button class="nav-item" data-section="reports">Reportes</button>
         <button class="nav-item" data-section="bots">Bots</button>
-        <button class="nav-item" data-section="inbox">Inbox</button>
-        <button class="nav-item" data-section="leads">Clientes</button>
         <button class="nav-item" data-section="automations">Automatizaciones</button>
         <button class="nav-item" data-section="audit">Auditoría</button>
         <button class="nav-item" data-section="settings">Settings</button>
@@ -42,22 +49,272 @@
     <main class="main">
       <header class="topbar">
         <div>
-          <h1 id="section-title">Dashboard</h1>
-          <div class="muted" id="section-subtitle">Operación centralizada de agentes de WhatsApp</div>
+          <h1 id="section-title">Inicio</h1>
+          <div class="muted" id="section-subtitle">Resumen operativo y comercial del negocio.</div>
         </div>
-        <div class="toolbar">
-          <select id="org-filter"></select>
-          <button id="refresh-btn" class="secondary">Actualizar</button>
+        <div class="toolbar stack-mobile">
+          <div class="toolbar-group grow">
+            <select id="org-filter"></select>
+          </div>
+          <div class="toolbar-group">
+            <input id="global-search" placeholder="Buscar cliente, teléfono o motivo" />
+            <button id="refresh-btn" class="secondary">Actualizar</button>
+          </div>
         </div>
       </header>
 
       <section id="section-dashboard" class="section active">
-        <div id="dashboard-cards" class="cards"></div>
+        <div id="dashboard-hero"></div>
+        <div id="dashboard-actions"></div>
+        <div id="dashboard-cards" class="cards premium"></div>
+        <div class="grid two-thirds">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Lo más importante hoy</h3>
+              <span class="badge subtle" id="today-focus-count">0 pendientes</span>
+            </div>
+            <div id="dashboard-priority"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Salud del negocio</h3>
+            </div>
+            <div id="dashboard-health"></div>
+          </div>
+        </div>
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Metas del mes</h3>
+            </div>
+            <div id="dashboard-goals"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Alertas fáciles de entender</h3>
+            </div>
+            <div id="dashboard-alerts"></div>
+          </div>
+        </div>
         <div class="panel">
           <div class="panel-header">
-            <h3>Bots</h3>
+            <h3>Rendimiento de bots</h3>
           </div>
           <div id="dashboard-bots"></div>
+        </div>
+      </section>
+
+      <section id="section-inbox" class="section">
+        <div class="toolbar inbox-toolbar sticky-lite">
+          <div class="toolbar-group grow">
+            <input id="inbox-search" placeholder="Buscar por nombre, teléfono, servicio o motivo de contacto" />
+          </div>
+          <div class="toolbar-group wrap" id="inbox-filter-chips">
+            <button class="chip active" data-inbox-filter="all">Todas</button>
+            <button class="chip" data-inbox-filter="sin_respuesta">Sin respuesta</button>
+            <button class="chip" data-inbox-filter="quiere_cita">Quiere cita</button>
+            <button class="chip" data-inbox-filter="quiere_pagar">Quiere pagar</button>
+            <button class="chip" data-inbox-filter="seguimiento">Seguimiento</button>
+            <button class="chip" data-inbox-filter="humano">Quiere hablar con alguien</button>
+          </div>
+        </div>
+        <div class="grid inbox-grid premium-inbox">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Bandeja priorizada</h3>
+              <span class="badge subtle" id="conversation-count-label">0 conversaciones</span>
+            </div>
+            <div id="conversation-list"></div>
+          </div>
+          <div class="panel panel-chat">
+            <div class="panel-header">
+              <h3>Conversación</h3>
+              <div class="inline-actions compact" id="conversation-toolbar"></div>
+            </div>
+            <div id="conversation-detail" class="chat-empty">Selecciona una conversación para ver resumen, acciones rápidas y contexto.</div>
+          </div>
+          <div class="panel panel-side">
+            <div class="panel-header">
+              <h3>Contexto del cliente</h3>
+            </div>
+            <div id="lead-context" class="lead-empty">Sin cliente seleccionado.</div>
+            <div class="panel-header top-space">
+              <h3>Tester de canal</h3>
+            </div>
+            <form id="simulate-form" class="form-grid compact-form">
+              <div class="form-group"><label>Bot</label><select id="simulate-bot-id"></select></div>
+              <div class="form-group"><label>Nombre</label><input id="simulate-name" value="María" /></div>
+              <div class="form-group"><label>Teléfono</label><input id="simulate-phone" value="+525511119999" /></div>
+              <div class="form-group full"><label>Mensaje</label><textarea id="simulate-body">Hola, quiero precio y agendar</textarea></div>
+              <div class="form-group full">
+                <button type="submit">Simular mensaje</button>
+                <div id="simulate-result" class="muted"></div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-clients" class="section">
+        <div id="clients-summary" class="cards premium"></div>
+        <div class="grid three">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Se están enfriando</h3>
+            </div>
+            <div id="clients-cooling"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Frecuentes</h3>
+            </div>
+            <div id="clients-frequent"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Nuevos del día y de la semana</h3>
+            </div>
+            <div id="clients-new"></div>
+          </div>
+        </div>
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Segmentos y oportunidades</h3>
+            </div>
+            <div id="client-segments"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Reactivación recomendada</h3>
+            </div>
+            <div id="clients-reactivation"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Ficha de clientes</h3>
+          </div>
+          <div id="clients-table"></div>
+        </div>
+      </section>
+
+      <section id="section-agenda" class="section">
+        <div id="agenda-summary" class="cards premium"></div>
+        <div class="grid two-thirds">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Calendario visual</h3>
+            </div>
+            <div id="agenda-calendar"></div>
+          </div>
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Resumen diario</h3>
+              </div>
+              <div id="agenda-daily"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Configuración de recordatorios</h3>
+              </div>
+              <form id="reminder-pref-form" class="form-grid compact-form">
+                <div class="form-group"><label>Tono</label><select id="reminder-tone"><option value="amable">Amable</option><option value="formal">Formal</option><option value="cercano">Cercano</option></select></div>
+                <div class="form-group"><label>Primer recordatorio (h antes)</label><input id="reminder-hours-before" type="number" value="24" min="1" /></div>
+                <div class="form-group"><label>Segundo recordatorio (h antes)</label><input id="reminder-last-hours" type="number" value="2" min="1" /></div>
+                <div class="form-group"><label>Cantidad</label><select id="reminder-count"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option></select></div>
+                <div class="form-group full">
+                  <button type="submit">Guardar preferencias</button>
+                  <div id="reminder-pref-result" class="muted"></div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>No asistencia y cancelaciones</h3>
+            </div>
+            <div id="agenda-risks"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Bloqueo de horarios</h3>
+            </div>
+            <form id="blocked-slot-form" class="form-grid compact-form">
+              <div class="form-group"><label>Inicio</label><input id="blocked-start" type="datetime-local" /></div>
+              <div class="form-group"><label>Fin</label><input id="blocked-end" type="datetime-local" /></div>
+              <div class="form-group full"><label>Motivo</label><input id="blocked-reason" placeholder="Comida, junta, día libre" /></div>
+              <div class="form-group full"><button type="submit">Bloquear horario</button></div>
+            </form>
+            <div id="blocked-slots-list" class="top-space"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-payments" class="section">
+        <div id="payments-summary" class="cards premium"></div>
+        <div class="grid two-thirds">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Pagos y ventas</h3>
+            </div>
+            <div id="payments-table"></div>
+          </div>
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Recuperación de pagos pendientes</h3>
+              </div>
+              <div id="payments-recovery"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Motivos de no compra</h3>
+              </div>
+              <div id="lost-reasons"></div>
+            </div>
+          </div>
+        </div>
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Paquetes, promociones y servicios</h3>
+            </div>
+            <div id="promotions-overview"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Qué se vende y qué casi no se mueve</h3>
+            </div>
+            <div id="service-performance"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-reports" class="section">
+        <div id="reports-summary" class="cards premium"></div>
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Reporte simple de resultados</h3>
+            </div>
+            <form id="report-form" class="form-grid compact-form">
+              <div class="form-group"><label>Inicio</label><input id="report-start" type="date" /></div>
+              <div class="form-group"><label>Fin</label><input id="report-end" type="date" /></div>
+              <div class="form-group full"><button type="submit">Generar reporte</button></div>
+              <div class="form-group full"><div id="report-form-result" class="muted"></div></div>
+            </form>
+            <div id="reports-highlight" class="top-space"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Últimos reportes</h3>
+            </div>
+            <div id="reports-list"></div>
+          </div>
         </div>
       </section>
 
@@ -74,80 +331,29 @@
               <h3>Crear bot</h3>
             </div>
             <form id="bot-form" class="form-grid">
-              <div class="form-group full"><div class="step-label">Paso 1 — Negocio</div></div>
+              <div class="form-group full"><div class="step-label">Paso 1 - Negocio</div></div>
               <div class="form-group"><label>Organización</label><select id="bot-org-id"></select></div>
               <div class="form-group"><label>Nombre negocio</label><input id="bot-business-name" value="Nuevo Negocio" /></div>
               <div class="form-group"><label>Vertical</label><input id="bot-vertical" value="servicios" /></div>
               <div class="form-group"><label>Nombre del bot</label><input id="bot-name" value="Bot Ventas" /></div>
-
-              <div class="form-group full"><div class="step-label">Paso 2 — Estilo</div></div>
+              <div class="form-group full"><div class="step-label">Paso 2 - Estilo</div></div>
               <div class="form-group"><label>Objetivo</label><input id="bot-objective" value="agendar" /></div>
               <div class="form-group"><label>Tono</label><input id="bot-tone" value="amable" /></div>
               <div class="form-group"><label>Idioma</label><input id="bot-language" value="es" /></div>
               <div class="form-group"><label>Zona horaria</label><input id="bot-timezone" value="America/Mexico_City" /></div>
-
-              <div class="form-group full"><div class="step-label">Paso 3 — Knowledge</div></div>
+              <div class="form-group full"><div class="step-label">Paso 3 - Knowledge</div></div>
               <div class="form-group full"><label>Servicios (coma separados)</label><input id="bot-services" value="Consulta, Seguimiento" /></div>
               <div class="form-group full"><label>Horarios</label><input id="bot-hours" value="Lunes a viernes de 9 a 18 h" /></div>
-              <div class="form-group full"><label>FAQs (formato: pregunta|respuesta ; pregunta|respuesta)</label><textarea id="bot-faqs">Horario|Lunes a viernes de 9 a 18 h; Ubicación|CDMX</textarea></div>
-
-              <div class="form-group full"><div class="step-label">Paso 4 — Canal</div></div>
+              <div class="form-group full"><label>FAQs (pregunta|respuesta ; pregunta|respuesta)</label><textarea id="bot-faqs">Horario|Lunes a viernes de 9 a 18 h; Ubicación|CDMX</textarea></div>
+              <div class="form-group full"><div class="step-label">Paso 4 - Canal</div></div>
               <div class="form-group"><label>Número WhatsApp</label><input id="bot-whatsapp" value="+525500001234" /></div>
               <div class="form-group"><label>Publicar</label><select id="bot-publish"><option value="true">Sí</option><option value="false">No</option></select></div>
-
               <div class="form-group full">
                 <button type="submit">Crear bot</button>
                 <div id="bot-form-result" class="muted"></div>
               </div>
             </form>
           </div>
-        </div>
-      </section>
-
-      <section id="section-inbox" class="section">
-        <div class="grid inbox-grid">
-          <div class="panel">
-            <div class="panel-header">
-              <h3>Conversaciones</h3>
-            </div>
-            <div id="conversation-list"></div>
-          </div>
-          <div class="panel">
-            <div class="panel-header">
-              <h3>Chat</h3>
-            </div>
-            <div id="conversation-detail" class="chat-empty">Selecciona una conversación.</div>
-          </div>
-          <div class="panel">
-            <div class="panel-header">
-              <h3>Cliente</h3>
-            </div>
-            <div id="lead-context" class="lead-empty">Sin cliente seleccionado.</div>
-            <div class="panel-header top-space">
-              <h3>Tester de canal</h3>
-            </div>
-            <form id="simulate-form" class="form-grid">
-              <div class="form-group"><label>Modo</label><select id="simulate-mode"><option value="simulate">Simulación</option><option value="webhook">Webhook real WhatsApp</option></select></div>
-              <div class="form-group"><label>Bot</label><select id="simulate-bot-id"></select></div>
-              <div class="form-group"><label>Nombre</label><input id="simulate-name" value="María" /></div>
-              <div class="form-group"><label>Teléfono</label><input id="simulate-phone" value="+525511119999" /></div>
-              <div class="form-group"><label>Phone number id</label><input id="simulate-number-id" value="123" /></div>
-              <div class="form-group full"><label>Mensaje</label><textarea id="simulate-body">Hola, quiero precio y agendar</textarea></div>
-              <div class="form-group full">
-                <button type="submit">Simular</button>
-                <div id="simulate-result" class="muted"></div>
-              </div>
-            </form>
-          </div>
-        </div>
-      </section>
-
-      <section id="section-leads" class="section">
-        <div class="panel">
-          <div class="panel-header">
-            <h3>Clientes</h3>
-          </div>
-          <div id="leads-table"></div>
         </div>
       </section>
 
@@ -172,12 +378,20 @@
               </div>
             </form>
           </div>
-          <div class="panel">
-            <div class="panel-header">
-              <h3>Jobs</h3>
-              <button id="process-jobs-btn" class="secondary">Procesar due</button>
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Jobs</h3>
+                <button id="process-jobs-btn" class="secondary">Procesar due</button>
+              </div>
+              <div id="jobs-list"></div>
             </div>
-            <div id="jobs-list"></div>
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Experimentos y alertas</h3>
+              </div>
+              <div id="automation-extra"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -185,7 +399,7 @@
       <section id="section-audit" class="section">
         <div class="panel">
           <div class="panel-header">
-            <h3>Logs / auditoría</h3>
+            <h3>Logs y auditoría</h3>
           </div>
           <div id="audit-list"></div>
         </div>

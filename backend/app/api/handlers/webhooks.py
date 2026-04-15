@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .common import *
-from .common import _handle_inbound
+from ...application.inbound_service import inbound_service
 from ...payments_runtime import handle_stripe_webhook
 
 
@@ -11,7 +11,7 @@ def simulate_inbound(payload: SimulateInboundRequest, user: dict = Depends(get_c
         if not bot:
             raise HTTPException(status_code=404, detail="Bot not found")
         ensure_bot_access(user, bot)
-        result = _handle_inbound(conn, bot_id=payload.bot_id, phone=payload.phone, name=payload.name, body=payload.body, external_id=f"SIM-{new_id('ext')}")
+        result = inbound_service.handle_inbound(conn, bot_id=payload.bot_id, phone=payload.phone, name=payload.name, body=payload.body, external_id=f"SIM-{new_id('ext')}")
         create_audit_log(conn, organization_id=bot["organization_id"], actor_user_id=user["id"], actor_type="user", entity_type="webhook", entity_id=payload.bot_id, action="simulate.inbound", metadata={"phone": payload.phone})
         return result
 
@@ -49,28 +49,27 @@ async def whatsapp_webhook(number_id: str, request: Request) -> dict:
         signature = request.headers.get("x-hub-signature-256")
         if app_secret and signature and not verify_hub_signature(app_secret, payload, signature):
             raise HTTPException(status_code=403, detail="Invalid signature")
-        data = await request.json()
+        data = WhatsAppWebhookPayload.model_validate(await request.json())
         processed: list[dict] = []
-        for entry in data.get("entry", []):
-            for change in entry.get("changes", []):
-                value = change.get("value", {})
-                contacts = value.get("contacts", []) or []
-                messages = value.get("messages", []) or []
+        for entry in data.entry:
+            for change in entry.changes:
+                value = change.value
+                contacts = value.contacts or []
+                messages = value.messages or []
                 for message in messages:
-                    if message.get("type") != "text":
+                    if message.type != "text":
                         continue
-                    profile_name = None
-                    if contacts:
-                        profile_name = (contacts[0].get("profile") or {}).get("name")
-                    phone = message.get("from") or "unknown"
-                    body = (message.get("text") or {}).get("body") or ""
-                    result = _handle_inbound(
+                    profile_name = contacts[0].profile.name if contacts and contacts[0].profile else None
+                    phone = message.from_ or "unknown"
+                    body = (message.text.body if message.text else "") or ""
+                    result = inbound_service.handle_inbound(
                         conn,
                         bot_id=number["bot_id"],
                         phone=phone,
                         name=profile_name,
                         body=body,
-                        external_id=message.get("id"),
+                        external_id=message.id,
+                        correlation_id=getattr(request.state, "correlation_id", None),
                     )
                     processed.append(result)
         return {"ok": True, "processed": len(processed)}

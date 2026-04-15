@@ -320,6 +320,33 @@ def _mark_followup_reply(conn, *, conversation_id: str, inbound_message_id: str)
     return {**updated, "metadata": from_json(updated.get("metadata_json"), {})} if updated else None
 
 
+def _insert_notification(conn, *, organization_id: str, bot_id: str | None, user_id: str | None, conversation_id: str | None, category: str, title: str, body: str, severity: str = "info", metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+    notification_id = new_id("notif")
+    execute(
+        conn,
+        """
+        INSERT INTO operator_notifications
+        (id, organization_id, bot_id, user_id, conversation_id, category, channel, title, body, severity, status, metadata_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'in_app', ?, ?, ?, 'unread', ?, ?)
+        """,
+        (
+            notification_id,
+            organization_id,
+            bot_id,
+            user_id,
+            conversation_id,
+            category,
+            title,
+            body,
+            severity,
+            to_json(metadata or {}),
+            utcnow_iso(),
+        ),
+    )
+    created = fetch_one(conn, "SELECT * FROM operator_notifications WHERE id = ?", (notification_id,))
+    return {**created, "metadata": from_json(created.get("metadata_json"), {})} if created else {}
+
+
 def _detect_cancel_intent(text: str | None) -> list[str]:
     lowered = (text or "").lower()
     keywords = {

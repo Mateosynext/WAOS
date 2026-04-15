@@ -4,7 +4,7 @@ import os
 import sqlite3
 from typing import Any
 
-from ..db import execute, fetch_all, fetch_one
+from ..db import execute, fetch_all, fetch_one, has_column
 from ..defaults import default_bot_config
 from ..utils import from_json, hash_password, new_id, slugify, to_json, utcnow_iso
 from ..verticals import build_organization_settings
@@ -50,32 +50,62 @@ def create_message(
     external_id: str | None = None,
     status: str = "sent",
     metadata: dict[str, Any] | None = None,
+    correlation_id: str | None = None,
 ) -> dict:
     message_id = new_id("msg")
     now = utcnow_iso()
-    execute(
-        conn,
-        """
-        INSERT INTO messages
-        (id, organization_id, conversation_id, contact_id, bot_id, direction, kind, source, body, external_id, status, metadata_json, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            message_id,
-            organization_id,
-            conversation_id,
-            contact_id,
-            bot_id,
-            direction,
-            kind,
-            source,
-            body,
-            external_id,
-            status,
-            to_json(metadata or {}),
-            now,
-        ),
-    )
+    payload = {**(metadata or {})}
+    if correlation_id:
+        payload.setdefault("correlation_id", correlation_id)
+    if has_column(conn, "messages", "correlation_id"):
+        execute(
+            conn,
+            """
+            INSERT INTO messages
+            (id, organization_id, conversation_id, contact_id, bot_id, direction, kind, source, body, external_id, status, metadata_json, correlation_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                message_id,
+                organization_id,
+                conversation_id,
+                contact_id,
+                bot_id,
+                direction,
+                kind,
+                source,
+                body,
+                external_id,
+                status,
+                to_json(payload),
+                correlation_id,
+                now,
+            ),
+        )
+    else:
+        execute(
+            conn,
+            """
+            INSERT INTO messages
+            (id, organization_id, conversation_id, contact_id, bot_id, direction, kind, source, body, external_id, status, metadata_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                message_id,
+                organization_id,
+                conversation_id,
+                contact_id,
+                bot_id,
+                direction,
+                kind,
+                source,
+                body,
+                external_id,
+                status,
+                to_json(payload),
+                now,
+            ),
+        )
     execute(
         conn,
         """
