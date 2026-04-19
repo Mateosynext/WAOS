@@ -1545,7 +1545,7 @@ def _migration_phase25_waos_optimizer(conn) -> None:
             created_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_optimizer_control_states_org ON optimizer_control_states(organization_id, bot_id, updated_at DESC);
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_optimizer_control_states_unique ON optimizer_control_states(organization_id, IFNULL(bot_id, ''), target_name);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_optimizer_control_states_unique ON optimizer_control_states(organization_id, COALESCE(bot_id, ''), target_name);
 
         CREATE TABLE IF NOT EXISTS optimizer_change_audits (
             id TEXT PRIMARY KEY,
