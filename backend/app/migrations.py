@@ -1667,6 +1667,34 @@ def _migration_phase27_growth_os_runtime(conn) -> None:
     )
 
 def _migration_phase28_payment_delete_cleanup(conn) -> None:
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        conn.execute(
+            """
+            CREATE OR REPLACE FUNCTION fn_commerce_payments_cleanup_before_delete()
+            RETURNS TRIGGER
+            AS $$
+            BEGIN
+                DELETE FROM outcome_attribution_facts
+                WHERE outcome_event_id IN (SELECT id FROM outcome_events WHERE payment_id = OLD.id)
+                   OR exposure_id IN (SELECT id FROM outcome_exposures WHERE payment_id = OLD.id);
+                DELETE FROM outcome_events WHERE payment_id = OLD.id;
+                DELETE FROM outcome_exposures WHERE payment_id = OLD.id;
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+            """
+        )
+        conn.execute("DROP TRIGGER IF EXISTS trg_commerce_payments_cleanup_before_delete ON commerce_payments")
+        conn.execute(
+            """
+            CREATE TRIGGER trg_commerce_payments_cleanup_before_delete
+            BEFORE DELETE ON commerce_payments
+            FOR EACH ROW
+            EXECUTE FUNCTION fn_commerce_payments_cleanup_before_delete()
+            """
+        )
+        return
+
     conn.executescript(
         """
         CREATE TRIGGER IF NOT EXISTS trg_commerce_payments_cleanup_before_delete
