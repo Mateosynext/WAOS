@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { applyBotVerticalAction, createBotAction, createBotDraftSnapshotAction, createBotSimulationCaseAction, runBotSimulationAction, switchOrganizationAction } from "../actions";
+import { applyBotVerticalAction, createBotAction, createBotDraftSnapshotAction, createBotSimulationCaseAction, runBotSimulationAction } from "../actions";
 import { ContextTip, EmptyActionState, ModuleCard, Section, Shell, StatCard, SuccessState } from "../components";
-import OrganizationSwitcher from "../components/OrganizationSwitcher";
 import { getCurrentBotId, getSession } from "../lib/session";
 import { safeText, yesNo } from "../lib/ui";
 import { getBotBehavior, getBotSimulationCases, getBotSimulationRuns, getBotTemplates, getBots, getVerticalCatalog, getVerticalProfile } from "../lib/waos";
@@ -11,6 +10,7 @@ export default async function BotStudioPage() {
   const currentBotId = await getCurrentBotId();
   const organizations = session?.user.organizations || [];
   const currentOrg = organizations.find((item) => item.id === session?.organizationId) || null;
+  const defaultOrg = currentOrg || organizations[0] || null;
   const [behavior, templates, verticals, bots] = await Promise.all([getBotBehavior(), getBotTemplates(), getVerticalCatalog(), getBots()]);
   const selectedBot = bots.find((item) => item.id === currentBotId) || null;
   const selectedVerticalId = selectedBot?.vertical || currentOrg?.vertical || verticals[0]?.id;
@@ -49,14 +49,20 @@ export default async function BotStudioPage() {
   return (
     <Shell
       title="Crear bot"
-      subtitle="Las verticales madre ya viven en WAOS con presets de bot, comportamiento y plantillas listas para producción. Si todavía no tienes tenant activo, esta misma pantalla te deja fijarlo antes de crear el bot."
+      subtitle="Proceso completo de creación: elige tenant, elige vertical, define el objetivo, nombra el bot y publícalo sin salir de esta vista. El catálogo de verticales siempre queda visible, aunque aún no hayas fijado una organización activa en sesión."
       action={<><Link href="/bots" className="secondary-btn">Ver bots</Link><Link href="/flows" className="secondary-btn">Flujos</Link></>}
     >
-      {!currentOrg ? (
-        <ContextTip title="Catálogo cargado, falta contexto">
-          Ya cargamos <strong>{verticals.length} verticales</strong>, pero para crear un bot primero necesitamos fijar la organización activa. Así evitamos sembrar bots, templates o integraciones en el tenant equivocado.
-        </ContextTip>
-      ) : null}
+      <ContextTip title={currentOrg ? "Proceso listo para crear" : "Catálogo listo, falta elegir tenant"}>
+        {currentOrg ? (
+          <>
+            Estás creando sobre <strong>{currentOrg.name}</strong>. Puedes cambiar la organización dentro del mismo formulario sin perder el catálogo de verticales.
+          </>
+        ) : (
+          <>
+            Ya cargamos <strong>{verticals.length} verticales</strong>. El siguiente paso es elegir la organización dentro del formulario; no hace falta salir de esta vista.
+          </>
+        )}
+      </ContextTip>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Modo actual" value={safeText(behavior.bot_mode, "sin definir")} hint="Cómo está operando hoy" icon="bot" tone="green" />
@@ -65,84 +71,71 @@ export default async function BotStudioPage() {
         <StatCard label="Verticales listas" value={String(verticals.length)} hint="Catálogo madre disponible" icon="layers" tone="slate" />
       </div>
 
-      {!currentOrg ? (
-        <Section title="Paso 1 · Selecciona la organización" subtitle="Antes de sembrar un bot, confirma sobre qué tenant vas a trabajar. Al guardar el contexto, esta misma vista te mostrará el formulario completo con las verticales." icon="client">
-          {organizations.length ? (
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-              <OrganizationSwitcher
-                organizations={organizations.map((item) => ({ id: item.id, name: item.name, vertical: item.vertical }))}
-                selectedId={session?.organizationId || null}
-                redirectTo="/bot-studio"
-                action={switchOrganizationAction}
-              />
-              <SuccessState
-                title={`Catálogo listo: ${verticals.length} verticales`}
-                description={`En cuanto confirmes una organización, podrás crear el bot con la vertical que elijas. Vista previa actual: ${safeText(selectedVertical?.name, verticals[0]?.name || "Vertical lista")}.`}
-                actions={<Link href="/organizations" className="secondary-btn">Administrar organizaciones</Link>}
-              />
-            </div>
-          ) : (
-            <EmptyActionState title="No hay organizaciones disponibles" description="La sesión cargó, pero esta cuenta no tiene tenants asignados. Sin tenant activo no conviene crear un bot." primaryAction={<Link href="/organizations" className="primary-btn">Revisar organizaciones</Link>} />
-          )}
-        </Section>
-      ) : null}
+      <Section title="Crear bot nuevo con vertical" subtitle="Flujo punta a punta: 1) elige la organización, 2) elige la vertical, 3) define objetivo y datos base, 4) crea y publica el draft inicial sin cambiar de pantalla." icon="check">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <ModuleCard title="Paso 1" description={defaultOrg ? `Tenant sugerido: ${safeText(defaultOrg.name)}` : "Selecciona la organización donde nacerá el bot."} icon="client" tone="blue" />
+          <ModuleCard title="Paso 2" description={`Elige una de las ${verticals.length} verticales disponibles para sembrar comportamiento, templates y defaults.`} icon="layers" tone="green" />
+          <ModuleCard title="Paso 3" description="Nombra el negocio, define objetivo y tono para que el primer draft salga alineado a la operación." icon="wand" tone="gold" />
+          <ModuleCard title="Paso 4" description="Crea el bot y, si quieres, publícalo de una vez con su primer draft." icon="check" tone="slate" />
+        </div>
 
-      <Section title="Crear bot nuevo con vertical" subtitle="Formulario real para crear un bot sobre la organización activa y sembrar templates, comportamiento y defaults productivos desde el primer minuto." icon="check">
-        {currentOrg ? (
-          <form action={createBotAction} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <input type="hidden" name="organization_id" value={currentOrg.id} />
-            <label className="field-label">Organización activa
-              <input className="field-input" value={currentOrg.name} readOnly />
-            </label>
-            <label className="field-label">Vertical madre
-              <select className="field-input" name="vertical" defaultValue={currentOrg.vertical || selectedVerticalId || ""} required>
-                {verticals.map((vertical) => <option key={vertical.id} value={vertical.id}>{vertical.name}</option>)}
-              </select>
-            </label>
-            <label className="field-label">Objetivo primario
-              <select className="field-input" name="primary_objective" defaultValue="agendar">
-                <option value="agendar">Agendar</option>
-                <option value="vender">Vender</option>
-                <option value="calificar">Calificar</option>
-                <option value="responder">Responder</option>
-                <option value="reactivar">Reactivar</option>
-              </select>
-            </label>
-            <label className="field-label">Nombre del negocio
-              <input className="field-input" name="business_name" placeholder="Ej. WAOS Dental Polanco" required />
-            </label>
-            <label className="field-label">Nombre del bot
-              <input className="field-input" name="bot_name" placeholder="Ej. Sofia" required />
-            </label>
-            <label className="field-label">Tono base
-              <input className="field-input" name="tone" defaultValue="amable" placeholder="amable" />
-            </label>
-            <label className="field-label">Idioma
-              <select className="field-input" name="language" defaultValue="es">
-                <option value="es">Español</option>
-                <option value="en">English</option>
-              </select>
-            </label>
-            <label className="field-label">Timezone
-              <input className="field-input" name="timezone" defaultValue={currentOrg.timezone || "America/Mexico_City"} />
-            </label>
-            <label className="field-label">WhatsApp (opcional)
-              <input className="field-input" name="whatsapp_number" placeholder="+525512345678" />
-            </label>
-            <label className="field-label md:col-span-2 xl:col-span-2">Horario inicial
-              <input className="field-input" name="hours" placeholder="Lun-Vie 9:00-18:00" />
-            </label>
-            <label className="field-label flex items-center gap-3 self-end">
-              <input type="checkbox" name="publish_now" defaultChecked />
-              <span>Publicar primer draft al crear</span>
-            </label>
-            <div className="md:col-span-2 xl:col-span-3">
-              <button className="primary-btn" type="submit">Crear bot con vertical</button>
-            </div>
-          </form>
-        ) : (
-          <EmptyActionState title="Falta confirmar la organización" description="Las verticales ya cargaron, pero esta pantalla necesita un tenant activo para completar la creación. Usa el selector superior y vuelve aquí mismo sin perder contexto." primaryAction={<Link href="/bot-studio" className="primary-btn">Reintentar aquí</Link>} secondaryAction={<Link href="/organizations" className="secondary-btn">Ir a organizaciones</Link>} />
-        )}
+        <form action={createBotAction} className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <label className="field-label">Organización
+            <select className="field-input" name="organization_id" defaultValue={session?.organizationId || defaultOrg?.id || ""} required disabled={!organizations.length}>
+              {organizations.length ? organizations.map((organization) => (
+                <option key={organization.id} value={organization.id}>
+                  {organization.name}
+                </option>
+              )) : <option value="">Sin organizaciones disponibles</option>}
+            </select>
+          </label>
+          <label className="field-label">Vertical madre
+            <select className="field-input" name="vertical" defaultValue={defaultOrg?.vertical || selectedVerticalId || verticals[0]?.id || ""} required>
+              {verticals.map((vertical) => <option key={vertical.id} value={vertical.id}>{vertical.name}</option>)}
+            </select>
+          </label>
+          <label className="field-label">Objetivo primario
+            <select className="field-input" name="primary_objective" defaultValue="agendar">
+              <option value="agendar">Agendar</option>
+              <option value="vender">Vender</option>
+              <option value="calificar">Calificar</option>
+              <option value="responder">Responder</option>
+              <option value="reactivar">Reactivar</option>
+            </select>
+          </label>
+          <label className="field-label">Nombre del negocio
+            <input className="field-input" name="business_name" placeholder="Ej. WAOS Dental Polanco" required />
+          </label>
+          <label className="field-label">Nombre del bot
+            <input className="field-input" name="bot_name" placeholder="Ej. Sofia" required />
+          </label>
+          <label className="field-label">Tono base
+            <input className="field-input" name="tone" defaultValue="amable" placeholder="amable" />
+          </label>
+          <label className="field-label">Idioma
+            <select className="field-input" name="language" defaultValue="es">
+              <option value="es">Español</option>
+              <option value="en">English</option>
+            </select>
+          </label>
+          <label className="field-label">Timezone
+            <input className="field-input" name="timezone" defaultValue={currentOrg?.timezone || defaultOrg?.timezone || "America/Mexico_City"} />
+          </label>
+          <label className="field-label">WhatsApp (opcional)
+            <input className="field-input" name="whatsapp_number" placeholder="+525512345678" />
+          </label>
+          <label className="field-label md:col-span-2 xl:col-span-2">Horario inicial
+            <input className="field-input" name="hours" placeholder="Lun-Vie 9:00-18:00" />
+          </label>
+          <label className="field-label flex items-center gap-3 self-end">
+            <input type="checkbox" name="publish_now" defaultChecked />
+            <span>Publicar primer draft al crear</span>
+          </label>
+          <div className="md:col-span-2 xl:col-span-3 flex flex-wrap gap-3">
+            <button className="primary-btn" type="submit" disabled={!organizations.length}>Crear bot con vertical</button>
+            {!organizations.length ? <Link href="/organizations" className="secondary-btn">Primero crea o asigna una organización</Link> : null}
+          </div>
+        </form>
       </Section>
 
       <Section title="Aplicar vertical al bot seleccionado" subtitle="Si ya existe un bot, este formulario reaplica vertical, reescribe comportamiento y reemplaza templates para dejarlo alineado con la nueva operación." icon="wand">
