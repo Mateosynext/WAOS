@@ -18,8 +18,14 @@ def _column_exists(conn, table: str, column: str) -> bool:
 
 
 def _ensure_column(conn, table: str, column: str, definition: str) -> None:
-    if not _column_exists(conn, table, column):
+    if _column_exists(conn, table, column):
+        return
+    try:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+    except Exception as exc:
+        if "duplicate column" in str(exc).lower() or "already exists" in str(exc).lower():
+            return
+        raise
 
 
 def ensure_backend_runtime_schema(conn) -> None:

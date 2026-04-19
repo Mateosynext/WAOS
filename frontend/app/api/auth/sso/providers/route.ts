@@ -10,7 +10,11 @@ export async function GET(request: NextRequest) {
   const query = new URLSearchParams();
   if (email) query.set("email", email);
   if (organizationSlug) query.set("organization_slug", organizationSlug);
-  const response = await fetch(`${API_BASE}/api/public/sso/providers?${query.toString()}`, { cache: "no-store" });
-  const data = await response.json().catch(() => []);
-  return NextResponse.json(data, { status: response.status });
+  try {
+    const response = await fetch(`${API_BASE}/api/public/sso/providers?${query.toString()}`, { cache: "no-store" });
+    const data = await response.json().catch(() => []);
+    return NextResponse.json(Array.isArray(data) ? data : [], { status: response.ok ? 200 : 200 });
+  } catch {
+    return NextResponse.json([], { status: 200 });
+  }
 }

@@ -1,9 +1,8 @@
-import { getClientApiBase } from "./env";
+const FRONTEND_ERRORS_ENDPOINT = "/api/v1/observability/frontend-errors";
+
 export async function reportFrontendError(payload: Record<string, unknown>) {
-  const base = getClientApiBase();
-  if (!base) return;
   try {
-    await fetch(`${base}/api/v1/observability/frontend-errors`, {
+    await fetch(FRONTEND_ERRORS_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

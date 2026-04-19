@@ -22,12 +22,21 @@ export async function POST(request: NextRequest) {
       failed.cookies.delete(REFRESH_COOKIE);
       return failed;
     }
-    const data = await response.json();
-    const ok = NextResponse.json({ access_token: data.access_token, refresh_token: data.refresh_token, session: data.session });
+    const data = await response.json().catch(() => ({}));
+    if (typeof data?.access_token !== "string" || typeof data?.refresh_token !== "string") {
+      const failed = NextResponse.json({ detail: "Refresh failed" }, { status: 401 });
+      failed.cookies.delete(ACCESS_COOKIE);
+      failed.cookies.delete(REFRESH_COOKIE);
+      return failed;
+    }
+    const ok = NextResponse.json({ access_token: data.access_token, refresh_token: data.refresh_token, session: data.session ?? null });
     ok.cookies.set(ACCESS_COOKIE, data.access_token, sessionCookieOptions.access());
     ok.cookies.set(REFRESH_COOKIE, data.refresh_token, sessionCookieOptions.refresh());
     return ok;
   } catch {
-    return NextResponse.json({ detail: "Refresh failed" }, { status: 401 });
+    const failed = NextResponse.json({ detail: "Refresh failed" }, { status: 401 });
+    failed.cookies.delete(ACCESS_COOKIE);
+    failed.cookies.delete(REFRESH_COOKIE);
+    return failed;
   }
 }

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { getClientApiBase } from "../lib/env";
 import {
   type CookieConsent,
   COOKIE_CONSENT_VERSION,
@@ -41,8 +40,7 @@ export default function CookieConsentBanner() {
     setOpen(false);
     setShowManager(false);
 
-    const base = getClientApiBase();
-    if (!base || typeof window === "undefined") return;
+    if (typeof window === "undefined") return;
     const body = {
       anonymous_id: getOrCreateVisitorId(),
       consent_version: payload.version,
@@ -56,7 +54,7 @@ export default function CookieConsentBanner() {
       },
     };
     try {
-      await fetch(`${base}/api/public/legal/consents/cookies`, {
+      await fetch(`/api/public/legal/consents/cookies`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
