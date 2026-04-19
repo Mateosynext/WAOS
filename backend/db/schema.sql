@@ -1179,7 +1179,6 @@ CREATE INDEX IF NOT EXISTS idx_reactivation_org ON reactivation_recommendations(
 CREATE INDEX IF NOT EXISTS idx_executive_reports_org ON executive_reports(organization_id, generated_at);
 CREATE INDEX IF NOT EXISTS idx_voice_notes_org ON voice_notes(organization_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_voice_notes_conversation ON voice_notes(conversation_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_voice_notes_processing ON voice_notes(organization_id, processing_status, created_at);
 CREATE INDEX IF NOT EXISTS idx_voice_media_assets_org ON voice_media_assets(organization_id, media_role, created_at);
 CREATE INDEX IF NOT EXISTS idx_voice_processing_events_org ON voice_processing_events(organization_id, stage, created_at);
 CREATE INDEX IF NOT EXISTS idx_customer_feedback_org ON customer_feedback(organization_id, created_at);

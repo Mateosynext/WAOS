@@ -397,6 +397,10 @@ def init_db() -> None:
         _ensure_column(conn, "executive_reports", "pdf_generated_at", "TEXT")
         _ensure_column(conn, "executive_reports", "updated_at", "TEXT")
         _ensure_column(conn, "report_generation_jobs", "locked_at", "TEXT")
+        _ensure_column(conn, "voice_notes", "processing_status", "TEXT NOT NULL DEFAULT 'completed'")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_voice_notes_processing ON voice_notes(organization_id, processing_status, created_at)"
+        )
 
         apply_migrations(conn)
 
