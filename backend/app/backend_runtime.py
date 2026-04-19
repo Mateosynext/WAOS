@@ -38,6 +38,7 @@ def ensure_backend_runtime_schema(conn) -> None:
             scheduled_for TEXT NOT NULL,
             started_at TEXT,
             completed_at TEXT,
+            locked_at TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             FOREIGN KEY (organization_id) REFERENCES organizations(id),

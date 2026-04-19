@@ -348,6 +348,9 @@ def init_db() -> None:
         _ensure_column(conn, "whatsapp_flows", "remote_last_synced_at", "TEXT")
         _ensure_column(conn, "whatsapp_flows", "remote_last_published_at", "TEXT")
         _ensure_column(conn, "whatsapp_flows", "last_sync_error", "TEXT")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_whatsapp_flows_remote ON whatsapp_flows(remote_flow_id, remote_status, updated_at)"
+        )
 
         _ensure_column(conn, "whatsapp_numbers", "quality_rating", "TEXT NOT NULL DEFAULT 'unknown'")
         _ensure_column(conn, "whatsapp_numbers", "quality_status", "TEXT NOT NULL DEFAULT 'unknown'")
@@ -393,6 +396,7 @@ def init_db() -> None:
         _ensure_column(conn, "executive_reports", "pdf_filename", "TEXT")
         _ensure_column(conn, "executive_reports", "pdf_generated_at", "TEXT")
         _ensure_column(conn, "executive_reports", "updated_at", "TEXT")
+        _ensure_column(conn, "report_generation_jobs", "locked_at", "TEXT")
 
         apply_migrations(conn)
 

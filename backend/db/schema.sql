@@ -1169,7 +1169,6 @@ CREATE INDEX IF NOT EXISTS idx_crm_leads_org ON crm_leads(organization_id, updat
 CREATE INDEX IF NOT EXISTS idx_crm_leads_bot_stage ON crm_leads(bot_id, stage, updated_at);
 CREATE INDEX IF NOT EXISTS idx_commerce_payments_org ON commerce_payments(organization_id, status, updated_at);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_flows_bot ON whatsapp_flows(bot_id, status, updated_at);
-CREATE INDEX IF NOT EXISTS idx_whatsapp_flows_remote ON whatsapp_flows(remote_flow_id, remote_status, updated_at);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_flow_versions_flow ON whatsapp_flow_versions(flow_id, version_number DESC, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_flow_publications_flow ON whatsapp_flow_publications(flow_id, status, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_flow_executions_flow ON whatsapp_flow_executions(flow_id, status, last_event_at DESC);
