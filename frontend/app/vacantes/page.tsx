@@ -13,7 +13,7 @@ function summaryNumber(value: unknown) {
 
 export default async function VacantesPage() {
   const [bots, selectedBotId] = await Promise.all([getBots(), getCurrentBotId()]);
-  const selectedBot = bots.find((item) => item.id === selectedBotId) || bots[0] || null;
+  const selectedBot = bots.find((item) => item.id === selectedBotId) || null;
 
   if (!selectedBot) {
     return (

@@ -70,6 +70,11 @@ def update_guided_wizard_step(wizard_id: str, step_key: str, payload: GuidedOnbo
     return onboarding_service.update_wizard_step(uow, wizard_id=wizard_id, step_key=step_key, payload=payload, user=user)
 
 
+@router.post("/api/v1/onboarding/wizard/{wizard_id}/dry-run")
+def dry_run_guided_wizard(wizard_id: str, user: CurrentUser, uow: CurrentUoW) -> dict:
+    return onboarding_service.dry_run_wizard(uow, wizard_id=wizard_id, user=user)
+
+
 @router.post("/api/v1/onboarding/wizard/{wizard_id}/apply")
 def apply_guided_wizard(wizard_id: str, user: CurrentUser, uow: CurrentUoW) -> dict:
     return onboarding_service.apply_wizard(uow, wizard_id=wizard_id, user=user)

@@ -13,6 +13,8 @@ from ..vertical_onboarding_runtime import (
     latest_guided_onboarding_wizard,
     list_guided_onboarding_verticals,
     apply_guided_onboarding_wizard,
+    dry_run_guided_onboarding_wizard,
+    refresh_guided_onboarding_validation_snapshot,
     start_guided_onboarding_wizard,
     update_guided_onboarding_step,
 )
@@ -174,7 +176,7 @@ class OnboardingService:
         if not vertical:
             next_step = {"key": "define_vertical", "label": "Define la vertical", "href": "/organizations", "reason": "Esto desbloquea lenguaje, checklist y defaults."}
         elif bot_ready == 0:
-            next_step = {"key": "create_bot", "label": "Crea el bot operativo", "href": "/onboarding?step=responder", "reason": "Sin bot no puedes probar ni publicar."}
+            next_step = {"key": "create_bot", "label": "Configura el bot operativo", "href": "/bot-studio?mode=create", "reason": "El setup real del bot vive ahora en Bot Studio y persiste por wizard_id."}
         elif channels_ready == 0:
             next_step = {"key": "connect_channel", "label": "Conecta el canal principal", "href": "/integrations", "reason": "Sin canal el onboarding sigue siendo teórico."}
         elif catalog_items == 0:
@@ -320,6 +322,13 @@ class OnboardingService:
             bot = get_bot(uow.conn, wizard["bot_id"])
             if bot:
                 ensure_bot_access(user, bot)
+        should_refresh_snapshot = bool(wizard.get("validation_snapshot") or wizard.get("applied_at") or ((wizard.get("answers") or {}).get("dry_run_validation")))
+        if should_refresh_snapshot:
+            try:
+                wizard = refresh_guided_onboarding_validation_snapshot(uow.conn, wizard_id=wizard_id, source="refresh")
+                uow.commit()
+            except ValueError:
+                wizard = wizard
         return ok(wizard)
 
     def update_wizard_step(self, uow: UnitOfWork, *, wizard_id: str, step_key: str, payload, user: dict) -> dict[str, Any]:
@@ -335,6 +344,26 @@ class OnboardingService:
         updated = update_guided_onboarding_step(uow.conn, wizard_id=wizard_id, step_key=step_key, payload=payload.payload)
         uow.commit()
         return ok(updated)
+
+    def dry_run_wizard(self, uow: UnitOfWork, *, wizard_id: str, user: dict) -> dict[str, Any]:
+        wizard = get_guided_onboarding_wizard(uow.conn, wizard_id)
+        if not wizard:
+            raise HTTPException(status_code=404, detail="Wizard not found")
+        ensure_org_access(user, wizard["organization_id"])
+        require_permission(user, wizard["organization_id"], "activation.manage")
+        if wizard.get("bot_id"):
+            bot = get_bot(uow.conn, wizard["bot_id"])
+            if bot:
+                ensure_bot_access(user, bot)
+        try:
+            result = dry_run_guided_onboarding_wizard(uow.conn, wizard_id=wizard_id)
+        except ValueError as exc:
+            detail = str(exc)
+            if detail == "wizard_not_found":
+                raise HTTPException(status_code=404, detail="Wizard not found")
+            raise HTTPException(status_code=400, detail=detail)
+        uow.commit()
+        return ok(result)
 
     def apply_wizard(self, uow: UnitOfWork, *, wizard_id: str, user: dict) -> dict[str, Any]:
         wizard = get_guided_onboarding_wizard(uow.conn, wizard_id)
@@ -354,6 +383,10 @@ class OnboardingService:
                 raise HTTPException(status_code=400, detail="Wizard requires a bot before apply")
             if detail == "bot_not_found":
                 raise HTTPException(status_code=404, detail="Bot not found")
+            if detail == "dry_run_required":
+                raise HTTPException(status_code=400, detail="Debes correr un dry run vigente antes de aplicar la reconfiguracion.")
+            if detail == "dry_run_blocked":
+                raise HTTPException(status_code=400, detail="El dry run actual sigue bloqueando el apply. Resuelve conflictos o vuelve a validar antes de aplicar.")
             raise HTTPException(status_code=400, detail=detail)
         uow.commit()
         return ok(result)

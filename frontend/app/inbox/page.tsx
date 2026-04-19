@@ -111,14 +111,14 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
 
   return (
     <Shell
-      title="Inbox operativo"
-      subtitle="La bandeja se trabaja como lista + preview. Primero filtras por intención, urgencia, relación y modo recomendado; después decides si hace falta entrar al hilo completo."
+      title="Inbox"
+      subtitle="Inbox ya no compite con setup ni con publish: aquí operas conversaciones reales con lista, preview y prioridad antes de entrar al hilo completo."
       action={<Link href={selected ? `/inbox/${selected.id}` : "/inbox"} className="primary-btn">{selected ? "Abrir detalle completo" : "Ver detalle"}</Link>}
     >
-      <ContextTip title="Cómo leer la bandeja">Aquí ya se separan tres cosas que antes se mezclaban: urgencia real, calor comercial y necesidad de intervención humana.</ContextTip>
+      <ContextTip title="Qué hace Inbox y qué no">Inbox opera. Si falta conectar o probar, vuelve a Integraciones. Si falta crear o reconfigurar, vuelve a Bot Studio. Aquí solo decides, respondes y escalas conversaciones reales.</ContextTip>
 
       {!conversations.length ? (
-        <EmptyActionState title="Todavía no hay conversaciones" description="Cuando llegue actividad real, aquí verás prioridad, relación y modo recomendado antes de abrir el detalle." primaryAction={<Link href="/onboarding?step=probar" className="primary-btn">Probar flujo</Link>} secondaryAction={<Link href="/integrations" className="secondary-btn">Conectar canal</Link>} />
+        <EmptyActionState title="Todavía no hay conversaciones" description="Antes de operar aquí, conecta o prueba los canales desde Integraciones o valida el asistente operativo desde Bot Studio." primaryAction={<Link href="/integrations?section=configuracion" className="primary-btn">Conectar canal</Link>} secondaryAction={<Link href="/bot-studio" className="secondary-btn">Abrir Bot Studio</Link>} />
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -130,12 +130,12 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
 
 
       {verticalProfile?.id ? (
-        <Section title="Inbox alineado a la vertical" subtitle="La prioridad ya no debería sentirse genérica: esta bandeja se interpreta con la subvertical activa como contexto comercial y operativo." icon="wand">
+        <Section title="Inbox alineado a la industria" subtitle="La prioridad ya no debería sentirse genérica: esta bandeja se interpreta con el tipo de operación activo como contexto comercial y operativo." icon="wand">
           <div className="grid gap-4 xl:grid-cols-4">
-            <StatCard label="Subvertical" value={safeText(verticalProfile.selected_subvertical?.name, currentOrg?.subvertical || 'sin definir')} hint={safeText(String(verticalProfile.runtime_connection?.surface_focus?.inbox || 'calificación operativa'))} icon="spark" tone="green" />
-            <StatCard label="Preguntas clave" value={formatNumber((verticalProfile.selected_subvertical?.qualification_questions || []).length)} hint="Qué debería detectar el bot u operador" icon="chat" tone="blue" />
+            <StatCard label="Tipo de operación" value={safeText(verticalProfile.selected_subvertical?.name, currentOrg?.subvertical || 'sin definir')} hint={safeText(String(verticalProfile.runtime_connection?.surface_focus?.inbox || 'calificación operativa'))} icon="spark" tone="green" />
+            <StatCard label="Preguntas clave" value={formatNumber((verticalProfile.selected_subvertical?.qualification_questions || []).length)} hint="Qué debería detectar el asistente operativo u operador" icon="chat" tone="blue" />
             <StatCard label="Objeciones foco" value={formatNumber((verticalProfile.selected_subvertical?.objections || []).length)} hint="Qué conviene resolver rápido" icon="support" tone="gold" />
-            <StatCard label="Comando operativo" value={safeText((verticalProfile.selected_subvertical?.recommended_commands || [])[0], 'sin comando')} hint="Control sugerido para esta vertical" icon="tool" tone="slate" />
+            <StatCard label="Comando operativo" value={safeText((verticalProfile.selected_subvertical?.recommended_commands || [])[0], 'sin comando')} hint="Control sugerido para esta industria" icon="tool" tone="slate" />
           </div>
           <div className="mt-4 grid gap-4 xl:grid-cols-3">
             <ModuleCard title="Motion comercial" description={safeText(verticalProfile.selected_subvertical?.growth_motion, 'Sin motion')} icon="target" tone="green" />
@@ -163,7 +163,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
               </div>
               <div className="mt-3 text-xs text-slate-400">Humano {formatNumber(queue.requires_human)} · Estancadas {formatNumber(queue.stalled)} · SLA breach {formatNumber(queue.sla_breached)}</div>
             </div>
-          )) : <div className="surface-row text-sm text-slate-300">Todavía no hay colas calculadas para este tenant.</div>}
+          )) : <div className="surface-row text-sm text-slate-300">Todavía no hay colas calculadas para esta organización.</div>}
         </div>
         {owners.length ? (
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -182,7 +182,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
           <div className="surface-row text-sm text-slate-300"><span className="mono-pill">Urgencia</span><div className="mt-2">Qué tan rápido hay que responder.</div></div>
           <div className="surface-row text-sm text-slate-300"><span className="mono-pill">Lead</span><div className="mt-2">Qué tan cerca está de comprar o cerrar.</div></div>
           <div className="surface-row text-sm text-slate-300"><span className="mono-pill">Relación</span><div className="mt-2">Si es cliente, conocido, proveedor, familia o mixto.</div></div>
-          <div className="surface-row text-sm text-slate-300"><span className="mono-pill">Modo</span><div className="mt-2">Si conviene tratarlo como ventas, soporte, operación o asistente.</div></div>
+          <div className="surface-row text-sm text-slate-300"><span className="mono-pill">Modo</span><div className="mt-2">Si conviene tratarlo como ventas, soporte, operación o asistente operativo.</div></div>
         </div>
       </Section>
 
@@ -203,7 +203,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
         <form className="mb-4 grid gap-3 rounded-3xl border border-white/[0.08] bg-white/[0.03] p-4 xl:sticky xl:top-4 xl:z-10 xl:grid-cols-[minmax(0,1.4fr)_repeat(4,180px)_auto]">
           <label className="field-label">
             Buscar
-            <input className="field-input" type="search" name="q" defaultValue={q} placeholder="Nombre, teléfono, bot, resumen…" />
+            <input className="field-input" type="search" name="q" defaultValue={q} placeholder="Nombre, teléfono, asistente operativo, resumen…" />
           </label>
           <label className="field-label">Foco
             <select className="field-input" name="filter" defaultValue={filter}>
@@ -295,7 +295,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
                     <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-300">{safeText(item.latest_message_preview || item.summary, "Sin resumen visible")}</p>
                     <div className="mt-2 text-xs text-slate-400">NBA: {safeText(item.next_best_action, "Dar seguimiento")}{item.stalled ? " · estancada" : ""}</div>
                     <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-                      <span>{safeText(item.bot_name, "Sin bot")}</span>
+                      <span>{safeText(item.bot_name, "Sin asistente operativo")}</span>
                       <span>{safeText(item.recommended_mode || item.relationship_status || "universal")}</span>
                     </div>
                   </Link>
@@ -311,7 +311,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
                       <div>
                         <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Preview</div>
                         <div className="mt-1 text-2xl font-semibold text-white">{safeText(selected.contact_name, "Sin nombre")}</div>
-                        <div className="mt-2 text-sm text-slate-400">{safeText(selected.contact_phone)} · {safeText(selected.bot_name, "Sin bot")}</div>
+                        <div className="mt-2 text-sm text-slate-400">{safeText(selected.contact_phone)} · {safeText(selected.bot_name, "Sin asistente operativo")}</div>
                       </div>
                       <Link href={`/inbox/${selected.id}`} className="primary-btn">Abrir detalle</Link>
                     </div>

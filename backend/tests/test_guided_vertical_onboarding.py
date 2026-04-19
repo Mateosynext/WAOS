@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from backend.app.db import execute, fetch_all, fetch_one, get_connection
 from backend.app.main import app
 from backend.tests.test_activation_foundations import _auth_headers
-from backend.app.utils import from_json, utcnow_iso
+from backend.app.utils import from_json, utcnow_iso, to_json
 
 
 client = TestClient(app)
@@ -147,6 +147,14 @@ def test_guided_vertical_onboarding_wizard_builds_and_applies_vertical_pack() ->
     )
     assert integrations.status_code == 200
 
+    dry_run = client.post(f"/api/v1/onboarding/wizard/{wizard_id}/dry-run", headers=headers)
+    assert dry_run.status_code == 200
+    dry_run_data = dry_run.json()["data"]
+    assert dry_run_data["summary"]["apply_ready"] is True
+    assert dry_run_data["summary"]["snapshot_required"] is True
+    assert dry_run_data["exit_score"]["value"] >= 60
+    assert any(item["label"] == "Vertical" for item in dry_run_data["diff_summary"])
+
     applied = client.post(f"/api/v1/onboarding/wizard/{wizard_id}/apply", headers=headers)
     assert applied.status_code == 200
     applied_data = applied.json()["data"]
@@ -193,3 +201,117 @@ def test_guided_vertical_onboarding_wizard_builds_and_applies_vertical_pack() ->
         planned_integrations = fetch_all(conn, "SELECT * FROM integration_connections WHERE organization_id = ? AND bot_id = ? AND status = 'planned'", (ORG_ID, BOT_ID))
         assert any(item["provider"] == "google_calendar" for item in planned_integrations)
         assert any(item["provider"] == "google_drive" for item in planned_integrations)
+
+
+def test_guided_vertical_onboarding_requires_fresh_dry_run_before_reconfigure_apply() -> None:
+    _seed_guided_onboarding_scope()
+    headers = {**_auth_headers(), "x-organization-id": ORG_ID}
+
+    started = client.post(
+        "/api/v1/onboarding/wizard/start",
+        headers=headers,
+        json={
+            "organization_id": ORG_ID,
+            "bot_id": BOT_ID,
+            "vertical_id": "dental",
+            "subvertical": "ortodoncia",
+            "business_name": "Clinica Sonrisa Pro",
+            "bot_name": "Bot Sonrisa Pro",
+            "primary_objective": "cerrar_tratamiento",
+        },
+    )
+    assert started.status_code == 200
+    wizard_id = started.json()["data"]["id"]
+
+    integrations = client.post(
+        f"/api/v1/onboarding/wizard/{wizard_id}/steps/integrations_rules",
+        headers=headers,
+        json={
+            "payload": {
+                "selected_integrations": [
+                    {"integration_key": "whatsapp", "integration_type": "whatsapp", "provider": "meta_cloud_api", "name": "WhatsApp Cloud API", "status": "planned", "required": True},
+                ],
+                "escalate_when": ["urgencia"],
+                "handoff_keywords": ["doctor"],
+                "expected_handoff_sla": "20 minutos",
+                "human_destination_channel": "Equipo humano",
+            }
+        },
+    )
+    assert integrations.status_code == 200
+
+    dry_run = client.post(f"/api/v1/onboarding/wizard/{wizard_id}/dry-run", headers=headers)
+    assert dry_run.status_code == 200
+    assert dry_run.json()["data"]["summary"]["apply_ready"] is True
+
+    mutate = client.post(
+        f"/api/v1/onboarding/wizard/{wizard_id}/steps/knowledge_seed",
+        headers=headers,
+        json={"payload": {"faqs": [{"q": "¿Abren sabado?", "a": "Si"}] }},
+    )
+    assert mutate.status_code == 200
+
+    applied = client.post(f"/api/v1/onboarding/wizard/{wizard_id}/apply", headers=headers)
+    assert applied.status_code == 400
+    assert applied.json()["detail"] == "dry_run_required"
+
+
+def test_validation_snapshot_promotes_inbox_when_bot_is_already_live_and_ready() -> None:
+    _seed_guided_onboarding_scope()
+    headers = {**_auth_headers(), "x-organization-id": ORG_ID}
+
+    started = client.post(
+        "/api/v1/onboarding/wizard/start",
+        headers=headers,
+        json={
+            "organization_id": ORG_ID,
+            "bot_id": BOT_ID,
+            "vertical_id": "dental",
+            "subvertical": "ortodoncia",
+            "business_name": "Clinica Sonrisa Pro",
+            "bot_name": "Bot Sonrisa Pro",
+            "primary_objective": "cerrar_tratamiento",
+        },
+    )
+    assert started.status_code == 200
+    wizard_id = started.json()["data"]["id"]
+
+    client.post(
+        f"/api/v1/onboarding/wizard/{wizard_id}/steps/integrations_rules",
+        headers=headers,
+        json={
+            "payload": {
+                "selected_integrations": [
+                    {"integration_key": "whatsapp", "integration_type": "whatsapp", "provider": "meta_cloud_api", "name": "WhatsApp Cloud API", "status": "planned", "required": True},
+                ],
+                "escalate_when": ["urgencia", "reclamo"],
+                "handoff_keywords": ["doctor", "asesor"],
+                "expected_handoff_sla": "20 minutos",
+                "human_destination_channel": "Equipo humano / operaciones",
+            }
+        },
+    )
+    dry_run = client.post(f"/api/v1/onboarding/wizard/{wizard_id}/dry-run", headers=headers)
+    assert dry_run.status_code == 200
+
+    now = utcnow_iso()
+    with get_connection() as conn:
+        execute(conn, "UPDATE bots SET status = 'published', current_state = 'published', published_version_id = 'ver_live', config_draft_json = json_set(COALESCE(config_draft_json, '{}'), '$.primary_channel', 'whatsapp') WHERE id = ?", (BOT_ID,))
+        execute(
+            conn,
+            "INSERT INTO integration_connections (id, organization_id, bot_id, integration_type, provider, name, status, health_status, credential_status, config_json, created_at, updated_at) VALUES (?, ?, ?, 'whatsapp', 'meta_cloud_api', 'WhatsApp Cloud API', 'active', 'healthy', 'connected', '{}', ?, ?)",
+            ("int_guided_live", ORG_ID, BOT_ID, now, now),
+        )
+        execute(
+            conn,
+            "INSERT INTO bot_simulation_runs (id, organization_id, bot_id, compare_target, left_version_id, right_version_id, status, summary_json, cases_total, passed_count, failed_count, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("sim_guided_live", ORG_ID, BOT_ID, 'published', 'ver_live', 'ver_live', 'completed', to_json({"pass_rate": 92, "cases_total": 5}), 5, 5, 0, USER_ID, now),
+        )
+        conn.commit()
+
+    refreshed = client.get(f"/api/v1/onboarding/wizard/{wizard_id}", headers=headers)
+    assert refreshed.status_code == 200
+    snapshot = refreshed.json()["data"]["validation_snapshot"]
+    assert snapshot["next_cta"]["key"] == "open_inbox"
+    assert snapshot["next_cta"]["cta_label"] == "Abrir inbox"
+    assert snapshot["simulation_result"]["approved"] is True

@@ -161,6 +161,8 @@ export type BotContract = {
   language?: string;
   timezone?: string;
   status?: string;
+  current_state?: string;
+  published_version_id?: string | null;
   ai_paused: boolean;
   phone_number?: string | null;
   connection_status?: string | null;
@@ -193,6 +195,8 @@ export function normalizeBot(raw: unknown): BotContract {
     language: stringOrNull(record.language) ?? undefined,
     timezone: stringOrNull(record.timezone) ?? undefined,
     status: stringOrNull(record.status) ?? undefined,
+    current_state: stringOrNull(record.current_state) ?? undefined,
+    published_version_id: stringOrNull(record.published_version_id),
     ai_paused: booleanValue(record.ai_paused),
     phone_number: stringOrNull(numberRecord.phone_number ?? record.phone_number),
     connection_status: stringOrNull(numberRecord.connection_status ?? record.connection_status),
@@ -234,6 +238,7 @@ export type ActivationSummaryContract = {
   blockers: Array<Record<string, unknown>>;
   checklist: Array<Record<string, unknown>>;
   next_step: Record<string, unknown>;
+  guided_wizard?: Record<string, unknown> | null;
   first_value_at?: string | null;
   created_at?: string | null;
   feature_flags: Record<string, boolean>;
@@ -252,6 +257,7 @@ export function normalizeActivationSummary(raw: unknown): ActivationSummaryContr
     blockers: asArray(record.blockers).map((item) => asRecord(item)),
     checklist: asArray(record.checklist).map((item) => asRecord(item)),
     next_step: asRecord(record.next_step),
+    guided_wizard: Object.keys(asRecord(record.guided_wizard)).length ? asRecord(record.guided_wizard) : null,
     first_value_at: pickTimestamp(record, "first_value_at"),
     created_at: pickTimestamp(record, "created_at"),
     feature_flags: asRecord(record.feature_flags) as Record<string, boolean>,

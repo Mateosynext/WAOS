@@ -38,7 +38,7 @@ export default async function VerticalsPage({ searchParams }: { searchParams?: P
   const selectedVerticalId = first(params.vertical);
   const selectedSubvertical = first(params.subvertical);
   const [verticals, strongestVerticals] = await Promise.all([getVerticalCatalog(), getStrongestVerticals()]);
-  const selected = verticals.find((item) => item.id === selectedVerticalId) || verticals[0];
+  const selected = verticals.find((item) => item.id === selectedVerticalId) || (verticals.length === 1 ? verticals[0] : null);
 
   if (!selected) {
     return (
@@ -47,13 +47,28 @@ export default async function VerticalsPage({ searchParams }: { searchParams?: P
         subtitle="No se pudo cargar el catálogo de verticales."
         action={<Link href="/bot-studio" className="primary-btn">Ir a Bot Studio</Link>}
       >
-        <Section title="Catálogo no disponible" subtitle="La API no devolvió verticales o la sesión no pudo resolver el catálogo." icon="alert">
-          <ModuleCard
-            title="Sin verticales disponibles"
-            description="Recarga la página, vuelve a iniciar sesión o revisa la conexión del frontend con /api/v1/verticals."
-            icon="alert"
-            tone="red"
-          />
+        <Section title="Elige una vertical" subtitle="Esta vista ya no cae silenciosamente a la primera vertical del catálogo." icon="layers">
+          {verticals.length ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {verticals.map((item) => (
+                <ModuleCard
+                  key={item.id}
+                  title={safeText(item.name)}
+                  description={safeText(item.description || item.problem, "Sin descripción visible.")}
+                  icon="layers"
+                  tone="green"
+                  footer={<Link href={`/verticals?vertical=${encodeURIComponent(item.id)}`} className="secondary-btn">Abrir vertical</Link>}
+                />
+              ))}
+            </div>
+          ) : (
+            <ModuleCard
+              title="Sin verticales disponibles"
+              description="Recarga la página, vuelve a iniciar sesión o revisa la conexión del frontend con /api/v1/verticals."
+              icon="alert"
+              tone="red"
+            />
+          )}
         </Section>
       </Shell>
     );
@@ -71,9 +86,9 @@ export default async function VerticalsPage({ searchParams }: { searchParams?: P
   const subverticalSegmented = (profile.subvertical_profiles.length ? profile.subvertical_profiles : profile.subverticals.map((item) => ({ id: item.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name: item }))).map((item) => ({
     href: `/verticals?vertical=${encodeURIComponent(profile.id)}&subvertical=${encodeURIComponent(item.name)}` ,
     label: safeText(item.name),
-    active: safeText(item.name).toLowerCase() === safeText(profile.selected_subvertical?.name, profile.recommended_subverticals[0] || item.name).toLowerCase(),
+    active: safeText(item.name).toLowerCase() === safeText(profile.selected_subvertical?.name).toLowerCase(),
   }));
-  const activeSubvertical = profile.selected_subvertical || profile.subvertical_profiles.find((item) => item.name === profile.recommended_subverticals[0]) || profile.subvertical_profiles[0];
+  const activeSubvertical = profile.selected_subvertical || null;
 
   const pipelineRows = [
     ...(profile.pipeline.primary ? [[safeText(profile.pipeline.primary.name), safeText(profile.pipeline.primary.states.join(" • "), "Sin estados")]] : []),

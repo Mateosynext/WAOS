@@ -38,8 +38,10 @@ export default async function IntegrationsPage({ searchParams }: { searchParams?
     getPayments(),
     getIntegrationCenter(),
   ]);
-  const selectedBot = bots.find((item) => item.id === currentBotId) || bots[0] || null;
-  const selectedVertical = await getVerticalProfile(selectedBot?.vertical || session?.user.organizations.find((item) => item.id === organizationId)?.vertical || undefined, selectedBot?.id);
+  const selectedBot = bots.find((item) => item.id === currentBotId) || null;
+  const selectedOrganization = session?.user.organizations.find((item) => item.id === organizationId) || null;
+  const selectedVerticalId = selectedBot?.vertical || selectedOrganization?.vertical || undefined;
+  const selectedVertical = selectedVerticalId ? await getVerticalProfile(selectedVerticalId, selectedBot?.id) : null;
   const whatsappIntegration = integrations.find((item) => item.provider === "meta_cloud_api" || item.integration_type === "whatsapp") || null;
   const googleIntegration = integrations.find((item) => item.provider === "google_calendar") || null;
   const stripeIntegration = integrations.find((item) => item.provider === "stripe") || null;
@@ -53,7 +55,7 @@ export default async function IntegrationsPage({ searchParams }: { searchParams?
   const retryHotspots = center.retry_hotspots || [];
 
   return (
-    <Shell title="Integraciones" subtitle="Primero conecta, luego prueba, después sincroniza y solo al final entra a credenciales o mantenimiento. Aquí ya puedes configurar Google Calendar y Stripe como producto operable, como capa operable de producción." action={<Link href="/onboarding?step=canal" className="primary-btn">Conectar</Link>}>
+    <Shell title="Integraciones" subtitle="Integraciones ya no compite con setup ni publish: aquí solo conectas, pruebas y sincronizas canales, agenda y pagos antes de operar o publicar." action={<Link href="/integrations?section=configuracion" className="primary-btn">Abrir configuración</Link>} requireBot>
       <SecondaryNav items={[
         { href: "/integrations?section=estado", label: "Estado", active: section === "estado" },
         { href: "/integrations?section=configuracion", label: "Configuración", active: section === "configuracion" },
@@ -62,14 +64,14 @@ export default async function IntegrationsPage({ searchParams }: { searchParams?
         { href: "/integrations?section=credenciales", label: "Credenciales", active: section === "credenciales" },
         { href: "/integrations?section=observabilidad", label: "Observabilidad", active: section === "observabilidad" },
       ]} />
-      <ContextTip>Tu rol visible ahora es {roleLabel(role)}. Operación y soporte pueden probar; seguridad entra cuando toca revisar rotación, vencimiento o proveedores.</ContextTip>
+      <ContextTip>Tu rol visible ahora es {roleLabel(role)}. Bot Studio crea o reconfigura; aquí conectas y pruebas. Releases publica después. Seguridad entra cuando toca revisar rotación, vencimiento o proveedores.</ContextTip>
 
       {oauthStatus === "connected" ? (
         <SuccessState title="Google Calendar quedó conectado" description="El callback OAuth ya vuelve al producto y la integración quedó lista para elegir calendario, probar y dejar auto-sync si aplica." actions={<Link href="/integrations?section=configuracion" className="primary-btn">Seguir configurando</Link>} />
       ) : null}
 
       {!integrations.length ? (
-        <EmptyActionState title="Todavía no hay integraciones" description="Conecta primero el canal principal. Cuando eso quede listo, esta pantalla te servirá para probar, sincronizar y revisar riesgo sin ruido." primaryAction={<Link href="/integrations?section=configuracion" className="primary-btn">Configurar ahora</Link>} secondaryAction={<Link href="/status" className="secondary-btn">Ver estado</Link>} />
+        <EmptyActionState title="Todavía no hay integraciones" description="Este módulo solo conecta y prueba. Cierra aquí el canal principal antes de pasar a operación o publicación." primaryAction={<Link href="/integrations?section=configuracion" className="primary-btn">Configurar ahora</Link>} secondaryAction={<Link href="/bot-studio" className="secondary-btn">Volver a Bot Studio</Link>} />
       ) : (
         <SuccessState title="Las integraciones ya tienen una lectura clara" description="Estado, configuración, riesgo, sincronización, credenciales y observabilidad ya viven separados para no mezclar trabajo diario con mantenimiento." actions={<Link href="/integrations?section=observabilidad" className="primary-btn">Ver observabilidad</Link>} />
       )}
@@ -84,19 +86,19 @@ export default async function IntegrationsPage({ searchParams }: { searchParams?
       </div>
 
       {section === "configuracion" ? (
-        <Section title="Asistente por vertical" subtitle={`La vertical ${safeText(selectedVertical.short_name || selectedVertical.name, "activa")} recomienda priorizar estas conexiones antes de salir a producción.`} icon="route">
+        <Section title="Asistente operativo por industria" subtitle={`La industria ${safeText(selectedVertical?.short_name || selectedVertical?.name, "activa")} recomienda priorizar estas conexiones antes de salir a producción.`} icon="route">
           <div className="grid gap-4 md:grid-cols-3">
             {[
               { key: "whatsapp", label: "WhatsApp", ok: Boolean(whatsappIntegration), detail: "Canal principal para conversaciones reales." },
-              { key: "google_calendar", label: "Google Calendar", ok: Boolean(googleIntegration), detail: "Disponibilidad y agenda alineadas al bot." },
+              { key: "google_calendar", label: "Google Calendar", ok: Boolean(googleIntegration), detail: "Disponibilidad y agenda alineadas al asistente operativo." },
               { key: "payments", label: "Payments", ok: Boolean(stripeIntegration), detail: "Cobro, anticipo y reconciliación." },
             ].map((item) => {
-              const recommended = selectedVertical.recommended_integrations.some((value) => String(value).toLowerCase().includes(item.key === "payments" ? "payment" : item.key === "google_calendar" ? "calendar" : item.key));
+              const recommended = (selectedVertical?.recommended_integrations || []).some((value) => String(value).toLowerCase().includes(item.key === "payments" ? "payment" : item.key === "google_calendar" ? "calendar" : item.key));
               return (
                 <ModuleCard
                   key={item.key}
                   title={item.label}
-                  description={`${recommended ? "Recomendada para esta vertical. " : "Opcional para esta vertical. "}${item.ok ? "Ya existe una configuración visible." : "Todavía falta cerrarla."}`}
+                  description={`${recommended ? "Recomendada para esta industria. " : "Opcional para esta industria. "}${item.ok ? "Ya existe una configuración visible." : "Todavía falta cerrarla."}`}
                   icon={item.ok ? "check" : "plug"}
                   tone={item.ok ? "green" : recommended ? "gold" : "slate"}
                   footer={<span className="mono-pill">{recommended ? "recomendada" : "opcional"}</span>}
@@ -135,7 +137,7 @@ export default async function IntegrationsPage({ searchParams }: { searchParams?
       {section === "configuracion" ? (
         <Section title="Configuración operable" subtitle="Aquí cierras OAuth, calendario, Stripe, auto-sync y retorno de usuario. Ya no dependes de configuración fuera del producto para completar el ciclo." icon="gear">
           {!organizationId ? (
-            <EmptyActionState title="Selecciona una organización" description="La configuración de proveedores se guarda por organización o bot. Primero fija el contexto arriba." primaryAction={<Link href="/organizations" className="primary-btn">Elegir organización</Link>} />
+            <EmptyActionState title="Selecciona una organización" description="La configuración de proveedores se guarda por organización o asistente operativo. Primero fija el contexto arriba." primaryAction={<Link href="/organizations" className="primary-btn">Elegir organización</Link>} />
           ) : (
             <div className="grid gap-6 xl:grid-cols-3">
               <div className={`panel-soft p-5 ${focusIntegrationId && whatsappIntegration?.id === focusIntegrationId ? "ring-1 ring-emerald-400/30" : ""}`}>
@@ -143,7 +145,7 @@ export default async function IntegrationsPage({ searchParams }: { searchParams?
                   <div>
                     <div className="eyebrow">WhatsApp</div>
                     <h3 className="mt-2 text-xl font-semibold text-white">Cloud API operable</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-300">Deja aquí número, phone number ID, WABA, token y verify token para que el bot pueda salir a producción sin depender de una carga externa.</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">Deja aquí número, phone number ID, WABA, token y verify token para que el asistente operativo pueda salir a producción sin depender de una carga externa.</p>
                   </div>
                   <div className="flex flex-col gap-2">
                     <Badge tone={whatsappIntegration ? "green" : "slate"}>{whatsappIntegration ? safeText(whatsappIntegration.credential_status || whatsappIntegration.status) : "no creada"}</Badge>
@@ -173,7 +175,7 @@ export default async function IntegrationsPage({ searchParams }: { searchParams?
                   </div>
                 </form>
                 <div className="mt-4 grid gap-2 text-sm text-slate-300">
-                  <div className="surface-row">Recomendación vertical: {selectedVertical.recommended_integrations.some((value) => String(value).toLowerCase().includes("whatsapp")) ? "sí" : "opcional"}</div>
+                  <div className="surface-row">Recomendación de industria: {(selectedVertical?.recommended_integrations || []).some((value) => String(value).toLowerCase().includes("whatsapp")) ? "sí" : "opcional"}</div>
                   <div className="surface-row">Último provider event: {safeText(whatsappIntegration?.last_provider_event_at || "sin dato")}</div>
                   <div className="surface-row">Último error: {safeText(whatsappIntegration?.last_error || "sin error visible")}</div>
                 </div>
