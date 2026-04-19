@@ -271,13 +271,32 @@ def _select_contacts(conn, *, organization_id: str, bot_id: str, contact_ids: li
     return fetch_all(
         conn,
         """
-        SELECT DISTINCT c.*
+        SELECT c.*
         FROM contacts c
-        LEFT JOIN conversations v ON v.contact_id = c.id AND v.bot_id = ?
-        LEFT JOIN commerce_payments p ON p.contact_id = c.id AND p.bot_id = ?
-        LEFT JOIN appointments a ON a.contact_id = c.id AND a.bot_id = ?
-        WHERE c.organization_id = ?
-        ORDER BY COALESCE(v.updated_at, p.updated_at, a.updated_at, c.updated_at) DESC
+        JOIN (
+            SELECT c0.id,
+                   (
+                       SELECT MAX(activity.ts)
+                       FROM (
+                           SELECT v.updated_at AS ts
+                           FROM conversations v
+                           WHERE v.contact_id = c0.id AND v.bot_id = ?
+                           UNION ALL
+                           SELECT p.updated_at AS ts
+                           FROM commerce_payments p
+                           WHERE p.contact_id = c0.id AND p.bot_id = ?
+                           UNION ALL
+                           SELECT a.updated_at AS ts
+                           FROM appointments a
+                           WHERE a.contact_id = c0.id AND a.bot_id = ?
+                           UNION ALL
+                           SELECT c0.updated_at AS ts
+                       ) activity
+                   ) AS sort_updated
+            FROM contacts c0
+            WHERE c0.organization_id = ?
+        ) ranked ON ranked.id = c.id
+        ORDER BY ranked.sort_updated DESC, c.updated_at DESC, c.id DESC
         LIMIT ?
         """,
         (bot_id, bot_id, bot_id, organization_id, limit),

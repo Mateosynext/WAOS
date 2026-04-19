@@ -645,6 +645,7 @@ def run_growth_os_master_scheduler(conn, *, limit: int = 25) -> list[dict[str, A
                 }
             )
         except Exception as exc:
+            conn.rollback()
             execute(
                 conn,
                 """
