@@ -1,6 +1,6 @@
 "use server";
 import { redirect } from "next/navigation";
-import { BOT_COOKIE, cookies, patchJson, postJson, readString, runAndRefresh, secureCookies } from "./shared";
+import { BOT_COOKIE, cookies, patchJson, postJson, readString, runAndRefresh, secureCookies, withActionError } from "./shared";
 
 function readBoolean(formData: FormData, key: string) {
   const value = String(formData.get(key) || "").toLowerCase();
@@ -20,41 +20,46 @@ export async function createBotAction(formData: FormData) {
   const hours = readString(formData, "hours");
   const redirectTo = readString(formData, "redirect_to");
   const publishNow = readBoolean(formData, "publish_now");
-  const created = await postJson(`/api/v1/bots`, {
-    organization_id: organizationId,
-    business_name: businessName,
-    vertical,
-    bot_name: botName,
-    primary_objective: primaryObjective,
-    tone,
-    language,
-    timezone,
-    services: [],
-    hours,
-    faqs: [],
-    whatsapp_number: whatsappNumber,
-    publish_now: publishNow,
-  }) as Record<string, unknown>;
-  const botId = String(created.id || "");
-  const store = await cookies();
-  if (botId) store.set(BOT_COOKIE, botId, { httpOnly: true, sameSite: "lax", secure: secureCookies, path: "/" });
-  await runAndRefresh("/bot-studio", async () => null);
-  await runAndRefresh("/bots", async () => null);
-  if (redirectTo) {
-    await runAndRefresh(redirectTo, async () => null);
-    redirect(redirectTo);
+  const failureTarget = redirectTo || "/bots";
+  try {
+    const created = await postJson(`/api/v1/bots`, {
+      organization_id: organizationId,
+      business_name: businessName,
+      vertical,
+      bot_name: botName,
+      primary_objective: primaryObjective,
+      tone,
+      language,
+      timezone,
+      services: [],
+      hours,
+      faqs: [],
+      whatsapp_number: whatsappNumber,
+      publish_now: publishNow,
+    }) as Record<string, unknown>;
+    const botId = String(created.id || "");
+    const store = await cookies();
+    if (botId) store.set(BOT_COOKIE, botId, { httpOnly: true, sameSite: "lax", secure: secureCookies, path: "/" });
+    await runAndRefresh("/bot-studio", async () => null);
+    await runAndRefresh("/bots", async () => null);
+    if (redirectTo) {
+      await runAndRefresh(redirectTo, async () => null);
+      redirect(redirectTo);
+    }
+    redirect(botId ? `/bots/${botId}` : "/bots");
+  } catch (error) {
+    redirect(withActionError(failureTarget, error, "No se pudo crear el bot."));
   }
-  redirect(botId ? `/bots/${botId}` : "/bots");
 }
 
 export async function applyBotVerticalAction(formData: FormData) {
   const botId = readString(formData, "bot_id");
   const vertical = readString(formData, "vertical");
   const redirectTo = readString(formData, "redirect_to") || `/bots/${botId}`;
-  await runAndRefresh(redirectTo, () => patchJson(`/api/v1/bots/${botId}`, { vertical, apply_vertical_defaults: true }));
-  redirect(redirectTo);
+  const result = await runAndRefresh(redirectTo, () => patchJson(`/api/v1/bots/${botId}`, { vertical, apply_vertical_defaults: true }));
+  redirect(result.ok ? redirectTo : withActionError(redirectTo, result.error, "No se pudo actualizar el vertical del bot."));
 }
 
-export async function pauseBotAction(formData: FormData) { const botId = readString(formData, "bot_id"); const redirectTo = readString(formData, "redirect_to") || `/bots/${botId}`; await runAndRefresh(redirectTo, () => postJson(`/api/v1/bots/${botId}/pause`, {})); }
-export async function resumeBotAction(formData: FormData) { const botId = readString(formData, "bot_id"); const redirectTo = readString(formData, "redirect_to") || `/bots/${botId}`; await runAndRefresh(redirectTo, () => postJson(`/api/v1/bots/${botId}/resume`, {})); }
-export async function publishBotAction(formData: FormData) { const botId = readString(formData, "bot_id"); const notes = readString(formData, "notes"); const redirectTo = readString(formData, "redirect_to") || `/bots/${botId}`; await runAndRefresh(redirectTo, () => postJson(`/api/v1/bots/${botId}/publish`, { notes })); }
+export async function pauseBotAction(formData: FormData) { const botId = readString(formData, "bot_id"); const redirectTo = readString(formData, "redirect_to") || `/bots/${botId}`; const result = await runAndRefresh(redirectTo, () => postJson(`/api/v1/bots/${botId}/pause`, {})); redirect(result.ok ? redirectTo : withActionError(redirectTo, result.error, "No se pudo pausar el bot.")); }
+export async function resumeBotAction(formData: FormData) { const botId = readString(formData, "bot_id"); const redirectTo = readString(formData, "redirect_to") || `/bots/${botId}`; const result = await runAndRefresh(redirectTo, () => postJson(`/api/v1/bots/${botId}/resume`, {})); redirect(result.ok ? redirectTo : withActionError(redirectTo, result.error, "No se pudo reanudar el bot.")); }
+export async function publishBotAction(formData: FormData) { const botId = readString(formData, "bot_id"); const notes = readString(formData, "notes"); const redirectTo = readString(formData, "redirect_to") || `/bots/${botId}`; const result = await runAndRefresh(redirectTo, () => postJson(`/api/v1/bots/${botId}/publish`, { notes })); redirect(result.ok ? redirectTo : withActionError(redirectTo, result.error, "No se pudo publicar el bot.")); }

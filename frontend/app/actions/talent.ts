@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { patchJson, postJson, readString, runAndRefresh } from "./shared";
+import { patchJson, postJson, readString, runAndRefresh, withActionError } from "./shared";
 
 function readBoolean(formData: FormData, key: string) {
   const value = String(formData.get(key) || "").toLowerCase();
@@ -25,7 +25,7 @@ function readOptionalNumber(formData: FormData, key: string): number | null {
 export async function updateTalentPolicyAction(formData: FormData) {
   const botId = readString(formData, "bot_id");
   const redirectTo = readString(formData, "redirect_to") || "/vacantes";
-  await runAndRefresh(redirectTo, () => patchJson(`/api/v1/bots/${botId}/talent/policy`, {
+  const result = await runAndRefresh(redirectTo, () => patchJson(`/api/v1/bots/${botId}/talent/policy`, {
     enabled: readBoolean(formData, "enabled"),
     vacancies_enabled: readBoolean(formData, "vacancies_enabled"),
     worker_recognition_enabled: readBoolean(formData, "worker_recognition_enabled"),
@@ -37,13 +37,13 @@ export async function updateTalentPolicyAction(formData: FormData) {
     route_worker_to_human: readBoolean(formData, "route_worker_to_human"),
     salary_hide_message: readString(formData, "salary_hide_message"),
   }));
-  redirect(redirectTo);
+  redirect(result.ok ? redirectTo : withActionError(redirectTo, result.error, "No se pudo actualizar la política de talento."));
 }
 
 export async function createTalentVacancyAction(formData: FormData) {
   const botId = readString(formData, "bot_id");
   const redirectTo = readString(formData, "redirect_to") || "/vacantes";
-  await runAndRefresh(redirectTo, () => postJson(`/api/v1/bots/${botId}/talent/vacancies`, {
+  const result = await runAndRefresh(redirectTo, () => postJson(`/api/v1/bots/${botId}/talent/vacancies`, {
     title: readString(formData, "title"),
     status: readString(formData, "status") || "draft",
     summary: readString(formData, "summary"),
@@ -66,18 +66,18 @@ export async function createTalentVacancyAction(formData: FormData) {
     documents_required: splitList(readString(formData, "documents_required")),
     faqs: [],
   }));
-  redirect(redirectTo);
+  redirect(result.ok ? redirectTo : withActionError(redirectTo, result.error, "No se pudo crear la vacante."));
 }
 
 export async function confirmTalentCandidateAction(formData: FormData) {
   const botId = readString(formData, "bot_id");
   const redirectTo = readString(formData, "redirect_to") || "/vacantes";
-  await runAndRefresh(redirectTo, () => postJson(`/api/v1/bots/${botId}/talent/candidates/confirm`, {
+  const result = await runAndRefresh(redirectTo, () => postJson(`/api/v1/bots/${botId}/talent/candidates/confirm`, {
     contact_id: readString(formData, "contact_id"),
     conversation_id: readString(formData, "conversation_id") || null,
     vacancy_id: readString(formData, "vacancy_id") || null,
     vacancy_title: readString(formData, "vacancy_title") || null,
     notes: readString(formData, "notes"),
   }));
-  redirect(redirectTo);
+  redirect(result.ok ? redirectTo : withActionError(redirectTo, result.error, "No se pudo confirmar el candidato."));
 }

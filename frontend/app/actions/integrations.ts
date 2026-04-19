@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { postJson, readString, runAndRefresh } from "./shared";
+import { postJson, readString, runAndRefresh, withActionError } from "./shared";
 
 function readOptionalString(formData: FormData, key: string): string | null {
   const value = readString(formData, key);
@@ -20,13 +20,15 @@ function readNumber(formData: FormData, key: string, fallback: number): number {
 export async function testIntegrationAction(formData: FormData) {
   const integrationId = readString(formData, "integration_id");
   const redirectTo = readString(formData, "redirect_to") || "/integrations";
-  await runAndRefresh(redirectTo, () => postJson(`/api/v1/integrations/${integrationId}/test`, {}));
+  const result = await runAndRefresh(redirectTo, () => postJson(`/api/v1/integrations/${integrationId}/test`, {}));
+  if (!result.ok) redirect(withActionError(redirectTo, result.error, "No se pudo probar la integración."));
 }
 
 export async function syncIntegrationAction(formData: FormData) {
   const integrationId = readString(formData, "integration_id");
   const redirectTo = readString(formData, "redirect_to") || "/integrations";
-  await runAndRefresh(redirectTo, () => postJson(`/api/v1/integrations/${integrationId}/sync`, {}));
+  const result = await runAndRefresh(redirectTo, () => postJson(`/api/v1/integrations/${integrationId}/sync`, {}));
+  if (!result.ok) redirect(withActionError(redirectTo, result.error, "No se pudo sincronizar la integración."));
 }
 
 export async function saveWhatsAppIntegrationAction(formData: FormData) {
@@ -43,7 +45,8 @@ export async function saveWhatsAppIntegrationAction(formData: FormData) {
     webhook_verify_token: readOptionalString(formData, "webhook_verify_token"),
     status: readString(formData, "status") || "configured",
   };
-  await runAndRefresh(redirectTo, () => postJson(`/api/v1/integrations/whatsapp/configure`, payload));
+  const result = await runAndRefresh(redirectTo, () => postJson(`/api/v1/integrations/whatsapp/configure`, payload));
+  if (!result.ok) redirect(withActionError(redirectTo, result.error, "No se pudo guardar la integración de WhatsApp."));
 }
 
 export async function saveGoogleCalendarIntegrationAction(formData: FormData) {
@@ -63,13 +66,19 @@ export async function saveGoogleCalendarIntegrationAction(formData: FormData) {
     status: readString(formData, "status") || "configured",
     scopes: ["openid", "email", "profile", "https://www.googleapis.com/auth/calendar"],
   };
-  await runAndRefresh(redirectTo, () => postJson(`/api/v1/integrations/google-calendar/configure`, payload));
+  const result = await runAndRefresh(redirectTo, () => postJson(`/api/v1/integrations/google-calendar/configure`, payload));
+  if (!result.ok) redirect(withActionError(redirectTo, result.error, "No se pudo guardar la integración de Google Calendar."));
 }
 
 export async function startGoogleOAuthAction(formData: FormData) {
   const integrationId = readString(formData, "integration_id");
-  const result = await postJson(`/api/v1/integrations/${integrationId}/oauth/google/start`, {}) as { authorization_url?: string };
-  redirect(String(result.authorization_url || '/integrations?section=configuracion'));
+  const redirectTo = readString(formData, "redirect_to") || '/integrations?section=configuracion';
+  try {
+    const result = await postJson(`/api/v1/integrations/${integrationId}/oauth/google/start`, {}) as { authorization_url?: string };
+    redirect(String(result.authorization_url || redirectTo));
+  } catch (error) {
+    redirect(withActionError(redirectTo, error, "No se pudo iniciar Google OAuth."));
+  }
 }
 
 export async function saveStripeIntegrationAction(formData: FormData) {
@@ -88,23 +97,25 @@ export async function saveStripeIntegrationAction(formData: FormData) {
     sync_frequency_minutes: readNumber(formData, "sync_frequency_minutes", 10),
     status: readString(formData, "status") || "configured",
   };
-  await runAndRefresh(redirectTo, () => postJson(`/api/v1/integrations/stripe/configure`, payload));
+  const result = await runAndRefresh(redirectTo, () => postJson(`/api/v1/integrations/stripe/configure`, payload));
+  if (!result.ok) redirect(withActionError(redirectTo, result.error, "No se pudo guardar la integración de Stripe."));
 }
 
 export async function refreshPaymentStatusAction(formData: FormData) {
   const paymentId = readString(formData, "payment_id");
   const redirectTo = readString(formData, "redirect_to") || "/revenue";
-  await runAndRefresh("/revenue", () => postJson(`/api/v1/sales/payments/${paymentId}/refresh`, {}));
+  const result = await runAndRefresh("/revenue", () => postJson(`/api/v1/sales/payments/${paymentId}/refresh`, {}));
   await runAndRefresh("/agenda", async () => null);
   if (redirectTo !== "/revenue") {
     await runAndRefresh(redirectTo, async () => null);
   }
+  if (!result.ok) redirect(withActionError(redirectTo, result.error, "No se pudo actualizar el pago."));
 }
-
 
 export async function replayWebhookReceiptAction(formData: FormData) {
   const receiptId = readString(formData, "receipt_id");
   const redirectTo = readString(formData, "redirect_to") || "/integrations?section=riesgo";
   const payload = { dry_run: true, note: readOptionalString(formData, "note") };
-  await runAndRefresh(redirectTo, () => postJson(`/api/v1/integrations/webhooks/${receiptId}/replay`, payload));
+  const result = await runAndRefresh(redirectTo, () => postJson(`/api/v1/integrations/webhooks/${receiptId}/replay`, payload));
+  if (!result.ok) redirect(withActionError(redirectTo, result.error, "No se pudo reintentar el webhook."));
 }
