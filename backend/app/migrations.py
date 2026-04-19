@@ -974,9 +974,7 @@ def _migration_phase11_whatsapp_template_lifecycle(conn) -> None:
             UNIQUE(organization_id, bot_id, name),
             FOREIGN KEY (organization_id) REFERENCES organizations(id),
             FOREIGN KEY (bot_id) REFERENCES bots(id),
-            FOREIGN KEY (fallback_template_id) REFERENCES whatsapp_templates(id),
-            FOREIGN KEY (latest_version_id) REFERENCES whatsapp_template_versions(id),
-            FOREIGN KEY (approved_version_id) REFERENCES whatsapp_template_versions(id)
+            FOREIGN KEY (fallback_template_id) REFERENCES whatsapp_templates(id)
         );
 
         CREATE TABLE IF NOT EXISTS whatsapp_template_versions (
