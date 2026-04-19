@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { applyBotVerticalAction, createBotAction, createBotDraftSnapshotAction, createBotSimulationCaseAction, runBotSimulationAction } from "../actions";
-import { EmptyActionState, ModuleCard, Section, Shell, StatCard, SuccessState } from "../components";
+import { applyBotVerticalAction, createBotAction, createBotDraftSnapshotAction, createBotSimulationCaseAction, runBotSimulationAction, switchOrganizationAction } from "../actions";
+import { ContextTip, EmptyActionState, ModuleCard, OrganizationSwitcher, Section, Shell, StatCard, SuccessState } from "../components";
 import { getCurrentBotId, getSession } from "../lib/session";
 import { safeText, yesNo } from "../lib/ui";
 import { getBotBehavior, getBotSimulationCases, getBotSimulationRuns, getBotTemplates, getBots, getVerticalCatalog, getVerticalProfile } from "../lib/waos";
@@ -8,7 +8,8 @@ import { getBotBehavior, getBotSimulationCases, getBotSimulationRuns, getBotTemp
 export default async function BotStudioPage() {
   const session = await getSession();
   const currentBotId = await getCurrentBotId();
-  const currentOrg = session?.user.organizations.find((item) => item.id === session?.organizationId) || null;
+  const organizations = session?.user.organizations || [];
+  const currentOrg = organizations.find((item) => item.id === session?.organizationId) || null;
   const [behavior, templates, verticals, bots] = await Promise.all([getBotBehavior(), getBotTemplates(), getVerticalCatalog(), getBots()]);
   const selectedBot = bots.find((item) => item.id === currentBotId) || null;
   const selectedVerticalId = selectedBot?.vertical || currentOrg?.vertical || verticals[0]?.id;
@@ -35,21 +36,49 @@ export default async function BotStudioPage() {
   return (
     <Shell
       title="Crear bot"
-      subtitle="Las 11 verticales madre ya viven en WAOS con presets de bot, comportamiento y plantillas listas para produccion. Ahora tambien puedes crear un bot nuevo o reaplicar vertical a uno existente desde esta pantalla."
+      subtitle="Las verticales madre ya viven en WAOS con presets de bot, comportamiento y plantillas listas para producción. Si todavía no tienes tenant activo, esta misma pantalla te deja fijarlo antes de crear el bot."
       action={<><Link href="/bots" className="secondary-btn">Ver bots</Link><Link href="/flows" className="secondary-btn">Flujos</Link></>}
     >
+      {!currentOrg ? (
+        <ContextTip title="Catálogo cargado, falta contexto">
+          Ya cargamos <strong>{verticals.length} verticales</strong>, pero para crear un bot primero necesitamos fijar la organización activa. Así evitamos sembrar bots, templates o integraciones en el tenant equivocado.
+        </ContextTip>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Modo actual" value={safeText(behavior.bot_mode, "sin definir")} hint="Como esta operando hoy" icon="bot" tone="green" />
-        <StatCard label="Tono" value={safeText(behavior.tone, "sin definir")} hint="Como responde al cliente" icon="spark" tone="blue" />
-        <StatCard label="Imagenes automaticas" value={yesNo(behavior.auto_send_images)} hint="Si el bot manda imagenes solo" icon="image" tone="gold" />
-        <StatCard label="Verticales listas" value={String(verticals.length)} hint="Catalogo madre disponible" icon="layers" tone="slate" />
+        <StatCard label="Modo actual" value={safeText(behavior.bot_mode, "sin definir")} hint="Cómo está operando hoy" icon="bot" tone="green" />
+        <StatCard label="Tono" value={safeText(behavior.tone, "sin definir")} hint="Cómo responde al cliente" icon="spark" tone="blue" />
+        <StatCard label="Imágenes automáticas" value={yesNo(behavior.auto_send_images)} hint="Si el bot manda imágenes solo" icon="image" tone="gold" />
+        <StatCard label="Verticales listas" value={String(verticals.length)} hint="Catálogo madre disponible" icon="layers" tone="slate" />
       </div>
 
-      <Section title="Crear bot nuevo con vertical" subtitle="Formulario real para crear un bot sobre la organizacion activa y sembrar templates, comportamiento y defaults productivos desde el primer minuto." icon="check">
+      {!currentOrg ? (
+        <Section title="Paso 1 · Selecciona la organización" subtitle="Antes de sembrar un bot, confirma sobre qué tenant vas a trabajar. Al guardar el contexto, esta misma vista te mostrará el formulario completo con las verticales." icon="client">
+          {organizations.length ? (
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+              <OrganizationSwitcher
+                organizations={organizations.map((item) => ({ id: item.id, name: item.name, vertical: item.vertical }))}
+                selectedId={session?.organizationId || null}
+                redirectTo="/bot-studio"
+                action={switchOrganizationAction}
+              />
+              <SuccessState
+                title={`Catálogo listo: ${verticals.length} verticales`}
+                description={`En cuanto confirmes una organización, podrás crear el bot con la vertical que elijas. Vista previa actual: ${safeText(selectedVertical?.name, verticals[0]?.name || "Vertical lista")}.`}
+                actions={<Link href="/organizations" className="secondary-btn">Administrar organizaciones</Link>}
+              />
+            </div>
+          ) : (
+            <EmptyActionState title="No hay organizaciones disponibles" description="La sesión cargó, pero esta cuenta no tiene tenants asignados. Sin tenant activo no conviene crear un bot." primaryAction={<Link href="/organizations" className="primary-btn">Revisar organizaciones</Link>} />
+          )}
+        </Section>
+      ) : null}
+
+      <Section title="Crear bot nuevo con vertical" subtitle="Formulario real para crear un bot sobre la organización activa y sembrar templates, comportamiento y defaults productivos desde el primer minuto." icon="check">
         {currentOrg ? (
           <form action={createBotAction} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <input type="hidden" name="organization_id" value={currentOrg.id} />
-            <label className="field-label">Organizacion activa
+            <label className="field-label">Organización activa
               <input className="field-input" value={currentOrg.name} readOnly />
             </label>
             <label className="field-label">Vertical madre
@@ -99,11 +128,11 @@ export default async function BotStudioPage() {
             </div>
           </form>
         ) : (
-          <EmptyActionState title="Primero selecciona una organizacion" description="Crear un bot sin tenant activo meteria ambiguedad en multi-tenant. Ve a organizaciones y fija contexto." primaryAction={<Link href="/organizations" className="primary-btn">Seleccionar organizacion</Link>} />
+          <EmptyActionState title="Falta confirmar la organización" description="Las verticales ya cargaron, pero esta pantalla necesita un tenant activo para completar la creación. Usa el selector superior y vuelve aquí mismo sin perder contexto." primaryAction={<Link href="/bot-studio" className="primary-btn">Reintentar aquí</Link>} secondaryAction={<Link href="/organizations" className="secondary-btn">Ir a organizaciones</Link>} />
         )}
       </Section>
 
-      <Section title="Aplicar vertical al bot seleccionado" subtitle="Si ya existe un bot, este formulario reaplica vertical, reescribe comportamiento y reemplaza templates para dejarlo alineado con la nueva operacion." icon="wand">
+      <Section title="Aplicar vertical al bot seleccionado" subtitle="Si ya existe un bot, este formulario reaplica vertical, reescribe comportamiento y reemplaza templates para dejarlo alineado con la nueva operación." icon="wand">
         {selectedBot ? (
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
             <form action={applyBotVerticalAction} className="grid gap-4 md:grid-cols-2">
@@ -139,112 +168,47 @@ export default async function BotStudioPage() {
 
       <Section title="Simulador y snapshots" subtitle="Antes de publicar, ya puedes guardar snapshot del draft y correr casos de prueba simples contra el comportamiento esperado del bot." icon="spark">
         {selectedBot && currentOrg ? (
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="space-y-4">
-              <form action={createBotDraftSnapshotAction} className="grid gap-3 rounded-3xl border border-white/[0.08] bg-white/[0.03] p-4">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <div className="grid gap-4">
+              <form action={createBotDraftSnapshotAction} className="grid gap-3 rounded-3xl border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-5">
                 <input type="hidden" name="bot_id" value={selectedBot.id} />
-                <input type="hidden" name="redirect_to" value="/bot-studio" />
-                <label className="field-label">Nota del snapshot
-                  <input className="field-input" name="notes" placeholder="Ej. antes de cambiar follow-up" />
+                <label className="field-label">Motivo del snapshot
+                  <input className="field-input" name="reason" placeholder="Antes de editar tono y ventas" />
                 </label>
-                <button className="secondary-btn" type="submit">Guardar draft snapshot</button>
+                <button type="submit" className="primary-btn">Guardar snapshot</button>
               </form>
-              <form action={createBotSimulationCaseAction} className="grid gap-3 rounded-3xl border border-white/[0.08] bg-white/[0.03] p-4">
+              <form action={createBotSimulationCaseAction} className="grid gap-3 rounded-3xl border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-5">
                 <input type="hidden" name="bot_id" value={selectedBot.id} />
-                <input type="hidden" name="organization_id" value={currentOrg.id} />
-                <input type="hidden" name="redirect_to" value="/bot-studio" />
-                <label className="field-label">Título del caso
-                  <input className="field-input" name="title" placeholder="Ej. cliente pide reprogramar cita" required />
+                <label className="field-label">Caso de prueba
+                  <input className="field-input" name="name" placeholder="Lead que pide precio y horario" required />
                 </label>
-                <label className="field-label">Escenario
-                  <textarea className="field-input min-h-[120px]" name="scenario_text" placeholder="Quiero cambiar mi cita para mañana a las 5" required />
+                <label className="field-label">Mensaje entrante
+                  <textarea className="field-input min-h-[120px]" name="prompt" placeholder="Hola, quiero saber cuánto cuesta una limpieza y si tienen citas mañana." required />
                 </label>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <label className="field-label">Acción esperada
-                    <select className="field-input" name="expected_action" defaultValue="schedule">
-                      <option value="">Sin validar</option>
-                      <option value="schedule">schedule</option>
-                      <option value="payment">payment</option>
-                      <option value="sell">sell</option>
-                      <option value="handoff">handoff</option>
-                      <option value="reply">reply</option>
-                    </select>
-                  </label>
-                  <label className="field-label">Queue esperada
-                    <select className="field-input" name="expected_queue" defaultValue="agenda">
-                      <option value="">Sin validar</option>
-                      <option value="agenda">agenda</option>
-                      <option value="ventas">ventas</option>
-                      <option value="cobranza">cobranza</option>
-                      <option value="soporte">soporte</option>
-                    </select>
-                  </label>
-                  <label className="field-label flex items-center gap-3 self-end">
-                    <input type="checkbox" name="expected_must_escalate" />
-                    <span>Debe escalar</span>
-                  </label>
-                </div>
-                <button className="primary-btn" type="submit">Guardar caso de simulación</button>
+                <label className="field-label">Señal esperada
+                  <input className="field-input" name="expected_signal" placeholder="pricing_then_booking" />
+                </label>
+                <button type="submit" className="primary-btn">Guardar caso</button>
               </form>
-              <form action={runBotSimulationAction} className="grid gap-3 rounded-3xl border border-white/[0.08] bg-white/[0.03] p-4">
+              <form action={runBotSimulationAction} className="grid gap-3 rounded-3xl border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-5">
                 <input type="hidden" name="bot_id" value={selectedBot.id} />
-                <input type="hidden" name="redirect_to" value="/bot-studio" />
-                <label className="field-label">Comparar contra
-                  <select className="field-input" name="compare_target" defaultValue="published">
-                    <option value="draft">Solo draft</option>
-                    <option value="published">Published</option>
+                <label className="field-label">Caso a ejecutar
+                  <select className="field-input" name="case_id" defaultValue={simulationCases[0]?.id || ""} required>
+                    {simulationCases.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                   </select>
                 </label>
-                <button className="secondary-btn" type="submit">Correr simulación</button>
+                <button type="submit" className="primary-btn" disabled={!simulationCases.length}>Correr simulación</button>
               </form>
             </div>
-            <div className="space-y-4">
-              <ModuleCard title="Casos guardados" description={simulationCases.length ? `${simulationCases.length} casos listos para correr antes de publicar.` : "Todavía no hay casos guardados para esta bot."} icon="check" tone="green" footer={<span className="mono-pill">simulator</span>} />
-              <div className="grid gap-3">
-                {simulationCases.slice(0, 4).map((item) => (
-                  <div key={String(item.id)} className="surface-row">
-                    <div className="text-sm font-medium text-white">{safeText(String(item.title || 'Caso'))}</div>
-                    <div className="mt-2 text-xs text-slate-400">{safeText(String(item.scenario_text || '')).slice(0, 140)}</div>
-                  </div>
-                ))}
-                {!simulationCases.length ? <div className="surface-row text-sm text-slate-300">Guarda 3 a 5 casos críticos antes de tocar copy, prompts o reglas.</div> : null}
-              </div>
-              <div className="grid gap-3">
-                {simulationRuns.slice(0, 3).map((run) => {
-                  const summary = (run.summary || {}) as Record<string, unknown>;
-                  return (
-                    <div key={String(run.id)} className="surface-row">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-medium text-white">Run {safeText(String(run.compare_target || 'draft'))}</div>
-                        <span className="mono-pill">Pass {safeText(String(summary.pass_rate || 0))}%</span>
-                      </div>
-                      <div className="mt-2 text-xs text-slate-400">Casos {safeText(String(run.cases_total || 0))} · Passed {safeText(String(run.passed_count || 0))} · Failed {safeText(String(run.failed_count || 0))}</div>
-                    </div>
-                  );
-                })}
-                {!simulationRuns.length ? <div className="surface-row text-sm text-slate-300">Todavía no hay corridas de simulación en este bot.</div> : null}
-              </div>
+            <div className="grid gap-4">
+              <ModuleCard title="Casos guardados" description={simulationCases.map((item) => `${safeText(item.name)} · ${safeText(item.expected_signal, "sin señal")}`).join("\n") || "Todavía no guardas casos."} icon="check" tone="blue" />
+              <ModuleCard title="Corridas recientes" description={simulationRuns.map((item) => `${safeText(item.case_name)} · ${safeText(item.status)} · ${safeText(item.score?.toString(), "sin score")}`).join("\n") || "Todavía no hay corridas."} icon="play" tone="gold" />
+              <ModuleCard title="Templates base" description={templates.slice(0, 6).map((item) => safeText(item.name)).join(" · ") || "Sin templates disponibles"} icon="chat" tone="slate" />
             </div>
           </div>
         ) : (
-          <EmptyActionState title="Selecciona un bot para simular" description="El simulador corre sobre un bot concreto y compara contra su draft o published actual." primaryAction={<Link href="/bots" className="primary-btn">Elegir bot</Link>} />
+          <EmptyActionState title="Selecciona o crea un bot primero" description="El simulador necesita un bot activo y una organización resuelta para poder comparar snapshots, casos y corridas." primaryAction={<Link href="/bots" className="primary-btn">Ir a bots</Link>} />
         )}
-      </Section>
-
-      <Section title="Plantillas listas para empezar" subtitle="Cuando el bot ya existe, estas plantillas se siembran automaticamente segun la vertical elegida." icon="layers">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {(templates || []).map((template) => (
-            <ModuleCard
-              key={template.id || template.name}
-              title={template.name || "Plantilla"}
-              description={template.description || template.detail || "Base de bot con tono, estructura y comportamiento sugerido."}
-              icon="wand"
-              tone="blue"
-              footer={<span className="mono-pill">{template.vertical || "bot"}</span>}
-            />
-          ))}
-          {!templates.length ? <ModuleCard title="Aun no hay templates visibles" description="En cuanto se cree un bot con vertical o se reaplique una vertical a un bot existente, veras las plantillas ya sembradas aqui." icon="check" tone="slate" /> : null}
-        </div>
       </Section>
     </Shell>
   );
