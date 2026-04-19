@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { applyBotVerticalAction, createBotAction, createBotDraftSnapshotAction, createBotSimulationCaseAction, runBotSimulationAction, switchOrganizationAction } from "../actions";
-import { ContextTip, EmptyActionState, ModuleCard, OrganizationSwitcher, Section, Shell, StatCard, SuccessState } from "../components";
+import { ContextTip, EmptyActionState, ModuleCard, Section, Shell, StatCard, SuccessState } from "../components";
+import OrganizationSwitcher from "../components/OrganizationSwitcher";
 import { getCurrentBotId, getSession } from "../lib/session";
 import { safeText, yesNo } from "../lib/ui";
 import { getBotBehavior, getBotSimulationCases, getBotSimulationRuns, getBotTemplates, getBots, getVerticalCatalog, getVerticalProfile } from "../lib/waos";
@@ -14,8 +15,20 @@ export default async function BotStudioPage() {
   const selectedBot = bots.find((item) => item.id === currentBotId) || null;
   const selectedVerticalId = selectedBot?.vertical || currentOrg?.vertical || verticals[0]?.id;
   const selectedVertical = selectedVerticalId ? await getVerticalProfile(selectedVerticalId) : null;
-  const simulationCases = selectedBot ? await getBotSimulationCases(selectedBot.id) : [];
-  const simulationRuns = selectedBot ? await getBotSimulationRuns(selectedBot.id) : [];
+  const simulationCases: Array<{ id: string; name: string; expected_signal?: string | null }> = selectedBot
+    ? (await getBotSimulationCases(selectedBot.id)).map((item) => ({
+        id: typeof item?.id === "string" ? item.id : String(item?.id ?? ""),
+        name: typeof item?.name === "string" ? item.name : "Caso",
+        expected_signal: typeof item?.expected_signal === "string" ? item.expected_signal : null,
+      })).filter((item) => Boolean(item.id))
+    : [];
+  const simulationRuns: Array<{ case_name?: string | null; status?: string | null; score?: number | null }> = selectedBot
+    ? (await getBotSimulationRuns(selectedBot.id)).map((item) => ({
+        case_name: typeof item?.case_name === "string" ? item.case_name : null,
+        status: typeof item?.status === "string" ? item.status : null,
+        score: typeof item?.score === "number" ? item.score : null,
+      }))
+    : [];
 
   if (!verticals.length) {
     return (
