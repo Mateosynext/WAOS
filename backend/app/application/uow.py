@@ -15,6 +15,7 @@ class UnitOfWork:
     mode: TransactionMode = "write"
     conn: DBConnection | None = field(default=None, init=False)
     _context: Any = field(default=None, init=False, repr=False)
+    request_context: Any = field(default=None, init=False, repr=False)
 
     def __enter__(self) -> "UnitOfWork":
         self._context = get_connection()

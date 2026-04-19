@@ -16,3 +16,29 @@ from .transactions import *
 from .webhooks import *
 
 from .talent import *
+
+from .onboarding import *
+
+from .operational_control import *
+
+from .legal import *
+
+from .outcomes import *
+
+from .tool_execution import *
+
+from .agent_orchestration import *
+
+from .agent_policy import *
+
+from .knowledge_ingestion import *
+
+from .proactive_reasoning import *
+
+from .voice_channel import *
+
+from .vertical_marketplace import *
+
+from .optimizer import *
+
+from .growth_os import *

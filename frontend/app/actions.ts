@@ -2,13 +2,18 @@
 import { loginAction as loginActionImpl, logoutAction as logoutActionImpl } from "./actions/auth";
 import { switchOrganizationAction as switchOrganizationActionImpl, switchBotAction as switchBotActionImpl } from "./actions/selection";
 import { sendConversationMessageAction as sendConversationMessageActionImpl, takeoverConversationAction as takeoverConversationActionImpl, reactivateConversationAction as reactivateConversationActionImpl } from "./actions/conversations";
-import { testIntegrationAction as testIntegrationActionImpl, syncIntegrationAction as syncIntegrationActionImpl, saveWhatsAppIntegrationAction as saveWhatsAppIntegrationActionImpl, saveGoogleCalendarIntegrationAction as saveGoogleCalendarIntegrationActionImpl, saveStripeIntegrationAction as saveStripeIntegrationActionImpl, startGoogleOAuthAction as startGoogleOAuthActionImpl, refreshPaymentStatusAction as refreshPaymentStatusActionImpl } from "./actions/integrations";
+import { autoAssignInboxAction as autoAssignInboxActionImpl, assignConversationOwnerAction as assignConversationOwnerActionImpl } from "./actions/inbox_ops";
+import { testIntegrationAction as testIntegrationActionImpl, syncIntegrationAction as syncIntegrationActionImpl, saveWhatsAppIntegrationAction as saveWhatsAppIntegrationActionImpl, saveGoogleCalendarIntegrationAction as saveGoogleCalendarIntegrationActionImpl, saveStripeIntegrationAction as saveStripeIntegrationActionImpl, startGoogleOAuthAction as startGoogleOAuthActionImpl, refreshPaymentStatusAction as refreshPaymentStatusActionImpl, replayWebhookReceiptAction as replayWebhookReceiptActionImpl } from "./actions/integrations";
 import { createBotAction as createBotActionImpl, applyBotVerticalAction as applyBotVerticalActionImpl, pauseBotAction as pauseBotActionImpl, resumeBotAction as resumeBotActionImpl, publishBotAction as publishBotActionImpl } from "./actions/bots";
+import { createBotSimulationCaseAction as createBotSimulationCaseActionImpl, runBotSimulationAction as runBotSimulationActionImpl, createBotDraftSnapshotAction as createBotDraftSnapshotActionImpl } from "./actions/bot_simulations";
 import { requestReleaseAction as requestReleaseActionImpl, approveReleaseAction as approveReleaseActionImpl, publishReleaseAction as publishReleaseActionImpl } from "./actions/releases";
 import { createSecretAction as createSecretActionImpl, rotateSecretAction as rotateSecretActionImpl } from "./actions/secrets";
 import { generateExecutiveReportAction as generateExecutiveReportActionImpl } from "./actions/reports";
 import { requeueDeadLetterAction as requeueDeadLetterActionImpl } from "./actions/operations";
 import { updateOrganizationVerticalAction as updateOrganizationVerticalActionImpl } from "./actions/organizations";
+import { createAgendaResourceAction as createAgendaResourceActionImpl, createAgendaCapacityRuleAction as createAgendaCapacityRuleActionImpl } from "./actions/scheduling";
+import { setTenantModeAction as setTenantModeActionImpl } from "./actions/onboarding";
+import { saveInboxViewAction as saveInboxViewActionImpl } from "./actions/inbox_views";
 import { updateTalentPolicyAction as updateTalentPolicyActionImpl, createTalentVacancyAction as createTalentVacancyActionImpl, confirmTalentCandidateAction as confirmTalentCandidateActionImpl } from "./actions/talent";
 export async function loginAction(...args: Parameters<typeof loginActionImpl>) { return loginActionImpl(...args); }
 export async function logoutAction(...args: Parameters<typeof logoutActionImpl>) { return logoutActionImpl(...args); }
@@ -24,6 +29,7 @@ export async function saveGoogleCalendarIntegrationAction(...args: Parameters<ty
 export async function startGoogleOAuthAction(...args: Parameters<typeof startGoogleOAuthActionImpl>) { return startGoogleOAuthActionImpl(...args); }
 export async function saveStripeIntegrationAction(...args: Parameters<typeof saveStripeIntegrationActionImpl>) { return saveStripeIntegrationActionImpl(...args); }
 export async function refreshPaymentStatusAction(...args: Parameters<typeof refreshPaymentStatusActionImpl>) { return refreshPaymentStatusActionImpl(...args); }
+export async function replayWebhookReceiptAction(...args: Parameters<typeof replayWebhookReceiptActionImpl>) { return replayWebhookReceiptActionImpl(...args); }
 export async function createBotAction(...args: Parameters<typeof createBotActionImpl>) { return createBotActionImpl(...args); }
 export async function applyBotVerticalAction(...args: Parameters<typeof applyBotVerticalActionImpl>) { return applyBotVerticalActionImpl(...args); }
 export async function pauseBotAction(...args: Parameters<typeof pauseBotActionImpl>) { return pauseBotActionImpl(...args); }
@@ -42,3 +48,14 @@ export async function updateOrganizationVerticalAction(...args: Parameters<typeo
 export async function updateTalentPolicyAction(...args: Parameters<typeof updateTalentPolicyActionImpl>) { return updateTalentPolicyActionImpl(...args); }
 export async function createTalentVacancyAction(...args: Parameters<typeof createTalentVacancyActionImpl>) { return createTalentVacancyActionImpl(...args); }
 export async function confirmTalentCandidateAction(...args: Parameters<typeof confirmTalentCandidateActionImpl>) { return confirmTalentCandidateActionImpl(...args); }
+
+export async function setTenantModeAction(...args: Parameters<typeof setTenantModeActionImpl>) { return setTenantModeActionImpl(...args); }
+export async function saveInboxViewAction(...args: Parameters<typeof saveInboxViewActionImpl>) { return saveInboxViewActionImpl(...args); }
+
+export async function autoAssignInboxAction(...args: Parameters<typeof autoAssignInboxActionImpl>) { return autoAssignInboxActionImpl(...args); }
+export async function assignConversationOwnerAction(...args: Parameters<typeof assignConversationOwnerActionImpl>) { return assignConversationOwnerActionImpl(...args); }
+export async function createBotSimulationCaseAction(...args: Parameters<typeof createBotSimulationCaseActionImpl>) { return createBotSimulationCaseActionImpl(...args); }
+export async function runBotSimulationAction(...args: Parameters<typeof runBotSimulationActionImpl>) { return runBotSimulationActionImpl(...args); }
+export async function createBotDraftSnapshotAction(...args: Parameters<typeof createBotDraftSnapshotActionImpl>) { return createBotDraftSnapshotActionImpl(...args); }
+export async function createAgendaResourceAction(...args: Parameters<typeof createAgendaResourceActionImpl>) { return createAgendaResourceActionImpl(...args); }
+export async function createAgendaCapacityRuleAction(...args: Parameters<typeof createAgendaCapacityRuleActionImpl>) { return createAgendaCapacityRuleActionImpl(...args); }

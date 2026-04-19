@@ -82,24 +82,29 @@ def permissions_matrix() -> dict[str, list[str]]:
         "super_admin": [
             "org.manage", "bot.manage", "conversation.manage", "appointment.manage",
             "release.request", "release.approve", "release.publish",
-            "integration.manage", "secret.manage", "rate_limit.manage",
+            "integration.manage", "integration.replay", "integration.fallback", "secret.manage", "rate_limit.manage",
             "audit.read", "security.manage", "runs.read", "logs.read",
             "scheduler.read", "operations.read", "operations.requeue", "client_view.read",
             "revenue.manage", "crm.manage", "insights.read", "playbooks.manage",
+            "activation.manage", "quality.review", "portal.approve", "feedback.manage",
+            "operations.control.read", "operations.control.execute", "operations.control.high_impact", "operations.control.schedule", "operations.control.undo", "operations.control.audit.read", "operations.chat.authorize_number",
         ],
         "org_admin": [
             "bot.manage", "conversation.manage", "appointment.manage",
             "release.request", "release.approve", "release.publish",
-            "integration.manage", "secret.manage", "rate_limit.manage",
+            "integration.manage", "integration.replay", "integration.fallback", "secret.manage", "rate_limit.manage",
             "audit.read", "security.manage", "runs.read", "logs.read",
             "scheduler.read", "operations.read", "operations.requeue", "client_view.read",
             "revenue.manage", "crm.manage", "insights.read", "playbooks.manage",
+            "activation.manage", "quality.review", "portal.approve", "feedback.manage",
+            "operations.control.read", "operations.control.execute", "operations.control.high_impact", "operations.control.schedule", "operations.control.undo", "operations.control.audit.read", "operations.chat.authorize_number",
         ],
         "operator": [
             "conversation.manage", "appointment.manage", "release.request",
             "runs.read", "logs.read", "scheduler.read", "operations.read", "operations.requeue", "crm.manage", "insights.read",
+            "feedback.manage", "operations.control.read", "operations.control.execute", "operations.control.undo",
         ],
-        "client": ["client_view.read", "runs.read", "insights.read"],
+        "client": ["client_view.read", "runs.read", "insights.read", "operations.control.read", "operations.control.execute", "operations.control.undo", "operations.control.schedule", "operations.chat.authorize_number"],
     }
 
 

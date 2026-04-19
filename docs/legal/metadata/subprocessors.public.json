@@ -1,0 +1,33 @@
+{
+  "version": "1.0.0",
+  "effective_date": "2026-04-16",
+  "owner_name": "Josue Mendoza Mateo",
+  "items": [
+    {
+      "name": "Meta Platforms / WhatsApp Business Platform",
+      "role": "tercero/subprocesador según configuración",
+      "purpose": "Mensajería transaccional y comercial autorizada",
+      "data_categories": [
+        "identificación",
+        "contacto",
+        "mensajes",
+        "metadatos de conversación"
+      ],
+      "region": "[COMPLETAR]",
+      "transfer_mechanism": "[COMPLETAR]",
+      "status": "por validar"
+    },
+    {
+      "name": "OpenAI u otro proveedor de IA configurado",
+      "role": "subprocesador según despliegue",
+      "purpose": "Clasificación, generación y asistencia automatizada",
+      "data_categories": [
+        "texto de conversación minimizado",
+        "metadatos operativos"
+      ],
+      "region": "[COMPLETAR]",
+      "transfer_mechanism": "[COMPLETAR]",
+      "status": "por validar"
+    }
+  ]
+}

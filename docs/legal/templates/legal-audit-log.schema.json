@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LegalAuditEvent",
+  "type": "object",
+  "required": [
+    "event_type",
+    "actor_type",
+    "recorded_at"
+  ],
+  "properties": {
+    "event_type": {
+      "type": "string"
+    },
+    "actor_type": {
+      "type": "string"
+    },
+    "actor_id": {
+      "type": "string"
+    },
+    "organization_id": {
+      "type": "string"
+    },
+    "entity_type": {
+      "type": "string"
+    },
+    "entity_id": {
+      "type": "string"
+    },
+    "before": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "after": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "evidence_uri": {
+      "type": "string"
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

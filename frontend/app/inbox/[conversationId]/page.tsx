@@ -112,7 +112,12 @@ export default async function ConversationDetailPage({ params }: { params: Promi
           <div className="space-y-3 xl:max-h-[980px] xl:overflow-y-auto xl:pr-2">
             {messages.length ? messages.map((message, index) => (
               <div key={message.id || index} className={`rounded-3xl border px-4 py-3 text-sm ${String(message.direction).toLowerCase() === "outbound" ? "ml-auto max-w-[85%] border-emerald-400/[0.20] bg-emerald-400/[0.10] text-emerald-50" : "max-w-[85%] border-white/[0.08] bg-white/[0.04] text-slate-100"}`}>
-                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{safeText(message.direction, "mensaje")}</div>
+                <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                  <span>{safeText(message.direction, "mensaje")}</span>
+                  <span className="mono-pill">{safeText(message.kind || "text")}</span>
+                  <span className="mono-pill">{safeText(message.status || "received")}</span>
+                  <span className="mono-pill">{safeText(message.source || "whatsapp")}</span>
+                </div>
                 <div className="mt-2 leading-6">{safeText(message.body)}</div>
                 <div className="mt-2 text-[11px] text-slate-400">{safeText(message.created_at || message.sent_at || message.timestamp)}</div>
               </div>

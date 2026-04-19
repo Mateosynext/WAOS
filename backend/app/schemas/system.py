@@ -12,3 +12,5 @@ class SettingsUpdateRequest(BaseModel):
     global_policy: str | None = None
     default_model: str | None = None
     freeze_minutes_after_takeover: int | None = None
+    ai_optimization: dict[str, Any] | None = None
+    memory_runtime: dict[str, Any] | None = None

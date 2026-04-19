@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 
 from ...application.appointment_service import AppointmentService
-from ...schemas import AppointmentRequest, AppointmentRescheduleRequest, AppointmentStatusRequest, AgendaReminderPreferencesRequest, AgendaBlockedSlotRequest
+from ...schemas import AppointmentRequest, AppointmentRescheduleRequest, AppointmentStatusRequest, AgendaReminderPreferencesRequest, AgendaBlockedSlotRequest, AgendaResourceRequest, AgendaCapacityRuleRequest, AppointmentResourceAssignRequest
 from ..dependencies import CurrentUoW, CurrentUser
 
 router = APIRouter(tags=["appointments"])
@@ -76,3 +76,33 @@ def create_agenda_blocked_slot(payload: AgendaBlockedSlotRequest, user: CurrentU
 @router.delete("/api/v1/agenda/blocked-slots/{slot_id}")
 def delete_agenda_blocked_slot(slot_id: str, user: CurrentUser, uow: CurrentUoW) -> dict:
     return service.delete_blocked_slot(uow, user=user, slot_id=slot_id)
+
+
+@router.get("/api/v1/agenda/resources")
+def list_agenda_resources(organization_id: str | None = Query(default=None), user: CurrentUser = None, uow: CurrentUoW = None) -> list[dict]:
+    return service.list_resources(uow, user=user, organization_id=organization_id)
+
+
+@router.post("/api/v1/agenda/resources")
+def create_agenda_resource(payload: AgendaResourceRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
+    return service.create_resource(uow, user=user, payload=payload)
+
+
+@router.get("/api/v1/agenda/capacity-rules")
+def list_agenda_capacity_rules(organization_id: str | None = Query(default=None), user: CurrentUser = None, uow: CurrentUoW = None) -> list[dict]:
+    return service.list_capacity_rules(uow, user=user, organization_id=organization_id)
+
+
+@router.post("/api/v1/agenda/capacity-rules")
+def create_agenda_capacity_rule(payload: AgendaCapacityRuleRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
+    return service.create_capacity_rule(uow, user=user, payload=payload)
+
+
+@router.get("/api/v1/agenda/capacity/overview")
+def agenda_capacity_overview(organization_id: str | None = Query(default=None), bot_id: str | None = Query(default=None), user: CurrentUser = None, uow: CurrentUoW = None) -> dict:
+    return service.capacity_overview(uow, user=user, organization_id=organization_id, bot_id=bot_id)
+
+
+@router.post("/api/v1/appointments/{appointment_id}/assign-resource")
+def assign_resource_to_appointment(appointment_id: str, payload: AppointmentResourceAssignRequest, user: CurrentUser, uow: CurrentUoW = None) -> dict:
+    return service.assign_resource(uow, user=user, appointment_id=appointment_id, payload=payload)

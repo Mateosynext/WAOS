@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from .common import *
+from .common import _require_permission
+from ...human_ops_runtime import build_human_reply_suggestion
 
 def review_conversation_route(conversation_id: str, payload: ConversationReviewRequest, user: dict = Depends(get_current_user)) -> dict:
     ensure_org_access(user, payload.organization_id)
@@ -42,14 +44,26 @@ def conversation_copilot(conversation_id: str, payload: ConversationCopilotReque
             raise HTTPException(status_code=404, detail="Conversation not found")
         ensure_org_access(user, conversation["organization_id"])
         _require_permission(user, conversation["organization_id"], "conversation.manage")
-        suggestion = _copilot_suggestion(conn, conversation, draft=payload.draft, objective=payload.objective)
+        suggestion = build_human_reply_suggestion(conn, conversation_id, draft=payload.draft, objective=payload.objective, operator_user_id=user.get("id"), persist=True)
         execute(
             conn,
             """
             INSERT INTO operator_copilot_suggestions (id, organization_id, bot_id, conversation_id, contact_id, operator_user_id, draft_text, suggestion_text, tone, status, metadata_json, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'suggested', ?, ?)
             """,
-            (new_id("cops"), conversation["organization_id"], conversation["bot_id"], conversation_id, conversation["contact_id"], user["id"], payload.draft, suggestion["suggestion"], suggestion["tone"], to_json({"objective": payload.objective, "risk_flags": suggestion["risk_flags"]}), utcnow_iso()),
+            (
+                new_id("cops"),
+                conversation["organization_id"],
+                conversation["bot_id"],
+                conversation_id,
+                conversation["contact_id"],
+                user["id"],
+                payload.draft,
+                suggestion["suggestion"],
+                None,
+                to_json({"objective": payload.objective, "risk": suggestion.get("risk"), "sources": suggestion.get("sources"), "explanation": suggestion.get("explanation")}),
+                utcnow_iso(),
+            ),
         )
         return suggestion
 

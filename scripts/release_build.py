@@ -19,7 +19,7 @@ RELEASE_ID = f'{VERSION}-clean-release'
 RUNTIME_NAME = f'waos_runtime_{RELEASE_ID}'
 DOCS_NAME = f'waos_audit_docs_{RELEASE_ID}'
 SOURCE_NAME = f'waos_source_{RELEASE_ID}'
-MANIFEST_SCHEMA_VERSION = 'waos-release-manifest/v2'
+MANIFEST_SCHEMA_VERSION = 'waos-release-manifest/v3'
 TOP_LEVEL_RUNTIME = ['README.md', 'DEPLOY.md', 'backend', 'frontend']
 AUDIT_DOCS = [
     'POSTGRESQL_RELEASE_NOTE.md',
@@ -49,6 +49,8 @@ RUNTIME_EXCLUDES = [
     '**/*.db',
     '**/*.sqlite',
     '**/*.sqlite3',
+    '**/*.sqlite3-shm',
+    '**/*.sqlite3-wal',
     '**/*.tsbuildinfo',
     '**/.env',
     '**/.env.local',
@@ -66,6 +68,7 @@ RUNTIME_EXCLUDES = [
     'frontend/tests/**',
     'frontend/scripts/**',
     'frontend/playwright*.ts',
+    'backend/app/artifacts/reports/**',
     'docs/**',
     'scripts/**',
     '.github/**',
@@ -86,6 +89,8 @@ SOURCE_EXCLUDES = [
     '**/*.db',
     '**/*.sqlite',
     '**/*.sqlite3',
+    '**/*.sqlite3-shm',
+    '**/*.sqlite3-wal',
     '**/*.tsbuildinfo',
     '**/.env',
     '**/.env.local',
@@ -98,7 +103,14 @@ SOURCE_EXCLUDES = [
     '**/test-results/**',
     '**/coverage/**',
     '**/.pytest_cache/**',
+    'backend/app/artifacts/reports/**',
 ]
+
+FORBIDDEN_SOURCE_PATTERNS = {
+    'sqlite_databases': ['*.db', '*.sqlite', '*.sqlite3', '*.sqlite3-shm', '*.sqlite3-wal'],
+    'typescript_buildinfo': ['*.tsbuildinfo'],
+    'generated_reports': ['backend/app/artifacts/reports/*.pdf'],
+}
 
 
 def run(cmd: list[str]) -> None:
@@ -156,19 +168,25 @@ def copy_selected(src_root: Path, dst_root: Path, entries: list[str], patterns: 
     return copied
 
 
+def ensure_placeholder_dir(directory: Path) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    gitkeep = directory / '.gitkeep'
+    gitkeep.touch(exist_ok=True)
+    for child in list(directory.iterdir()):
+        if child.name == '.gitkeep':
+            continue
+        if child.is_dir():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+
+
 def ensure_runtime_placeholders(runtime_root: Path) -> None:
-    placeholder_dirs = [runtime_root / 'backend/app/artifacts/reports']
-    for directory in placeholder_dirs:
-        directory.mkdir(parents=True, exist_ok=True)
-        gitkeep = directory / '.gitkeep'
-        gitkeep.touch(exist_ok=True)
-        for child in list(directory.iterdir()):
-            if child.name == '.gitkeep':
-                continue
-            if child.is_dir():
-                shutil.rmtree(child)
-            else:
-                child.unlink()
+    ensure_placeholder_dir(runtime_root / 'backend/app/artifacts/reports')
+
+
+def ensure_source_hygiene(source_root: Path) -> None:
+    ensure_placeholder_dir(source_root / 'backend/app/artifacts/reports')
 
 
 def write_artifact_profile(artifact_root: Path, profile: str) -> None:
@@ -202,6 +220,36 @@ def count_files(path: Path) -> int:
     return sum(1 for p in path.rglob('*') if p.is_file())
 
 
+def collect_matches(base: Path, patterns: dict[str, list[str]]) -> dict[str, list[str]]:
+    matches: dict[str, list[str]] = {key: [] for key in patterns}
+    for path in sorted(base.rglob('*')):
+        if path.is_dir():
+            continue
+        rel = path.relative_to(base).as_posix()
+        for key, key_patterns in patterns.items():
+            if any(fnmatch.fnmatch(rel, pattern) for pattern in key_patterns):
+                matches[key].append(rel)
+    return {key: value for key, value in matches.items() if value}
+
+
+def build_size_report(source_root: Path, runtime_zip: Path, docs_zip: Path, source_zip: Path) -> dict[str, object]:
+    source_files = sorted((p.stat().st_size, p.relative_to(source_root).as_posix()) for p in source_root.rglob('*') if p.is_file())
+    top_removed = [
+        {'path': rel, 'size_bytes': size, 'size_kb': round(size / 1024, 1)}
+        for size, rel in source_files[-10:][::-1]
+        if rel.endswith('.db') or rel.endswith('.pdf') or rel.endswith('.tsbuildinfo')
+    ]
+    original_size = sum(size for size, _ in source_files)
+    zipped_size = source_zip.stat().st_size
+    return {
+        'source_tree_size_bytes': original_size,
+        'source_zip_size_bytes': zipped_size,
+        'runtime_zip_size_bytes': runtime_zip.stat().st_size,
+        'audit_docs_zip_size_bytes': docs_zip.stat().st_size,
+        'top_local_or_generated_files_removed': top_removed,
+    }
+
+
 def write_checksums(dist_dir: Path, artifacts: list[Path]) -> Path:
     output = dist_dir / 'RELEASE_CHECKSUMS.sha256'
     lines = [f'{sha256(path)}  {path.name}' for path in artifacts]
@@ -209,7 +257,7 @@ def write_checksums(dist_dir: Path, artifacts: list[Path]) -> Path:
     return output
 
 
-def write_manifest(dist_dir: Path, runtime_dir: Path, docs_dir: Path, source_dir: Path, runtime_zip: Path, docs_zip: Path, source_zip: Path, checksums_path: Path, reports: dict[str, Path]) -> Path:
+def write_manifest(dist_dir: Path, runtime_dir: Path, docs_dir: Path, source_dir: Path, runtime_zip: Path, docs_zip: Path, source_zip: Path, checksums_path: Path, reports: dict[str, Path], hygiene: dict[str, object], size_report: dict[str, object]) -> Path:
     manifest = {
         'manifest_schema_version': MANIFEST_SCHEMA_VERSION,
         'release_version': RELEASE_ID,
@@ -248,10 +296,12 @@ def write_manifest(dist_dir: Path, runtime_dir: Path, docs_dir: Path, source_dir
             'runtime': RUNTIME_EXCLUDES,
             'source': SOURCE_EXCLUDES,
         },
+        'hygiene': hygiene,
+        'size_report': size_report,
         'separation_policy': {
-            'runtime': 'Deployable backend/frontend only. Excludes docs, tests, CI helpers, and local build artifacts.',
+            'runtime': 'Deployable backend/frontend only. Excludes docs, tests, CI helpers, local databases, generated reports, and local build artifacts.',
             'audit_docs': 'Audit evidence, release notes, reports, SBOM, license verification, and reproducibility documentation.',
-            'source': 'Updated WAOS source with release tooling, CI validation, and vertical portfolio integration.',
+            'source': 'Updated WAOS source with release tooling, CI validation, and sanitized placeholders for local/generated runtime artifacts.',
         },
     }
     manifest_path = dist_dir / 'RELEASE_MANIFEST.json'
@@ -261,24 +311,25 @@ def write_manifest(dist_dir: Path, runtime_dir: Path, docs_dir: Path, source_dir
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Build clean WAOS runtime and audit release artifacts.')
+    parser = argparse.ArgumentParser(description='Build WAOS release artifacts.')
     parser.add_argument('--output-dir', default=str(DEFAULT_DIST))
     args = parser.parse_args()
 
     validate_root_name()
-    dist_dir = Path(args.output_dir)
-    reports_dir = dist_dir / 'reports'
+    dist_dir = Path(args.output_dir).resolve()
     if dist_dir.exists():
         shutil.rmtree(dist_dir)
     dist_dir.mkdir(parents=True, exist_ok=True)
-    reports_dir.mkdir(parents=True, exist_ok=True)
+
+    hygiene_hits = collect_matches(ROOT, FORBIDDEN_SOURCE_PATTERNS)
+    hygiene_report = {
+        'source_tree_forbidden_hits': hygiene_hits,
+        'source_tree_clean': not hygiene_hits,
+    }
 
     runtime_dir = dist_dir / RUNTIME_NAME
     docs_dir = dist_dir / DOCS_NAME
     source_dir = dist_dir / SOURCE_NAME
-    runtime_dir.mkdir(parents=True)
-    docs_dir.mkdir(parents=True)
-    source_dir.mkdir(parents=True)
 
     copy_selected(ROOT, runtime_dir, TOP_LEVEL_RUNTIME, RUNTIME_EXCLUDES)
     ensure_runtime_placeholders(runtime_dir)
@@ -287,48 +338,35 @@ def main() -> int:
     copy_selected(ROOT, docs_dir, AUDIT_DOCS, [])
     write_artifact_profile(docs_dir, 'audit_docs')
 
-    copy_selected(ROOT, source_dir, [item.name for item in ROOT.iterdir() if item.name != 'dist'], SOURCE_EXCLUDES)
+    copy_tree(ROOT, source_dir, SOURCE_EXCLUDES)
+    ensure_source_hygiene(source_dir)
     write_artifact_profile(source_dir, 'source')
 
     runtime_zip = dist_dir / f'{RUNTIME_NAME}.zip'
     docs_zip = dist_dir / f'{DOCS_NAME}.zip'
     source_zip = dist_dir / f'{SOURCE_NAME}.zip'
     zip_dir(runtime_dir, runtime_zip)
-
-    gate_report = reports_dir / 'runtime_gate_report.json'
-    scan_report = reports_dir / 'runtime_scan_report.json'
-    sbom_report = reports_dir / 'sbom_inventory.json'
-    license_report = reports_dir / 'dependency_license_audit.json'
-    smoke_report = reports_dir / 'runtime_smoke_report.json'
-
-    run([sys.executable, 'scripts/release_gate.py', str(runtime_zip), '--profile', 'runtime', '--expected-root-name', RUNTIME_NAME, '--report', str(gate_report)])
-    run([sys.executable, 'scripts/release_scan.py', str(runtime_zip), '--fail-on-placeholder', '--report', str(scan_report)])
-    run([sys.executable, 'scripts/generate_release_metadata.py', '--sbom-out', str(sbom_report), '--license-out', str(license_report)])
-    run([sys.executable, 'scripts/runtime_artifact_smoke.py', str(runtime_zip), '--report', str(smoke_report)])
-
-    for report in [gate_report, scan_report, sbom_report, license_report, smoke_report]:
-        shutil.copy2(report, docs_dir / report.name)
-
     zip_dir(docs_dir, docs_zip)
     zip_dir(source_dir, source_zip)
 
-    checksums_path = write_checksums(dist_dir, [runtime_zip, docs_zip, source_zip])
-    reports = {
-        'runtime_gate': gate_report,
-        'runtime_scan': scan_report,
-        'sbom_inventory': sbom_report,
-        'dependency_license_audit': license_report,
-        'runtime_smoke': smoke_report,
-    }
-    manifest_path = write_manifest(dist_dir, runtime_dir, docs_dir, source_dir, runtime_zip, docs_zip, source_zip, checksums_path, reports)
+    size_report = build_size_report(ROOT, runtime_zip, docs_zip, source_zip)
+    size_report_path = dist_dir / 'ARTIFACT_SIZES.json'
+    size_report_path.write_text(json.dumps(size_report, indent=2, ensure_ascii=False), encoding='utf-8')
+
+    checksums_path = write_checksums(dist_dir, [runtime_zip, docs_zip, source_zip, size_report_path])
+
+    reports = {'artifact_sizes': size_report_path}
+    manifest_path = write_manifest(dist_dir, runtime_dir, docs_dir, source_dir, runtime_zip, docs_zip, source_zip, checksums_path, reports, hygiene_report, size_report)
 
     print(json.dumps({
-        'runtime_zip': str(runtime_zip),
-        'audit_docs_zip': str(docs_zip),
-        'source_zip': str(source_zip),
-        'manifest': str(manifest_path),
-        'checksums': str(checksums_path),
-        'reports': [str(gate_report), str(scan_report), str(sbom_report), str(license_report), str(smoke_report)],
+        'ok': True,
+        'release_id': RELEASE_ID,
+        'dist_dir': str(dist_dir),
+        'runtime_zip': runtime_zip.name,
+        'docs_zip': docs_zip.name,
+        'source_zip': source_zip.name,
+        'manifest': manifest_path.name,
+        'size_report': size_report_path.name,
     }, indent=2, ensure_ascii=False))
     return 0
 

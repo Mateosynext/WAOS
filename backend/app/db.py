@@ -25,6 +25,9 @@ from .vertical_transactions import ensure_vertical_transaction_schema
 from .vertical_domain_runtime import ensure_vertical_domain_schema
 from .talent_runtime import ensure_talent_schema
 from .migrations import apply_migrations, migration_status as _migration_status
+from .world_class import ensure_world_class_schema
+from .world_class_plus import ensure_world_class_plus_schema
+from .telemetry_runtime import ensure_telemetry_schema, seed_default_alert_rules
 
 THIS_FILE = Path(__file__).resolve()
 ROOT = next(
@@ -274,6 +277,10 @@ def init_db() -> None:
         ensure_vertical_transaction_schema(conn)
         ensure_vertical_domain_schema(conn)
         ensure_talent_schema(conn)
+        ensure_world_class_schema(conn)
+        ensure_world_class_plus_schema(conn)
+        ensure_telemetry_schema(conn)
+        seed_default_alert_rules(conn)
         _ensure_column(conn, "secret_entries", "value_encrypted", "TEXT")
         _ensure_column(conn, "secret_entries", "encryption_version", "TEXT NOT NULL DEFAULT 'v1'")
         _ensure_column(conn, "secret_entries", "metadata_json", "TEXT NOT NULL DEFAULT '{}'")
@@ -288,6 +295,7 @@ def init_db() -> None:
         _ensure_column(conn, "outbox_messages", "next_attempt_at", "TEXT")
         _ensure_column(conn, "outbox_messages", "priority", "INTEGER NOT NULL DEFAULT 50")
         _ensure_column(conn, "outbox_messages", "locked_at", "TEXT")
+        _ensure_column(conn, "outbox_messages", "governance_json", "TEXT NOT NULL DEFAULT '{}'")
 
         _ensure_column(conn, "automation_jobs", "priority", "INTEGER NOT NULL DEFAULT 50")
 
@@ -317,6 +325,7 @@ def init_db() -> None:
 
         _ensure_column(conn, "auth_sessions", "refresh_token_family_id", "TEXT")
         _ensure_column(conn, "auth_sessions", "max_idle_at", "TEXT")
+        _ensure_column(conn, "auth_sessions", "idle_timeout_minutes", "INTEGER NOT NULL DEFAULT 120")
         _ensure_column(conn, "auth_sessions", "last_authenticated_at", "TEXT")
         _ensure_column(conn, "auth_sessions", "refresh_token_last_rotated_at", "TEXT")
         _ensure_column(conn, "auth_sessions", "refresh_token_reuse_detected_at", "TEXT")
@@ -327,6 +336,26 @@ def init_db() -> None:
         _ensure_column(conn, "organization_security_policies", "require_dual_approval_releases", "INTEGER NOT NULL DEFAULT 1")
 
         _ensure_column(conn, "mfa_factors", "label", "TEXT")
+
+        _ensure_column(conn, "whatsapp_flows", "remote_flow_id", "TEXT")
+        _ensure_column(conn, "whatsapp_flows", "remote_status", "TEXT NOT NULL DEFAULT 'not_synced'")
+        _ensure_column(conn, "whatsapp_flows", "remote_details_json", "TEXT NOT NULL DEFAULT '{}'")
+        _ensure_column(conn, "whatsapp_flows", "fallback_json", "TEXT NOT NULL DEFAULT '{}'")
+        _ensure_column(conn, "whatsapp_flows", "runtime_config_json", "TEXT NOT NULL DEFAULT '{}'")
+        _ensure_column(conn, "whatsapp_flows", "current_version_id", "TEXT")
+        _ensure_column(conn, "whatsapp_flows", "published_version_id", "TEXT")
+        _ensure_column(conn, "whatsapp_flows", "runtime_endpoint", "TEXT")
+        _ensure_column(conn, "whatsapp_flows", "remote_last_synced_at", "TEXT")
+        _ensure_column(conn, "whatsapp_flows", "remote_last_published_at", "TEXT")
+        _ensure_column(conn, "whatsapp_flows", "last_sync_error", "TEXT")
+
+        _ensure_column(conn, "whatsapp_numbers", "quality_rating", "TEXT NOT NULL DEFAULT 'unknown'")
+        _ensure_column(conn, "whatsapp_numbers", "quality_status", "TEXT NOT NULL DEFAULT 'unknown'")
+        _ensure_column(conn, "whatsapp_numbers", "throughput_tier", "TEXT NOT NULL DEFAULT 'standard'")
+        _ensure_column(conn, "whatsapp_numbers", "provider_degraded_until", "TEXT")
+        _ensure_column(conn, "whatsapp_numbers", "last_health_check_at", "TEXT")
+        _ensure_column(conn, "whatsapp_numbers", "last_provider_error_code", "TEXT")
+        _ensure_column(conn, "whatsapp_numbers", "last_provider_error_at", "TEXT")
 
         _ensure_column(conn, "integration_connections", "credential_status", "TEXT NOT NULL DEFAULT 'unknown'")
         _ensure_column(conn, "integration_connections", "last_error", "TEXT")
@@ -366,6 +395,146 @@ def init_db() -> None:
         _ensure_column(conn, "executive_reports", "updated_at", "TEXT")
 
         apply_migrations(conn)
+
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS whatsapp_flow_versions (
+                id TEXT PRIMARY KEY,
+                flow_id TEXT NOT NULL,
+                organization_id TEXT NOT NULL,
+                bot_id TEXT NOT NULL,
+                version_number INTEGER NOT NULL,
+                state TEXT NOT NULL DEFAULT 'draft',
+                flow_json TEXT NOT NULL DEFAULT '{}',
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                compatibility_json TEXT NOT NULL DEFAULT '{}',
+                rollout_json TEXT NOT NULL DEFAULT '{}',
+                remote_asset_status TEXT NOT NULL DEFAULT 'pending',
+                validation_errors_json TEXT NOT NULL DEFAULT '[]',
+                cloned_from_version_id TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                published_at TEXT,
+                FOREIGN KEY (flow_id) REFERENCES whatsapp_flows(id),
+                FOREIGN KEY (organization_id) REFERENCES organizations(id),
+                FOREIGN KEY (bot_id) REFERENCES bots(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_whatsapp_flow_versions_flow ON whatsapp_flow_versions(flow_id, version_number DESC, updated_at DESC);
+
+            CREATE TABLE IF NOT EXISTS whatsapp_flow_publications (
+                id TEXT PRIMARY KEY,
+                flow_id TEXT NOT NULL,
+                version_id TEXT,
+                organization_id TEXT NOT NULL,
+                bot_id TEXT NOT NULL,
+                provider TEXT NOT NULL DEFAULT 'meta',
+                action TEXT NOT NULL,
+                status TEXT NOT NULL,
+                remote_flow_id TEXT,
+                request_json TEXT NOT NULL DEFAULT '{}',
+                response_json TEXT NOT NULL DEFAULT '{}',
+                validation_errors_json TEXT NOT NULL DEFAULT '[]',
+                started_at TEXT NOT NULL,
+                finished_at TEXT,
+                FOREIGN KEY (flow_id) REFERENCES whatsapp_flows(id),
+                FOREIGN KEY (version_id) REFERENCES whatsapp_flow_versions(id),
+                FOREIGN KEY (organization_id) REFERENCES organizations(id),
+                FOREIGN KEY (bot_id) REFERENCES bots(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_whatsapp_flow_publications_flow ON whatsapp_flow_publications(flow_id, status, started_at DESC);
+
+            CREATE TABLE IF NOT EXISTS whatsapp_flow_executions (
+                id TEXT PRIMARY KEY,
+                flow_id TEXT NOT NULL,
+                version_id TEXT,
+                organization_id TEXT NOT NULL,
+                bot_id TEXT NOT NULL,
+                conversation_id TEXT,
+                contact_id TEXT,
+                flow_token TEXT NOT NULL,
+                assigned_variant TEXT,
+                status TEXT NOT NULL,
+                current_screen_id TEXT,
+                fallback_reason TEXT,
+                fallback_mode TEXT,
+                context_json TEXT NOT NULL DEFAULT '{}',
+                result_json TEXT NOT NULL DEFAULT '{}',
+                channel_message_id TEXT,
+                started_at TEXT NOT NULL,
+                completed_at TEXT,
+                last_event_at TEXT NOT NULL,
+                FOREIGN KEY (flow_id) REFERENCES whatsapp_flows(id),
+                FOREIGN KEY (version_id) REFERENCES whatsapp_flow_versions(id),
+                FOREIGN KEY (organization_id) REFERENCES organizations(id),
+                FOREIGN KEY (bot_id) REFERENCES bots(id),
+                FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+                FOREIGN KEY (contact_id) REFERENCES contacts(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_whatsapp_flow_executions_flow ON whatsapp_flow_executions(flow_id, status, last_event_at DESC);
+
+            CREATE TABLE IF NOT EXISTS whatsapp_flow_events (
+                id TEXT PRIMARY KEY,
+                flow_id TEXT NOT NULL,
+                version_id TEXT,
+                execution_id TEXT,
+                organization_id TEXT NOT NULL,
+                bot_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                screen_id TEXT,
+                step_index INTEGER,
+                variant TEXT,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (flow_id) REFERENCES whatsapp_flows(id),
+                FOREIGN KEY (version_id) REFERENCES whatsapp_flow_versions(id),
+                FOREIGN KEY (execution_id) REFERENCES whatsapp_flow_executions(id),
+                FOREIGN KEY (organization_id) REFERENCES organizations(id),
+                FOREIGN KEY (bot_id) REFERENCES bots(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_whatsapp_flow_events_flow ON whatsapp_flow_events(flow_id, event_type, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS whatsapp_flow_experiments (
+                id TEXT PRIMARY KEY,
+                flow_id TEXT NOT NULL,
+                organization_id TEXT NOT NULL,
+                bot_id TEXT NOT NULL,
+                version_a_id TEXT NOT NULL,
+                version_b_id TEXT NOT NULL,
+                rollout_percentage INTEGER NOT NULL DEFAULT 50,
+                status TEXT NOT NULL DEFAULT 'draft',
+                note TEXT,
+                metrics_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (flow_id) REFERENCES whatsapp_flows(id),
+                FOREIGN KEY (organization_id) REFERENCES organizations(id),
+                FOREIGN KEY (bot_id) REFERENCES bots(id),
+                FOREIGN KEY (version_a_id) REFERENCES whatsapp_flow_versions(id),
+                FOREIGN KEY (version_b_id) REFERENCES whatsapp_flow_versions(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_whatsapp_flow_experiments_flow ON whatsapp_flow_experiments(flow_id, status, updated_at DESC);
+            """
+        )
+
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS whatsapp_policy_decisions (
+                id TEXT PRIMARY KEY,
+                organization_id TEXT NOT NULL,
+                bot_id TEXT NOT NULL,
+                conversation_id TEXT,
+                contact_id TEXT,
+                outbox_id TEXT,
+                message_id TEXT,
+                decision_status TEXT NOT NULL,
+                delivery_mode TEXT NOT NULL,
+                reason_code TEXT NOT NULL,
+                policy_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_whatsapp_policy_decisions_org ON whatsapp_policy_decisions(organization_id, bot_id, created_at DESC);
+            """
+        )
 
         conn.executescript(
             """

@@ -91,8 +91,8 @@ export default async function OperationsPage({ searchParams }: { searchParams?: 
         <Section title="Runtime" subtitle="Callbacks, dead letters y sync runs sin separarlos en pantallas distintas." icon="refresh">
           <DataTable columns={["Tipo", "Estado", "Detalle"]} rows={[
             ...[...deadLetters.jobs, ...deadLetters.outbox].slice(0, 8).map((item) => [safeText(item.type), <Badge key={safeText(item.id)} tone="red">{safeText(item.status)}</Badge>, safeText(item.error || item.detail)]),
-            ...callbacks.slice(0, 6).map((item) => ["Callback", safeText(item.status), safeText(item.provider || item.kind || item.type)]),
-            ...syncRuns.slice(0, 6).map((item) => ["Sync run", safeText(item.status), safeText(item.name || item.provider || item.integration_id)]),
+            ...callbacks.slice(0, 6).map((item) => ["Callback", safeText(item.status), safeText(item.target || item.kind || item.type)]),
+            ...syncRuns.slice(0, 6).map((item) => ["Sync run", safeText(item.status), safeText(item.provider || item.integration_id || item.id)]),
           ]} />
         </Section>
       ) : null}

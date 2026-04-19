@@ -13,5 +13,6 @@ class OrganizationCreateRequest(BaseModel):
 class OrganizationUpdateRequest(BaseModel):
     name: str | None = None
     vertical: str | None = None
+    subvertical: str | None = None
     timezone: str | None = None
     status: str | None = None

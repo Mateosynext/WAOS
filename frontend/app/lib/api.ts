@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { ACCESS_COOKIE, refreshAccessToken } from "./session";
+import { ACCESS_COOKIE, getCurrentBotId, getCurrentOrganizationId, refreshAccessToken } from "./session";
 import { explainMissingApiBase, getClientApiBase, getFrontendEnvConfig, getServerApiBase } from "./env";
 import { unwrapApiEnvelope } from "./contracts";
 
@@ -9,18 +9,29 @@ export class ApiRequestError extends Error {
   status: number | null;
   code: string;
   retryable: boolean;
-  constructor(message: string, options: { status?: number | null; code?: string; retryable?: boolean } = {}) {
+  requestId: string | null;
+  correlationId: string | null;
+  details: unknown;
+  constructor(message: string, options: { status?: number | null; code?: string; retryable?: boolean; requestId?: string | null; correlationId?: string | null; details?: unknown } = {}) {
     super(message);
     this.name = "ApiRequestError";
     this.status = options.status ?? null;
     this.code = options.code || "api_error";
     this.retryable = Boolean(options.retryable);
+    this.requestId = options.requestId ?? null;
+    this.correlationId = options.correlationId ?? null;
+    this.details = options.details ?? null;
   }
 }
 
 export type ApiResult<T> = { ok: true; data: T; error: null } | { ok: false; data: null; error: ApiRequestError };
 
-function shouldRetry(error: unknown) {
+function methodAllowsRetry(method: string | null | undefined) {
+  return ["GET", "HEAD", "OPTIONS"].includes(String(method || "GET").toUpperCase());
+}
+
+function shouldRetry(error: unknown, method?: string | null) {
+  if (!methodAllowsRetry(method)) return false;
   if (error instanceof ApiRequestError) return error.retryable;
   if (error instanceof Error) return /abort|timeout|network/i.test(error.message);
   return false;
@@ -32,20 +43,33 @@ function wait(ms: number) {
 
 async function readError(response: Response): Promise<ApiRequestError> {
   let message = `La API respondió con ${response.status}.`;
+  let code = response.status >= 500 ? "server_error" : response.status === 401 ? "unauthorized" : "request_error";
+  let requestId = response.headers.get("x-request-id");
+  let correlationId = response.headers.get("x-correlation-id");
+  let details: unknown = null;
   try {
     const data = await response.json();
     if (typeof data?.detail === "string") message = data.detail;
     else if (typeof data?.message === "string") message = data.message;
     else if (typeof data?.error === "string") message = data.error;
+    else if (typeof data?.error?.message === "string") message = data.error.message;
     else if (data?.detail?.message) message = data.detail.message;
+    if (typeof data?.error?.code === "string") code = data.error.code;
+    else if (typeof data?.code === "string") code = data.code;
+    requestId = typeof data?.request_id === "string" ? data.request_id : requestId;
+    correlationId = typeof data?.correlation_id === "string" ? data.correlation_id : correlationId;
+    details = data?.error?.details ?? data?.details ?? null;
   } catch {
     const text = await response.text().catch(() => "");
     if (text) message = text;
   }
   return new ApiRequestError(message, {
     status: response.status,
-    code: response.status >= 500 ? "server_error" : response.status === 401 ? "unauthorized" : "request_error",
+    code,
     retryable: response.status >= 500 || response.status === 429,
+    requestId,
+    correlationId,
+    details,
   });
 }
 
@@ -80,18 +104,38 @@ async function refreshClientSession(): Promise<string | null> {
   }
 }
 
+async function buildContextHeaders(serverMode: boolean, headers: Headers, method: string) {
+  headers.set("x-waos-frontend", "internal-console");
+  headers.set("x-waos-request-method", method);
+  const requestId = headers.get("x-request-id") || `web-${crypto.randomUUID()}`;
+  headers.set("x-request-id", requestId);
+  headers.set("x-correlation-id", headers.get("x-correlation-id") || requestId);
+  if (!serverMode) return;
+  const [organizationId, botId] = await Promise.all([getCurrentOrganizationId(), getCurrentBotId()]);
+  if (organizationId) {
+    headers.set("x-waos-org-id", organizationId);
+    headers.set("x-organization-id", organizationId);
+  }
+  if (botId) {
+    headers.set("x-waos-bot-id", botId);
+    headers.set("x-bot-id", botId);
+  }
+}
+
 async function requestJson<T>(base: string | null, path: string, init: RequestInit = {}, authToken?: string | null): Promise<T> {
   if (!base) throw new ApiRequestError(explainMissingApiBase(authToken === undefined ? "client" : "server"), { code: "missing_api_base" });
   const headers = new Headers(init.headers || {});
   const serverMode = authToken !== undefined;
+  const method = String(init.method || "GET").toUpperCase();
   let bearer = authToken || null;
   if (bearer) headers.set("Authorization", `Bearer ${bearer}`);
   if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  await buildContextHeaders(serverMode, headers, method);
   let refreshedOnce = false;
   let lastError: unknown = null;
   for (let attempt = 0; attempt <= ENV.retries; attempt += 1) {
     try {
-      const response = await fetchWithTimeout(`${base}${path}`, { ...init, headers, cache: "no-store" });
+      const response = await fetchWithTimeout(`${base}${path}`, { ...init, method, headers, cache: "no-store" });
       if (response.status === 401 && !refreshedOnce) {
         refreshedOnce = true;
         const nextToken = serverMode ? (await refreshAccessToken())?.accessToken ?? null : await refreshClientSession();
@@ -106,7 +150,7 @@ async function requestJson<T>(base: string | null, path: string, init: RequestIn
       return unwrapApiEnvelope(payload) as T;
     } catch (error) {
       lastError = error;
-      if (attempt >= ENV.retries || !shouldRetry(error)) break;
+      if (attempt >= ENV.retries || !shouldRetry(error, method)) break;
       await wait(250 * (attempt + 1));
     }
   }

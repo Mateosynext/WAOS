@@ -100,3 +100,11 @@ export async function refreshPaymentStatusAction(formData: FormData) {
     await runAndRefresh(redirectTo, async () => null);
   }
 }
+
+
+export async function replayWebhookReceiptAction(formData: FormData) {
+  const receiptId = readString(formData, "receipt_id");
+  const redirectTo = readString(formData, "redirect_to") || "/integrations?section=riesgo";
+  const payload = { dry_run: true, note: readOptionalString(formData, "note") };
+  await runAndRefresh(redirectTo, () => postJson(`/api/v1/integrations/webhooks/${receiptId}/replay`, payload));
+}

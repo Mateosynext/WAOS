@@ -1,17 +1,33 @@
 # WAOS Release Verification
 
-Version: 0.17.5
+Version: 0.17.5-internal-refactor
 
-Verified commands on this artifact:
-- `PYTHONPATH=. pytest -q backend/tests`
-- `cd frontend && npm install --no-audit --no-fund --prefer-offline`
-- `cd frontend && npm run -s typecheck`
-- `cd frontend && npm run -s test:node`
-- `cd frontend && npm run -s smoke`
+## Scope of this artifact
 
-Evidence files live in `docs/verification/`.
+This package improves the **internal frontend only** and keeps the external portal under `frontend/app/client/**` out of scope.
 
-Browser E2E note:
-- The real critical path remains wired via `npm run test:e2e:real:critical`.
-- In this sandbox, the system Chromium process cannot complete the browser probe cleanly, so the artifact is not being falsely labeled as browser-E2E-green from this environment.
-- See `docs/verification/browser-probe.txt` plus the server logs in the same directory.
+## Verified commands on this artifact
+
+- `cd frontend && npm ci --registry=https://registry.npmjs.org/`
+- `cd frontend && npm run typecheck`
+- `cd frontend && npm run smoke`
+- `cd frontend && npm run test:node`
+- `cd frontend && npm run build`
+
+## Verification status
+
+### Green in this environment
+
+- Frontend typecheck
+- Frontend smoke checks
+- Frontend node tests
+- Next production build compilation reached optimized production build and type validation successfully in this environment
+- Internal refactor checks for:
+  - `status`, `support`, and `launch-center` now being real pages instead of redirects
+  - API context headers and safe retry guardrails
+  - Session scope cleanup for org/bot changes
+  - Tokenized visual shell in critical access/error surfaces
+
+## Evidence
+
+Evidence files are expected to be exported to the CI artifact store for each release run. This cleaned production tree does not bundle local verification artifacts.

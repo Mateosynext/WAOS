@@ -6,6 +6,14 @@ export type FrontendEnvConfig = {
   retries: number;
 };
 
+const DEV_FALLBACK_CLIENT_API_BASE = "http://localhost:4100";
+const DEV_FALLBACK_SERVER_API_BASE = "http://localhost:4100";
+const DEV_FALLBACK_PUBLIC_SITE_URL = "http://localhost:3000";
+
+function allowDevFallback() {
+  return process.env.NODE_ENV !== "production" || process.env.WAOS_ALLOW_ENV_FALLBACK === "true";
+}
+
 function cleanUrl(value: string | null | undefined) {
   const raw = String(value || "").trim();
   if (!raw) return null;
@@ -18,15 +26,15 @@ function readNumber(value: string | undefined, fallback: number) {
 }
 
 export function getClientApiBase() {
-  return cleanUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
+  return cleanUrl(process.env.NEXT_PUBLIC_API_BASE_URL) || (allowDevFallback() ? DEV_FALLBACK_CLIENT_API_BASE : null);
 }
 
 export function getServerApiBase() {
-  return cleanUrl(process.env.API_INTERNAL_URL) || cleanUrl(process.env.API_BASE_URL) || cleanUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
+  return cleanUrl(process.env.API_INTERNAL_URL) || cleanUrl(process.env.API_BASE_URL) || cleanUrl(process.env.NEXT_PUBLIC_API_BASE_URL) || (allowDevFallback() ? DEV_FALLBACK_SERVER_API_BASE : null);
 }
 
 export function getPublicSiteUrl() {
-  return cleanUrl(process.env.NEXT_PUBLIC_APP_URL) || cleanUrl(process.env.PUBLIC_APP_URL);
+  return cleanUrl(process.env.NEXT_PUBLIC_APP_URL) || cleanUrl(process.env.PUBLIC_APP_URL) || (allowDevFallback() ? DEV_FALLBACK_PUBLIC_SITE_URL : null);
 }
 
 export function getFrontendEnvConfig(): FrontendEnvConfig {

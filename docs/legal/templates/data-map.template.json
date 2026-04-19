@@ -1,0 +1,34 @@
+{
+  "version": "1.0.0",
+  "systems": [
+    {
+      "name": "Landing / formularios",
+      "origin": "captura",
+      "data_categories": [
+        "identificación",
+        "contacto"
+      ],
+      "transfers_to": [
+        "backend",
+        "crm",
+        "analytics"
+      ],
+      "owner": "Josue Mendoza Mateo"
+    },
+    {
+      "name": "WhatsApp / Inbox",
+      "origin": "mensajería",
+      "data_categories": [
+        "mensajes",
+        "contacto",
+        "adjuntos"
+      ],
+      "transfers_to": [
+        "backend",
+        "ia",
+        "storage"
+      ],
+      "owner": "Josue Mendoza Mateo"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ ARCHITECTURE_SOURCES_OF_TRUTH = {
     "api_entrypoint": "backend.app.main",
     "canonical_inbound_service": "backend.app.application.inbound_service",
     "runtime_pipeline": "backend.app.runtime_pipeline",
+    "agent_runtime": "backend.app.agent_runtime",
     "policy_engine": "backend.app.policy_engine",
 }
 
@@ -29,6 +30,6 @@ ACTIVE_BOUNDARIES = {
 CANONICAL_REQUEST_FLOW = [
     "api.router -> application service",
     "application service -> repositories/platform/providers",
-    "application service -> runtime pipeline (understand / decide / generate / schedule)",
+    "application service -> runtime pipeline (understand / plan / ground / decide / render / verify / schedule)",
     "platform + providers -> external systems",
 ]

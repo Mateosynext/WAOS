@@ -1,5 +1,28 @@
 {
-  "global_policy": "No inventar precios, políticas ni disponibilidad.",
-  "default_model": "gpt-5",
-  "freeze_minutes_after_takeover": 30
+  "global_policy": "balanced",
+  "default_model": "gpt-4o-mini",
+  "freeze_minutes_after_takeover": 30,
+  "ai_optimization": {
+    "semantic_cache_similarity_classification": 0.96,
+    "semantic_cache_similarity_generation": 0.95,
+    "prompt_char_budget_classification": 2200,
+    "prompt_char_budget_generation": 2600,
+    "streaming_enabled": true,
+    "micro_batch_enabled": true,
+    "micro_batch_window_seconds": 45,
+    "micro_batch_max_messages": 4,
+    "knowledge_search_cache_ttl_seconds": 7200,
+    "faq_instant_match_threshold": 0.9,
+    "fast_model": "gpt-4o-mini",
+    "complex_model": "gpt-5"
+  },
+  "memory_runtime": {
+    "episodic_memory_enabled": true,
+    "cross_bot_intelligence_enabled": true,
+    "checkpoint_every_n_messages": 6,
+    "checkpoint_min_chars": 900,
+    "session_window_hours": 72,
+    "episode_search_limit": 5,
+    "summarize_every_n_messages": 6
+  }
 }

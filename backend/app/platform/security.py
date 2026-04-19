@@ -281,10 +281,10 @@ def create_auth_session(conn, *, user: dict, ttl_minutes: int = 720, idle_timeou
         conn,
         """
         INSERT INTO auth_sessions
-        (id, user_id, refresh_token_hash, refresh_token_family_id, status, issued_at, expires_at, max_idle_at, last_authenticated_at, refresh_token_last_rotated_at, refresh_token_reuse_detected_at, revoked_at, last_seen_at, ip_address, user_agent)
-        VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)
+        (id, user_id, refresh_token_hash, refresh_token_family_id, status, issued_at, expires_at, max_idle_at, idle_timeout_minutes, last_authenticated_at, refresh_token_last_rotated_at, refresh_token_reuse_detected_at, revoked_at, last_seen_at, ip_address, user_agent)
+        VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)
         """,
-        (session_id, user["id"], refresh_hash, family_id, now, expires_at, max_idle_at, now, now, now, ip_address, user_agent),
+        (session_id, user["id"], refresh_hash, family_id, now, expires_at, max_idle_at, idle_timeout_minutes or settings.session_idle_timeout_minutes, now, now, now, ip_address, user_agent),
     )
     execute(
         conn,
@@ -345,10 +345,11 @@ def refresh_auth_session(conn, *, refresh_token: str, ttl_minutes: int = 720, id
         """,
         (new_id("reftok"), session["id"], token_row["family_id"], new_hash, token_hash, now),
     )
+    session_idle_timeout = int(idle_timeout_minutes or session.get("idle_timeout_minutes") or settings.session_idle_timeout_minutes)
     execute(
         conn,
-        "UPDATE auth_sessions SET refresh_token_hash = ?, expires_at = ?, max_idle_at = ?, last_seen_at = ?, refresh_token_last_rotated_at = ? WHERE id = ?",
-        (new_hash, add_minutes(now, ttl_minutes), add_minutes(now, idle_timeout_minutes or settings.session_idle_timeout_minutes), now, now, session["id"]),
+        "UPDATE auth_sessions SET refresh_token_hash = ?, expires_at = ?, max_idle_at = ?, idle_timeout_minutes = ?, last_seen_at = ?, refresh_token_last_rotated_at = ? WHERE id = ?",
+        (new_hash, add_minutes(now, ttl_minutes), add_minutes(now, session_idle_timeout), session_idle_timeout, now, now, session["id"]),
     )
     updated = fetch_one(conn, "SELECT * FROM auth_sessions WHERE id = ?", (session["id"],))
     return {**updated, "refresh_token": new_refresh, "reuse_detected": False}

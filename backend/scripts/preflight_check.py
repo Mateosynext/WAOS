@@ -21,6 +21,15 @@ def main() -> int:
     warnings: list[str] = []
 
     if settings.is_production:
+        api_host = settings.api_base_url.split('://', 1)[-1].split('/', 1)[0].split(':', 1)[0].lower()
+        public_host = settings.public_app_url.split('://', 1)[-1].split('/', 1)[0].split(':', 1)[0].lower()
+        cors_hosts = {
+            origin.split('://', 1)[-1].split('/', 1)[0].split(':', 1)[0].lower()
+            for origin in settings.cors_allowed_origins
+            if origin.strip()
+        }
+        allowed_hosts = {host.strip().lower() for host in settings.allowed_hosts if host.strip()}
+
         if settings.app_secret_is_default:
             errors.append('APP_SECRET sigue con valor por defecto.')
         if settings.encryption_key_is_default:
@@ -37,6 +46,10 @@ def main() -> int:
             errors.append('CORS_ALLOWED_ORIGINS no puede quedar vacío en producción.')
         if not settings.allowed_hosts:
             errors.append('ALLOWED_HOSTS no puede quedar vacío en producción.')
+        if api_host and api_host not in allowed_hosts:
+            errors.append('ALLOWED_HOSTS debe incluir el host de API_BASE_URL.')
+        if public_host and public_host not in cors_hosts:
+            errors.append('CORS_ALLOWED_ORIGINS debe incluir PUBLIC_APP_URL.')
     else:
         warnings.append('Preflight en entorno no productivo: algunas validaciones estrictas se omiten.')
 

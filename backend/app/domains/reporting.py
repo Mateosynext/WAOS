@@ -11,6 +11,7 @@ from reportlab.pdfgen import canvas
 from ..db import execute, fetch_all, fetch_one
 from ..repositories import create_audit_log, create_message, get_bot, get_contact, get_conversation
 from ..utils import add_minutes, from_json, new_id, parse_iso, to_json, utcnow_iso
+from ..world_class_ext import omnichannel_world_class_overview
 
 ARTIFACTS_DIR = Path(__file__).resolve().parents[1] / "artifacts" / "reports"
 
@@ -163,29 +164,7 @@ def ensure_executive_report_pdf(conn, report_row: dict[str, Any]) -> dict[str, A
 
 
 def omnichannel_overview(conn, organization_id: str, bot_id: str | None = None) -> dict[str, Any]:
-    params: list[Any] = [organization_id]
-    bot_clause = ""
-    if bot_id:
-        bot_clause = " AND bot_id = ?"
-        params.append(bot_id)
-    channels = fetch_all(
-        conn,
-        f"SELECT source_channel AS channel, COUNT(*) AS total FROM crm_leads WHERE organization_id = ?{bot_clause} GROUP BY source_channel ORDER BY total DESC",
-        params,
-    )
-    active = fetch_all(
-        conn,
-        f"SELECT c.id, c.status, c.updated_at, ct.name, ct.phone FROM conversations c JOIN contacts ct ON ct.id = c.contact_id WHERE c.organization_id = ?{' AND c.bot_id = ?' if bot_id else ''} ORDER BY c.updated_at DESC LIMIT 10",
-        params,
-    )
-    return {
-        "summary": {
-            "channels": channels,
-            "active_threads": len(active),
-            "recommended_channels": ["whatsapp", "instagram_dm", "webchat"],
-        },
-        "threads": active,
-    }
+    return omnichannel_world_class_overview(conn, organization_id=organization_id, bot_id=bot_id, limit=20)
 
 
 def generate_executive_report(conn, *, organization_id: str, period_start: str, period_end: str, bot_id: str | None = None, delivery_channels: list[str] | None = None) -> dict:

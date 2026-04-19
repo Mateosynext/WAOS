@@ -2,17 +2,54 @@ from __future__ import annotations
 
 from typing import Any
 
+from .request_context import get_request_context
 from .utils import from_json
 
 
+def _envelope_meta(meta: dict[str, Any] | None = None) -> dict[str, Any]:
+    context = get_request_context()
+    base = dict(meta or {})
+    if context is not None:
+        if context.request_id:
+            base.setdefault("request_id", context.request_id)
+        if context.correlation_id:
+            base.setdefault("correlation_id", context.correlation_id)
+        if context.organization_id:
+            base.setdefault("organization_id", context.organization_id)
+        if context.bot_id:
+            base.setdefault("bot_id", context.bot_id)
+    return base
+
+
+
 def ok(data: Any, *, meta: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {"ok": True, "data": data, "meta": meta or {}}
+    envelope_meta = _envelope_meta(meta)
+    payload = {"ok": True, "data": data, "meta": envelope_meta}
+    if envelope_meta.get("request_id"):
+        payload["request_id"] = envelope_meta["request_id"]
+    if envelope_meta.get("correlation_id"):
+        payload["correlation_id"] = envelope_meta["correlation_id"]
+    return payload
+
+
+
+def paginated(items: list[Any], *, total: int | None = None, limit: int | None = None, offset: int | None = None, extra_meta: dict[str, Any] | None = None) -> dict[str, Any]:
+    meta = dict(extra_meta or {})
+    if total is not None:
+        meta.setdefault("total", total)
+    if limit is not None:
+        meta.setdefault("limit", limit)
+    if offset is not None:
+        meta.setdefault("offset", offset)
+    return ok(items, meta=meta)
+
 
 
 def count_row(row: dict[str, Any], *, fallback_kind: str) -> dict[str, Any]:
     kind = str(row.get("kind") or row.get("type") or row.get("status") or fallback_kind)
     status = str(row.get("status") or kind)
     return {**row, "kind": kind, "type": kind, "status": status, "count": int(row.get("count") or 0)}
+
 
 
 def runtime_callback_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -32,6 +69,7 @@ def runtime_callback_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+
 def dead_letter_row(row: dict[str, Any], *, channel: str) -> dict[str, Any]:
     payload = from_json(row.get("payload_json"), {})
     detail = row.get("detail") or row.get("kind") or row.get("type") or row.get("id") or channel
@@ -46,6 +84,7 @@ def dead_letter_row(row: dict[str, Any], *, channel: str) -> dict[str, Any]:
     }
 
 
+
 def integration_sync_run_row(row: dict[str, Any]) -> dict[str, Any]:
     summary = from_json(row.get("summary_json"), {})
     error = from_json(row.get("error_json"), {})
@@ -55,6 +94,7 @@ def integration_sync_run_row(row: dict[str, Any]) -> dict[str, Any]:
         "error": error,
         "detail": row.get("detail") or summary.get("reason") or summary.get("mode") or summary.get("provider") or row.get("status"),
     }
+
 
 
 def run_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -70,6 +110,7 @@ def run_row(row: dict[str, Any]) -> dict[str, Any]:
         "output": output_data,
         "error": error,
     }
+
 
 
 def audit_log_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -88,6 +129,7 @@ def audit_log_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+
 def build_row(row: dict[str, Any]) -> dict[str, Any]:
     validation = from_json(row.get("validation_json"), {})
     diff_summary = from_json(row.get("diff_summary_json"), {})
@@ -103,6 +145,7 @@ def build_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+
 def release_request_row(row: dict[str, Any]) -> dict[str, Any]:
     validation = from_json(row.get("validation_json"), {})
     diff_summary = from_json(row.get("diff_summary_json"), {})
@@ -115,6 +158,7 @@ def release_request_row(row: dict[str, Any]) -> dict[str, Any]:
         "diff_summary": diff_summary,
         "checklist": checklist,
     }
+
 
 
 def integration_event_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -132,6 +176,7 @@ def integration_event_row(row: dict[str, Any]) -> dict[str, Any]:
         "error": error,
         "timestamp": row.get("created_at") or row.get("updated_at"),
     }
+
 
 
 def payment_row(row: dict[str, Any]) -> dict[str, Any]:

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   refreshPaymentStatusAction,
+  replayWebhookReceiptAction,
   saveGoogleCalendarIntegrationAction,
   saveWhatsAppIntegrationAction,
   saveStripeIntegrationAction,
@@ -14,7 +15,7 @@ import { type IntegrationContract, type IntegrationEventContract, type Integrati
 import { canManageSecrets, canOperateIntegrations, roleLabel } from "../lib/permissions";
 import { getCurrentBotId, getSession } from "../lib/session";
 import { formatNumber, safeText } from "../lib/ui";
-import { getBots, getGoogleCalendars, getIntegrationEvents, getIntegrationObservability, getIntegrationSyncRuns, getIntegrations, getPayments, getVerticalProfile } from "../lib/waos";
+import { getBots, getGoogleCalendars, getIntegrationCenter, getIntegrationEvents, getIntegrationObservability, getIntegrationSyncRuns, getIntegrations, getPayments, getVerticalProfile } from "../lib/waos";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }
@@ -28,13 +29,14 @@ export default async function IntegrationsPage({ searchParams }: { searchParams?
   const role = session?.user.global_role;
   const organizationId = session?.organizationId || null;
   const currentBotId = await getCurrentBotId();
-  const [bots, integrations, syncRuns, observability, events, payments] = await Promise.all([
+  const [bots, integrations, syncRuns, observability, events, payments, center] = await Promise.all([
     getBots(),
     getIntegrations(),
     getIntegrationSyncRuns(),
     getIntegrationObservability(),
     getIntegrationEvents(),
     getPayments(),
+    getIntegrationCenter(),
   ]);
   const selectedBot = bots.find((item) => item.id === currentBotId) || bots[0] || null;
   const selectedVertical = await getVerticalProfile(selectedBot?.vertical || session?.user.organizations.find((item) => item.id === organizationId)?.vertical || undefined, selectedBot?.id);
@@ -47,9 +49,11 @@ export default async function IntegrationsPage({ searchParams }: { searchParams?
   const expiring = integrations.filter((item: IntegrationContract) => item.expires_at || item.credential_expires_at);
   const observedEvents = Number(observability.totals?.ok || 0) + Number(observability.totals?.warning || 0) + Number(observability.totals?.failed || 0);
   const pendingPayments = payments.filter((item) => ["pending", "pending_provider"].includes(String(item.status || "").toLowerCase()));
+  const failedReceipts = center.failed_receipts || [];
+  const retryHotspots = center.retry_hotspots || [];
 
   return (
-    <Shell title="Integraciones" subtitle="Primero conecta, luego prueba, después sincroniza y solo al final entra a credenciales o mantenimiento. Aquí ya puedes configurar Google Calendar y Stripe como producto operable, no como demo." action={<Link href="/onboarding?step=canal" className="primary-btn">Conectar</Link>}>
+    <Shell title="Integraciones" subtitle="Primero conecta, luego prueba, después sincroniza y solo al final entra a credenciales o mantenimiento. Aquí ya puedes configurar Google Calendar y Stripe como producto operable, como capa operable de producción." action={<Link href="/onboarding?step=canal" className="primary-btn">Conectar</Link>}>
       <SecondaryNav items={[
         { href: "/integrations?section=estado", label: "Estado", active: section === "estado" },
         { href: "/integrations?section=configuracion", label: "Configuración", active: section === "configuracion" },
@@ -76,6 +80,7 @@ export default async function IntegrationsPage({ searchParams }: { searchParams?
         <StatCard label="Con alerta" value={formatNumber(risk.length)} hint="Requieren revisión" icon={risk.length ? "alert" : "check"} tone={risk.length ? "gold" : "green"} />
         <StatCard label="Pagos pendientes" value={formatNumber(pendingPayments.length)} hint="Casos que pueden necesitar refresh o webhook" icon="money" tone={pendingPayments.length ? "gold" : "slate"} />
         <StatCard label="Eventos proveedor" value={formatNumber(observedEvents)} hint="Traza reciente por integración" icon="stats" tone="slate" />
+        <StatCard label="Receipts fallidos" value={formatNumber(failedReceipts.length)} hint="Listos para replay seguro" icon="alert" tone={failedReceipts.length ? "red" : "slate"} />
       </div>
 
       {section === "configuracion" ? (
@@ -281,6 +286,16 @@ export default async function IntegrationsPage({ searchParams }: { searchParams?
       {section === "riesgo" ? (
         <Section title="Integraciones con riesgo" subtitle="Solo aparecen las conexiones que pueden frenar operación, reporting, agenda o cobros." icon="alert">
           {risk.length ? <DataTable columns={["Integración", "Proveedor", "Salud", "Detalle"]} rows={risk.map((item: IntegrationContract) => [safeText(item.name), safeText(item.provider), safeText(item.health_status || item.status), safeText(item.last_error || item.credential_status || item.status)])} /> : <EmptyActionState title="No hay integraciones con riesgo visible" description="Buen signo: por ahora la salud visible no muestra conexiones degradadas o cortadas." primaryAction={<Link href="/status" className="primary-btn">Ver estado</Link>} />}
+          <div className="mt-5 grid gap-4 xl:grid-cols-2">
+            <div>
+              <div className="eyebrow mb-3">Hotspots de retry</div>
+              {retryHotspots.length ? <DataTable columns={["Integración", "Retries", "Salud", "Último error"]} rows={retryHotspots.slice(0, 10).map((item) => [safeText(String(item.name || item.integration_id || "Integración")), formatNumber(Number(item.retry_count || 0)), safeText(String(item.health_status || "unknown")), safeText(String(item.last_error || "sin dato"))])} /> : <div className="surface-row text-sm text-slate-300">No hay integraciones reintentando activamente.</div>}
+            </div>
+            <div>
+              <div className="eyebrow mb-3">Webhook replay seguro</div>
+              {failedReceipts.length ? <DataTable columns={["Receipt", "Canal", "Estado", "Acción"]} rows={failedReceipts.slice(0, 10).map((item) => [safeText(String(item.external_event_id || item.id)), safeText(String(item.channel || "provider")), safeText(String(item.status || "unknown")), <form key={String(item.id)} action={replayWebhookReceiptAction}><input type="hidden" name="receipt_id" value={String(item.id || "")} /><input type="hidden" name="redirect_to" value="/integrations?section=riesgo" /><button className="secondary-btn" type="submit">Dry-run replay</button></form>])} /> : <div className="surface-row text-sm text-slate-300">No hay receipts fallidos pendientes de replay.</div>}
+            </div>
+          </div>
         </Section>
       ) : null}
 
@@ -309,6 +324,9 @@ export default async function IntegrationsPage({ searchParams }: { searchParams?
 
       {section === "observabilidad" ? (
         <Section title="Observabilidad por integración" subtitle="Aquí ya se ve el provider de verdad: eventos recientes, errores y último código HTTP reportado por proveedor." icon="stats">
+          <div className="mb-4 grid gap-3 md:grid-cols-3">
+            {(center.dependency_map || []).map((item, index) => <div key={`${String(item.integration_type || index)}`} className="surface-row text-sm text-slate-300"><div className="font-medium text-white">{safeText(String(item.integration_type || "integración"))}</div><div className="mt-2">Impacta: {safeText((Array.isArray(item.modules) ? item.modules.join(", ") : "sin dato") as string)}</div></div>)}
+          </div>
           <div className="grid gap-4 md:grid-cols-3 mb-4">
             <StatCard label="OK" value={formatNumber(Number(observability.totals?.ok || 0))} hint="Eventos saludables" icon="check" tone="green" />
             <StatCard label="Warnings" value={formatNumber(Number(observability.totals?.warning || 0))} hint="Estados degradados o expirados" icon="alert" tone="gold" />

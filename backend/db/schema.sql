@@ -83,6 +83,13 @@ CREATE TABLE IF NOT EXISTS whatsapp_numbers (
     webhook_verify_token TEXT NOT NULL,
     access_token_masked TEXT,
     metadata_json TEXT NOT NULL DEFAULT '{}',
+    quality_rating TEXT NOT NULL DEFAULT 'unknown',
+    quality_status TEXT NOT NULL DEFAULT 'unknown',
+    throughput_tier TEXT NOT NULL DEFAULT 'standard',
+    provider_degraded_until TEXT,
+    last_health_check_at TEXT,
+    last_provider_error_code TEXT,
+    last_provider_error_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (organization_id) REFERENCES organizations(id),
@@ -410,6 +417,26 @@ CREATE TABLE IF NOT EXISTS bot_builds (
     FOREIGN KEY (version_id) REFERENCES bot_versions(id)
 );
 
+
+CREATE TABLE IF NOT EXISTS whatsapp_opt_outs (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT NOT NULL,
+    contact_id TEXT,
+    conversation_id TEXT,
+    phone TEXT,
+    keyword TEXT NOT NULL,
+    source_message_id TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id),
+    FOREIGN KEY (contact_id) REFERENCES contacts(id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY (source_message_id) REFERENCES messages(id)
+);
+
 CREATE TABLE IF NOT EXISTS outbox_messages (
     id TEXT PRIMARY KEY,
     organization_id TEXT NOT NULL,
@@ -418,6 +445,7 @@ CREATE TABLE IF NOT EXISTS outbox_messages (
     conversation_id TEXT,
     channel TEXT NOT NULL,
     payload_json TEXT NOT NULL DEFAULT '{}',
+    governance_json TEXT NOT NULL DEFAULT '{}',
     status TEXT NOT NULL,
     attempts INTEGER NOT NULL DEFAULT 0,
     last_error TEXT,
@@ -508,6 +536,29 @@ CREATE INDEX IF NOT EXISTS idx_integrations_org ON integration_connections(organ
 CREATE INDEX IF NOT EXISTS idx_secrets_org ON secret_entries(organization_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_bot_builds_bot ON bot_builds(bot_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_outbox_status_due ON outbox_messages(status, scheduled_for);
+
+
+CREATE TABLE IF NOT EXISTS whatsapp_policy_decisions (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT NOT NULL,
+    conversation_id TEXT,
+    contact_id TEXT,
+    outbox_id TEXT,
+    message_id TEXT,
+    decision_status TEXT NOT NULL,
+    delivery_mode TEXT NOT NULL,
+    reason_code TEXT NOT NULL,
+    policy_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY (contact_id) REFERENCES contacts(id),
+    FOREIGN KEY (outbox_id) REFERENCES outbox_messages(id),
+    FOREIGN KEY (message_id) REFERENCES messages(id)
+);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_policy_decisions_org ON whatsapp_policy_decisions(organization_id, bot_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_release_requests_bot ON release_requests(bot_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_rate_limit_policies_org ON rate_limit_policies(organization_id, updated_at);
@@ -789,10 +840,132 @@ CREATE TABLE IF NOT EXISTS whatsapp_flows (
     language TEXT NOT NULL DEFAULT 'es',
     definition_json TEXT NOT NULL DEFAULT '{}',
     metadata_json TEXT NOT NULL DEFAULT '{}',
+    remote_flow_id TEXT,
+    remote_status TEXT NOT NULL DEFAULT 'not_synced',
+    remote_details_json TEXT NOT NULL DEFAULT '{}',
+    fallback_json TEXT NOT NULL DEFAULT '{}',
+    runtime_config_json TEXT NOT NULL DEFAULT '{}',
+    current_version_id TEXT,
+    published_version_id TEXT,
+    runtime_endpoint TEXT,
+    remote_last_synced_at TEXT,
+    remote_last_published_at TEXT,
+    last_sync_error TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (organization_id) REFERENCES organizations(id),
     FOREIGN KEY (bot_id) REFERENCES bots(id)
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_flow_versions (
+    id TEXT PRIMARY KEY,
+    flow_id TEXT NOT NULL,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT NOT NULL,
+    version_number INTEGER NOT NULL,
+    state TEXT NOT NULL DEFAULT 'draft',
+    flow_json TEXT NOT NULL DEFAULT '{}',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    compatibility_json TEXT NOT NULL DEFAULT '{}',
+    rollout_json TEXT NOT NULL DEFAULT '{}',
+    remote_asset_status TEXT NOT NULL DEFAULT 'pending',
+    validation_errors_json TEXT NOT NULL DEFAULT '[]',
+    cloned_from_version_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    published_at TEXT,
+    FOREIGN KEY (flow_id) REFERENCES whatsapp_flows(id),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id)
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_flow_publications (
+    id TEXT PRIMARY KEY,
+    flow_id TEXT NOT NULL,
+    version_id TEXT,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT NOT NULL,
+    provider TEXT NOT NULL DEFAULT 'meta',
+    action TEXT NOT NULL,
+    status TEXT NOT NULL,
+    remote_flow_id TEXT,
+    request_json TEXT NOT NULL DEFAULT '{}',
+    response_json TEXT NOT NULL DEFAULT '{}',
+    validation_errors_json TEXT NOT NULL DEFAULT '[]',
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    FOREIGN KEY (flow_id) REFERENCES whatsapp_flows(id),
+    FOREIGN KEY (version_id) REFERENCES whatsapp_flow_versions(id),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id)
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_flow_executions (
+    id TEXT PRIMARY KEY,
+    flow_id TEXT NOT NULL,
+    version_id TEXT,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT NOT NULL,
+    conversation_id TEXT,
+    contact_id TEXT,
+    flow_token TEXT NOT NULL,
+    assigned_variant TEXT,
+    status TEXT NOT NULL,
+    current_screen_id TEXT,
+    fallback_reason TEXT,
+    fallback_mode TEXT,
+    context_json TEXT NOT NULL DEFAULT '{}',
+    result_json TEXT NOT NULL DEFAULT '{}',
+    channel_message_id TEXT,
+    started_at TEXT NOT NULL,
+    completed_at TEXT,
+    last_event_at TEXT NOT NULL,
+    FOREIGN KEY (flow_id) REFERENCES whatsapp_flows(id),
+    FOREIGN KEY (version_id) REFERENCES whatsapp_flow_versions(id),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY (contact_id) REFERENCES contacts(id)
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_flow_events (
+    id TEXT PRIMARY KEY,
+    flow_id TEXT NOT NULL,
+    version_id TEXT,
+    execution_id TEXT,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    screen_id TEXT,
+    step_index INTEGER,
+    variant TEXT,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (flow_id) REFERENCES whatsapp_flows(id),
+    FOREIGN KEY (version_id) REFERENCES whatsapp_flow_versions(id),
+    FOREIGN KEY (execution_id) REFERENCES whatsapp_flow_executions(id),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id)
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_flow_experiments (
+    id TEXT PRIMARY KEY,
+    flow_id TEXT NOT NULL,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT NOT NULL,
+    version_a_id TEXT NOT NULL,
+    version_b_id TEXT NOT NULL,
+    rollout_percentage INTEGER NOT NULL DEFAULT 50,
+    status TEXT NOT NULL DEFAULT 'draft',
+    note TEXT,
+    metrics_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (flow_id) REFERENCES whatsapp_flows(id),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id),
+    FOREIGN KEY (version_a_id) REFERENCES whatsapp_flow_versions(id),
+    FOREIGN KEY (version_b_id) REFERENCES whatsapp_flow_versions(id)
 );
 
 CREATE TABLE IF NOT EXISTS conversation_reviews (
@@ -871,12 +1044,77 @@ CREATE TABLE IF NOT EXISTS voice_notes (
     suggested_response_text TEXT,
     suggested_response_audio_text TEXT,
     summary TEXT,
+    media_id TEXT,
+    media_url TEXT,
+    media_mime_type TEXT,
+    media_sha256 TEXT,
+    media_size_bytes INTEGER NOT NULL DEFAULT 0,
+    consent_status TEXT NOT NULL DEFAULT 'implicit_inbound_whatsapp',
+    media_expires_at TEXT,
+    transcription_source TEXT NOT NULL DEFAULT 'manual',
+    transcription_confidence REAL NOT NULL DEFAULT 0,
+    diarization_json TEXT NOT NULL DEFAULT '[]',
+    segments_json TEXT NOT NULL DEFAULT '[]',
+    audio_quality TEXT NOT NULL DEFAULT 'unknown',
+    background_noise_level TEXT NOT NULL DEFAULT 'unknown',
+    processing_status TEXT NOT NULL DEFAULT 'completed',
+    reply_mode TEXT NOT NULL DEFAULT 'text',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL,
     FOREIGN KEY (organization_id) REFERENCES organizations(id),
     FOREIGN KEY (bot_id) REFERENCES bots(id),
     FOREIGN KEY (conversation_id) REFERENCES conversations(id),
     FOREIGN KEY (contact_id) REFERENCES contacts(id),
     FOREIGN KEY (message_id) REFERENCES messages(id)
+);
+
+CREATE TABLE IF NOT EXISTS voice_media_assets (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT NOT NULL,
+    conversation_id TEXT NOT NULL,
+    contact_id TEXT,
+    message_id TEXT,
+    voice_note_id TEXT,
+    direction TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    media_role TEXT NOT NULL,
+    provider_media_id TEXT,
+    storage_path TEXT,
+    public_url TEXT,
+    mime_type TEXT,
+    sha256 TEXT,
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT,
+    consent_status TEXT NOT NULL DEFAULT 'implicit_inbound_whatsapp',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY (contact_id) REFERENCES contacts(id),
+    FOREIGN KEY (message_id) REFERENCES messages(id),
+    FOREIGN KEY (voice_note_id) REFERENCES voice_notes(id)
+);
+
+CREATE TABLE IF NOT EXISTS voice_processing_events (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT NOT NULL,
+    conversation_id TEXT NOT NULL,
+    contact_id TEXT,
+    message_id TEXT,
+    voice_note_id TEXT,
+    stage TEXT NOT NULL,
+    status TEXT NOT NULL,
+    details_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY (contact_id) REFERENCES contacts(id),
+    FOREIGN KEY (message_id) REFERENCES messages(id),
+    FOREIGN KEY (voice_note_id) REFERENCES voice_notes(id)
 );
 
 CREATE TABLE IF NOT EXISTS customer_feedback (
@@ -931,10 +1169,20 @@ CREATE INDEX IF NOT EXISTS idx_crm_leads_org ON crm_leads(organization_id, updat
 CREATE INDEX IF NOT EXISTS idx_crm_leads_bot_stage ON crm_leads(bot_id, stage, updated_at);
 CREATE INDEX IF NOT EXISTS idx_commerce_payments_org ON commerce_payments(organization_id, status, updated_at);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_flows_bot ON whatsapp_flows(bot_id, status, updated_at);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_flows_remote ON whatsapp_flows(remote_flow_id, remote_status, updated_at);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_flow_versions_flow ON whatsapp_flow_versions(flow_id, version_number DESC, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_flow_publications_flow ON whatsapp_flow_publications(flow_id, status, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_flow_executions_flow ON whatsapp_flow_executions(flow_id, status, last_event_at DESC);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_flow_events_flow ON whatsapp_flow_events(flow_id, event_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_flow_experiments_flow ON whatsapp_flow_experiments(flow_id, status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_conversation_reviews_org ON conversation_reviews(organization_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_reactivation_org ON reactivation_recommendations(organization_id, status, updated_at);
 CREATE INDEX IF NOT EXISTS idx_executive_reports_org ON executive_reports(organization_id, generated_at);
 CREATE INDEX IF NOT EXISTS idx_voice_notes_org ON voice_notes(organization_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_voice_notes_conversation ON voice_notes(conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_voice_notes_processing ON voice_notes(organization_id, processing_status, created_at);
+CREATE INDEX IF NOT EXISTS idx_voice_media_assets_org ON voice_media_assets(organization_id, media_role, created_at);
+CREATE INDEX IF NOT EXISTS idx_voice_processing_events_org ON voice_processing_events(organization_id, stage, created_at);
 CREATE INDEX IF NOT EXISTS idx_customer_feedback_org ON customer_feedback(organization_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_service_requests_org ON service_requests(organization_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_playbooks_org ON industry_playbooks(organization_id, updated_at);
@@ -1302,6 +1550,74 @@ CREATE TABLE IF NOT EXISTS followup_experiment_assignments (
 
 CREATE INDEX IF NOT EXISTS idx_delivery_attempts_entity ON delivery_attempts(entity_type, entity_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_delivery_attempts_org ON delivery_attempts(organization_id, channel, created_at);
+
+CREATE TABLE IF NOT EXISTS whatsapp_delivery_status_facts (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT,
+    conversation_id TEXT,
+    outbox_id TEXT,
+    message_id TEXT,
+    provider_message_id TEXT NOT NULL,
+    phone_number_id TEXT,
+    recipient_id TEXT,
+    status TEXT NOT NULL,
+    observed_at TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'webhook',
+    pricing_json TEXT NOT NULL DEFAULT '{}',
+    error_code INTEGER,
+    error_message TEXT,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    event_fingerprint TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY (outbox_id) REFERENCES outbox_messages(id),
+    FOREIGN KEY (message_id) REFERENCES messages(id)
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_delivery_projection (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT,
+    conversation_id TEXT,
+    contact_id TEXT,
+    outbox_id TEXT,
+    message_id TEXT,
+    provider_message_id TEXT NOT NULL UNIQUE,
+    phone_number_id TEXT,
+    recipient_id TEXT,
+    template_name TEXT,
+    message_kind TEXT NOT NULL DEFAULT 'text',
+    vertical TEXT,
+    accepted_at TEXT,
+    sent_at TEXT,
+    delivered_at TEXT,
+    read_at TEXT,
+    failed_at TEXT,
+    current_status TEXT NOT NULL DEFAULT 'accepted',
+    first_event_at TEXT,
+    last_event_at TEXT,
+    last_error_code INTEGER,
+    last_error_message TEXT,
+    pricing_json TEXT NOT NULL DEFAULT '{}',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY (contact_id) REFERENCES contacts(id),
+    FOREIGN KEY (outbox_id) REFERENCES outbox_messages(id),
+    FOREIGN KEY (message_id) REFERENCES messages(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_delivery_facts_provider ON whatsapp_delivery_status_facts(provider_message_id, observed_at);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_delivery_facts_org ON whatsapp_delivery_status_facts(organization_id, status, observed_at);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_delivery_projection_org ON whatsapp_delivery_projection(organization_id, current_status, accepted_at);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_delivery_projection_number ON whatsapp_delivery_projection(phone_number_id, accepted_at);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_delivery_projection_template ON whatsapp_delivery_projection(template_name, accepted_at);
 CREATE INDEX IF NOT EXISTS idx_followup_assignments_experiment ON followup_experiment_assignments(experiment_id, assigned_at);
 CREATE INDEX IF NOT EXISTS idx_followup_assignments_conversation ON followup_experiment_assignments(conversation_id, assigned_at);
 
@@ -1338,3 +1654,197 @@ CREATE TABLE IF NOT EXISTS agenda_blocked_slots (
 CREATE INDEX IF NOT EXISTS idx_agenda_reminder_preferences_org ON agenda_reminder_preferences(organization_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_agenda_blocked_slots_org ON agenda_blocked_slots(organization_id, start_at);
 CREATE INDEX IF NOT EXISTS idx_agenda_blocked_slots_bot ON agenda_blocked_slots(bot_id, start_at);
+
+
+CREATE TABLE IF NOT EXISTS conversation_assignment_history (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    conversation_id TEXT NOT NULL,
+    previous_assigned_user_id TEXT,
+    new_assigned_user_id TEXT,
+    queue_role TEXT,
+    assignment_mode TEXT NOT NULL DEFAULT 'manual',
+    reasoning_json TEXT NOT NULL DEFAULT '{}',
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY (previous_assigned_user_id) REFERENCES users(id),
+    FOREIGN KEY (new_assigned_user_id) REFERENCES users(id),
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS bot_simulation_cases (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    scenario_text TEXT NOT NULL,
+    expected_outcome_json TEXT NOT NULL DEFAULT '{}',
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id),
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS bot_simulation_runs (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT NOT NULL,
+    compare_target TEXT NOT NULL DEFAULT 'draft',
+    left_version_id TEXT,
+    right_version_id TEXT,
+    status TEXT NOT NULL DEFAULT 'completed',
+    summary_json TEXT NOT NULL DEFAULT '{}',
+    cases_total INTEGER NOT NULL DEFAULT 0,
+    passed_count INTEGER NOT NULL DEFAULT 0,
+    failed_count INTEGER NOT NULL DEFAULT 0,
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id),
+    FOREIGN KEY (left_version_id) REFERENCES bot_versions(id),
+    FOREIGN KEY (right_version_id) REFERENCES bot_versions(id),
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS bot_simulation_run_results (
+    id TEXT PRIMARY KEY,
+    simulation_run_id TEXT NOT NULL,
+    simulation_case_id TEXT NOT NULL,
+    passed INTEGER NOT NULL DEFAULT 0,
+    result_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (simulation_run_id) REFERENCES bot_simulation_runs(id),
+    FOREIGN KEY (simulation_case_id) REFERENCES bot_simulation_cases(id)
+);
+
+CREATE TABLE IF NOT EXISTS agenda_resources (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT,
+    name TEXT NOT NULL,
+    resource_type TEXT NOT NULL,
+    branch TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id),
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS agenda_resource_capacity_rules (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT,
+    resource_id TEXT NOT NULL,
+    day_of_week INTEGER NOT NULL,
+    start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL,
+    slot_capacity INTEGER NOT NULL DEFAULT 1,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id),
+    FOREIGN KEY (resource_id) REFERENCES agenda_resources(id),
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS appointment_resource_assignments (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    appointment_id TEXT NOT NULL UNIQUE,
+    resource_id TEXT NOT NULL,
+    assigned_by TEXT,
+    note TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (appointment_id) REFERENCES appointments(id),
+    FOREIGN KEY (resource_id) REFERENCES agenda_resources(id),
+    FOREIGN KEY (assigned_by) REFERENCES users(id)
+);
+
+
+CREATE TABLE IF NOT EXISTS legal_acceptance_events (
+    id TEXT PRIMARY KEY,
+    slug TEXT NOT NULL,
+    version TEXT NOT NULL,
+    acceptance_type TEXT NOT NULL DEFAULT 'other',
+    subject_type TEXT NOT NULL,
+    subject_key TEXT NOT NULL,
+    organization_id TEXT,
+    contact_id TEXT,
+    user_id TEXT,
+    source TEXT NOT NULL DEFAULT 'product',
+    evidence_json TEXT NOT NULL DEFAULT '{}',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS legal_consent_records (
+    id TEXT PRIMARY KEY,
+    subject_type TEXT NOT NULL,
+    subject_key TEXT NOT NULL,
+    organization_id TEXT,
+    contact_id TEXT,
+    user_id TEXT,
+    consent_key TEXT NOT NULL,
+    status TEXT NOT NULL,
+    version TEXT NOT NULL DEFAULT '1.0.0',
+    categories_json TEXT NOT NULL DEFAULT '{}',
+    source TEXT NOT NULL DEFAULT 'product',
+    evidence_json TEXT NOT NULL DEFAULT '{}',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(subject_type, subject_key, consent_key)
+);
+
+CREATE TABLE IF NOT EXISTS privacy_requests (
+    id TEXT PRIMARY KEY,
+    request_type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'received',
+    requester_name TEXT NOT NULL,
+    email TEXT,
+    phone TEXT,
+    organization_id TEXT,
+    contact_id TEXT,
+    country TEXT,
+    message TEXT,
+    source TEXT NOT NULL DEFAULT 'privacy_center',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    requested_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS legal_audit_events (
+    id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    subject_type TEXT,
+    subject_key TEXT,
+    actor_type TEXT,
+    actor_id TEXT,
+    request_id TEXT,
+    ip_address TEXT,
+    user_agent TEXT,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_legal_acceptance_subject ON legal_acceptance_events(subject_type, subject_key, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_legal_acceptance_slug ON legal_acceptance_events(slug, version, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_legal_consent_subject ON legal_consent_records(subject_type, subject_key, consent_key, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_privacy_requests_status ON privacy_requests(status, requested_at DESC);
+CREATE INDEX IF NOT EXISTS idx_legal_audit_events_subject ON legal_audit_events(subject_type, subject_key, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_opt_outs_bot_contact ON whatsapp_opt_outs(organization_id, bot_id, contact_id, active, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_opt_outs_bot_phone ON whatsapp_opt_outs(organization_id, bot_id, phone, active, updated_at DESC);

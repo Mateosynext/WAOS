@@ -1,24 +1,29 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from pydantic import BaseModel, Field, StringConstraints
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+
+NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+EmailLikeStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=320)]
+OtpCodeStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=6, max_length=16)]
+
 
 class LoginRequest(BaseModel):
-    email: str
-    password: str
-    otp_code: str | None = None
-    challenge_id: str | None = None
-    mfa_setup_code: str | None = None
+    email: EmailLikeStr
+    password: Annotated[str, StringConstraints(min_length=8, max_length=256)]
+    otp_code: OtpCodeStr | None = None
+    challenge_id: NonEmptyStr | None = None
+    mfa_setup_code: OtpCodeStr | None = None
 
 
 class RefreshTokenRequest(BaseModel):
-    refresh_token: str
+    refresh_token: NonEmptyStr
 
 
 class MFAActivateRequest(BaseModel):
-    code: str
+    code: OtpCodeStr
 
 
 class MFARecoveryCodesRegenerateRequest(BaseModel):
-    code: str
+    code: OtpCodeStr

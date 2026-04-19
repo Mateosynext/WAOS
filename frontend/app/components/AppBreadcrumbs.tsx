@@ -31,7 +31,7 @@ const labelMap: Record<string, string> = {
   conversaciones: "Conversaciones",
   solicitudes: "Solicitudes",
   promociones: "Promociones",
-  bot: "Estado del bot",
+  bot: "Salud del bot",
 };
 
 function prettifySegment(segment: string) {
@@ -51,15 +51,15 @@ export default function AppBreadcrumbs() {
   }));
 
   return (
-    <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-      <Link href="/" className="transition hover:text-white">Inicio</Link>
+    <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--text-muted)]">
+      <Link href="/" className="transition hover:text-[color:var(--text-primary)]">Inicio</Link>
       {crumbs.map((crumb, index) => (
         <span key={`${crumb.href}-${index}`} className="inline-flex items-center gap-2">
-          <span className="text-slate-600">/</span>
+          <span className="text-[color:var(--border-strong)]">/</span>
           {index === crumbs.length - 1 ? (
-            <span className="font-medium text-slate-200">{crumb.label}</span>
+            <span className="font-medium text-[color:var(--text-primary)]">{crumb.label}</span>
           ) : (
-            <Link href={crumb.href} className="transition hover:text-white">{crumb.label}</Link>
+            <Link href={crumb.href} className="transition hover:text-[color:var(--text-primary)]">{crumb.label}</Link>
           )}
         </span>
       ))}

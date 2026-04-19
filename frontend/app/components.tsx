@@ -6,6 +6,7 @@ import AppNavLink from "./components/AppNavLink";
 import OrganizationSwitcher from "./components/OrganizationSwitcher";
 import CommandPalette from "./components/CommandPalette";
 import { UiMessage } from "./components/UiMessage";
+import ThemeToggle from "./components/ThemeToggle";
 import { getSession } from "./lib/session";
 
 export type AppMode = "superadmin" | "client";
@@ -85,7 +86,8 @@ const clientNavigation = [
   { label: "Agenda", href: "/client/agenda", icon: "calendar" as const },
   { label: "Promociones", href: "/client/promociones", icon: "promo" as const },
   { label: "Solicitudes", href: "/client/solicitudes", icon: "folder" as const },
-  { label: "Bot", href: "/client/bot", icon: "bot" as const },
+  { label: "Salud del bot", href: "/client/bot", icon: "bot" as const },
+  { label: "Operación", href: "/client/operaciones", icon: "tool" as const },
 ] as const;
 
 export function Icon({ name, className = "h-4 w-4" }: { name: IconName; className?: string }) {
@@ -143,13 +145,13 @@ export function Icon({ name, className = "h-4 w-4" }: { name: IconName; classNam
 
 function toneClass(tone: string) {
   const tones: Record<string, string> = {
-    slate: "border-white/[0.10] bg-white/[0.04] text-slate-100",
-    green: "border-emerald-400/[0.20] bg-emerald-400/[0.10] text-emerald-50",
-    blue: "border-sky-400/[0.20] bg-sky-400/[0.10] text-sky-50",
-    gold: "border-amber-400/[0.20] bg-amber-400/[0.10] text-amber-50",
-    red: "border-rose-400/[0.20] bg-rose-400/[0.10] text-rose-50",
-    sky: "border-sky-400/[0.20] bg-sky-400/[0.10] text-sky-50",
-    amber: "border-amber-400/[0.20] bg-amber-400/[0.10] text-amber-50",
+    slate: "border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] text-[color:var(--text-secondary)]",
+    green: "border-[color:var(--success-border)] bg-[color:var(--success-soft)] text-[color:var(--success-text)]",
+    blue: "border-[color:var(--info-border)] bg-[color:var(--info-soft)] text-[color:var(--info-text)]",
+    gold: "border-[color:var(--warning-border)] bg-[color:var(--warning-soft)] text-[color:var(--warning-text)]",
+    red: "border-[color:var(--danger-border)] bg-[color:var(--danger-soft)] text-[color:var(--danger-text)]",
+    sky: "border-[color:var(--info-border)] bg-[color:var(--info-soft)] text-[color:var(--info-text)]",
+    amber: "border-[color:var(--warning-border)] bg-[color:var(--warning-soft)] text-[color:var(--warning-text)]",
   };
   return tones[tone] || tones.slate;
 }
@@ -194,41 +196,140 @@ export async function Shell({
   const org = session?.user.organizations?.find((item) => item.id === session?.organizationId) || null;
   const name = session?.user.full_name || session?.user.email || "Sin sesión";
   const navigation = mode === "client" ? [] : superAdminNavigation;
-  const requiresOrganization = mode === "superadmin" && Boolean(session?.user.organizations?.length && session.user.organizations.length > 1 && !session.organizationId);
+  const hasMultipleOrganizations = Boolean(session?.user.organizations && session.user.organizations.length > 1);
+  const requiresOrganization = mode === "superadmin" && Boolean(hasMultipleOrganizations && !session?.organizationId);
+
+  if (mode === "client") {
+    return (
+      <main id="main-content" className="min-h-screen bg-[var(--client-shell-bg)] text-[color:var(--text-primary)]">
+        <div className="mx-auto max-w-[1440px] px-4 pb-8 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
+          <div className="rounded-[34px] border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] shadow-[var(--shadow-xl)] backdrop-blur">
+            <header className="border-b border-[color:var(--border-soft)] px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone="sky">Portal cliente</Badge>
+                      {org?.name ? <Badge tone="slate">{org.name}</Badge> : null}
+                      {org?.vertical ? <Badge tone="gold">{org.vertical}</Badge> : null}
+                    </div>
+                    <AppBreadcrumbs />
+                    <div>
+                      <h1 className="text-3xl font-semibold tracking-[-0.05em] text-[color:var(--text-primary)] sm:text-[2.5rem]">{title}</h1>
+                      <p className="mt-3 max-w-4xl text-sm leading-7 text-[color:var(--text-secondary)] sm:text-[15px]">{subtitle}</p>
+                    </div>
+                  </div>
+                  <div className="flex w-full flex-col gap-3 sm:w-auto sm:items-end">
+                    <ThemeToggle />
+                    <div className="flex w-full flex-wrap gap-3 sm:w-auto sm:justify-end">
+                      <QuickLinks mode={mode} />
+                      {action}
+                    </div>
+                  </div>
+                </div>
+
+                {hasMultipleOrganizations ? (
+                  <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-4">
+                    <div className="mb-1 text-sm font-semibold text-[color:var(--text-primary)]">Contexto de organización</div>
+                    <p className="mb-3 text-sm leading-6 text-[color:var(--text-secondary)]">El portal respeta el tenant activo. Cambia la organización aquí sin salir del flujo del cliente.</p>
+                    <OrganizationSwitcher
+                      organizations={session?.user.organizations?.map((item) => ({ id: item.id, name: item.name, vertical: item.vertical })) || []}
+                      selectedId={session?.organizationId || null}
+                      redirectTo="/client/resumen"
+                      action={switchOrganizationAction}
+                    />
+                  </div>
+                ) : null}
+
+                <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-2">
+                  <PortalTabs />
+                </div>
+              </div>
+            </header>
+            <div className="px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">{children}</div>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <main id="main-content" className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.12),_transparent_24%),radial-gradient(circle_at_right,_rgba(34,197,94,0.12),_transparent_18%),linear-gradient(180deg,#07111f_0%,#0b1220_100%)] text-slate-50">
+    <main id="main-content" className="min-h-screen bg-[var(--client-shell-bg)] text-[color:var(--text-primary)]">
       <div className="mx-auto max-w-[1600px] px-4 py-4 lg:px-6">
-        {mode === "superadmin" ? (
-          <details className="panel mb-4 overflow-hidden lg:hidden">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 font-medium text-white">
-              <span className="inline-flex items-center gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-2xl border border-emerald-400/[0.25] bg-emerald-400/[0.12] text-emerald-200">
-                  <Icon name="bot" className="h-5 w-5" />
-                </span>
-                <span>Menú principal</span>
+        <details className="panel mb-4 overflow-hidden lg:hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 font-medium text-[color:var(--text-primary)]">
+            <span className="inline-flex items-center gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--accent-soft)] text-[color:var(--accent)]">
+                <Icon name="bot" className="h-5 w-5" />
               </span>
-              <span className="text-xs uppercase tracking-[0.16em] text-slate-400">Abrir</span>
-            </summary>
-            <div className="border-t border-white/[0.08] px-4 py-4">
-              <div className="mb-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm text-slate-300">
-                <div className="font-medium text-white">{org?.name || "Organización"}</div>
-                <div className="mt-1 text-slate-400">{org?.vertical || "Operación omnicanal"}</div>
+              <span>Menú principal</span>
+            </span>
+            <span className="text-xs uppercase tracking-[0.16em] text-[color:var(--text-muted)]">Abrir</span>
+          </summary>
+          <div className="border-t border-[color:var(--border-soft)] px-4 py-4">
+            <div className="mb-4 rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] px-4 py-3 text-sm text-[color:var(--text-secondary)]">
+              <div className="font-medium text-[color:var(--text-primary)]">{org?.name || "Organización"}</div>
+              <div className="mt-1 text-[color:var(--text-muted)]">{org?.vertical || "Operación omnicanal"}</div>
+            </div>
+            <nav className="space-y-4">
+              {navigation.map((group) => (
+                <div key={group.group} className="space-y-2">
+                  <div className="px-2 text-[11px] font-medium uppercase tracking-[0.22em] text-[color:var(--text-muted)]">{group.group}</div>
+                  <div className="space-y-1.5">
+                    {group.items.map((item) => (
+                      <AppNavLink
+                        key={item.href}
+                        href={item.href}
+                        exact={"exact" in item ? Boolean(item.exact) : false}
+                        className="nav-link flex items-center gap-3"
+                        activeClassName="nav-link-active"
+                      >
+                        <span className="grid h-9 w-9 place-items-center rounded-xl border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] text-[color:var(--text-primary)]">
+                          <Icon name={item.icon} className="h-4 w-4" />
+                        </span>
+                        <span>{item.label}</span>
+                      </AppNavLink>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </nav>
+          </div>
+        </details>
+
+        <div className="grid min-h-[calc(100vh-2rem)] gap-6 lg:grid-cols-[292px_minmax(0,1fr)]">
+          <aside className="panel sticky top-4 hidden h-[calc(100vh-2rem)] overflow-hidden lg:flex lg:flex-col">
+            <div className="border-b border-[color:var(--border-soft)] px-5 py-5">
+              <div className="flex items-center gap-3">
+                <div className="grid h-12 w-12 place-items-center rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--accent-soft)] text-[color:var(--accent)]">
+                  <Icon name="bot" className="h-6 w-6" />
+                </div>
+                <div>
+                  <div className="text-lg font-semibold text-[color:var(--text-primary)]">WAOS</div>
+                  <div className="text-sm text-[color:var(--text-muted)]">Opera claro y sin ruido</div>
+                </div>
               </div>
-              <nav className="space-y-4">
+              <div className="mt-4 rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] px-4 py-3 text-sm text-[color:var(--text-secondary)]">
+                <div className="font-medium text-[color:var(--text-primary)]">{org?.name || "Organización"}</div>
+                <div className="mt-1 text-[color:var(--text-muted)]">{org?.vertical || "Sin vertical activa"}</div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 py-4">
+              <nav className="space-y-5">
                 {navigation.map((group) => (
                   <div key={group.group} className="space-y-2">
-                    <div className="px-2 text-[11px] font-medium uppercase tracking-[0.22em] text-slate-500">{group.group}</div>
+                    <div className="px-2 text-[11px] font-medium uppercase tracking-[0.22em] text-[color:var(--text-muted)]">{group.group}</div>
                     <div className="space-y-1.5">
                       {group.items.map((item) => (
                         <AppNavLink
                           key={item.href}
                           href={item.href}
-                          exact={item.exact}
+                          exact={"exact" in item ? Boolean(item.exact) : false}
                           className="nav-link flex items-center gap-3"
                           activeClassName="nav-link-active"
                         >
-                          <span className="grid h-9 w-9 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-slate-200">
+                          <span className="grid h-9 w-9 place-items-center rounded-xl border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] text-[color:var(--text-primary)]">
                             <Icon name={item.icon} className="h-4 w-4" />
                           </span>
                           <span>{item.label}</span>
@@ -239,88 +340,49 @@ export async function Shell({
                 ))}
               </nav>
             </div>
-          </details>
-        ) : null}
 
-        <div className={`grid min-h-[calc(100vh-2rem)] gap-6 ${mode === "superadmin" ? "lg:grid-cols-[292px_minmax(0,1fr)]" : ""}`}>
-          {mode === "superadmin" ? (
-            <aside className="panel sticky top-4 hidden h-[calc(100vh-2rem)] overflow-hidden lg:flex lg:flex-col">
-              <div className="border-b border-white/[0.08] px-5 py-5">
-                <div className="flex items-center gap-3">
-                  <div className="grid h-12 w-12 place-items-center rounded-2xl border border-emerald-400/[0.25] bg-emerald-400/[0.12] text-emerald-200">
-                    <Icon name="bot" className="h-6 w-6" />
-                  </div>
+            <div className="border-t border-[color:var(--border-soft)] px-4 py-4">
+              <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-4">
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-lg font-semibold text-white">WAOS</div>
-                    <div className="text-sm text-slate-400">Opera claro y sin ruido</div>
+                    <div className="text-sm font-medium text-[color:var(--text-primary)]">{formatLabel(name)}</div>
+                    <div className="mt-1 text-xs text-[color:var(--text-muted)]">{session?.user.global_role || "super_admin"}</div>
                   </div>
+                  <ThemeToggle />
                 </div>
-                <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm text-slate-300">
-                  <div className="font-medium text-white">{org?.name || "Organización"}</div>
-                  <div className="mt-1 text-slate-400">{org?.vertical || "Sin vertical activa"}</div>
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-4 py-4">
-                <nav className="space-y-5">
-                  {navigation.map((group) => (
-                    <div key={group.group} className="space-y-2">
-                      <div className="px-2 text-[11px] font-medium uppercase tracking-[0.22em] text-slate-500">{group.group}</div>
-                      <div className="space-y-1.5">
-                        {group.items.map((item) => (
-                          <AppNavLink
-                            key={item.href}
-                            href={item.href}
-                            exact={item.exact}
-                            className="nav-link flex items-center gap-3"
-                            activeClassName="nav-link-active"
-                          >
-                            <span className="grid h-9 w-9 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-slate-200">
-                              <Icon name={item.icon} className="h-4 w-4" />
-                            </span>
-                            <span>{item.label}</span>
-                          </AppNavLink>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </nav>
-              </div>
-
-              <div className="border-t border-white/[0.08] px-4 py-4">
-                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4">
-                  <div className="text-sm font-medium text-white">{formatLabel(name)}</div>
-                  <div className="mt-1 text-xs text-slate-400">{session?.user.global_role || "super_admin"}</div>
-                  <div className="mt-3 flex gap-2">
-                    <CommandPalette />
-                    <AppNavLink href="/client/resumen" className="secondary-btn flex-1">Portal cliente</AppNavLink>
-                    <form action={logoutAction} className="flex-1">
-                      <button type="submit" className="secondary-btn w-full">Salir</button>
-                    </form>
-                  </div>
+                <div className="mt-3 flex gap-2">
+                  <CommandPalette />
+                  <AppNavLink href="/client/resumen" className="secondary-btn flex-1">Portal cliente</AppNavLink>
+                  <form action={logoutAction} className="flex-1">
+                    <button type="submit" className="secondary-btn w-full">Salir</button>
+                  </form>
                 </div>
               </div>
-            </aside>
-          ) : null}
+            </div>
+          </aside>
 
           <section className="min-w-0 pb-6">
             <header className="panel px-5 py-5 lg:px-6 lg:py-6">
               <div className="flex flex-col gap-5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={mode === "client" ? "sky" : "green"}>{mode === "client" ? "Portal cliente" : "Super admin"}</Badge>
-                  {org?.name ? <Badge tone="slate">{org.name}</Badge> : null}
-                  {org?.vertical ? <Badge tone="gold">{org.vertical}</Badge> : null}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone="green">Super admin</Badge>
+                    {org?.name ? <Badge tone="slate">{org.name}</Badge> : null}
+                    {org?.vertical ? <Badge tone="gold">{org.vertical}</Badge> : null}
+                  </div>
+                  <ThemeToggle />
                 </div>
 
                 <AppBreadcrumbs />
 
-                {session?.user.organizations && session.user.organizations.length > 1 ? (
-                  <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
-                    <div className="mb-1 text-sm font-medium text-white">Contexto activo</div><p className="mb-3 text-sm leading-6 text-slate-300">Cambia la organización aquí cuando necesites revisar otro tenant, sin salir del flujo actual.</p>
+                {hasMultipleOrganizations ? (
+                  <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-4">
+                    <div className="mb-1 text-sm font-semibold text-[color:var(--text-primary)]">Contexto activo</div>
+                    <p className="mb-3 text-sm leading-6 text-[color:var(--text-secondary)]">Cambia la organización aquí cuando necesites revisar otro tenant, sin salir del flujo actual.</p>
                     <OrganizationSwitcher
-                      organizations={session.user.organizations.map((item) => ({ id: item.id, name: item.name, vertical: item.vertical }))}
-                      selectedId={session.organizationId || null}
-                      redirectTo={mode === "client" ? "/client/resumen" : "/organizations"}
+                      organizations={session?.user.organizations?.map((item) => ({ id: item.id, name: item.name, vertical: item.vertical })) || []}
+                      selectedId={session?.organizationId || null}
+                      redirectTo="/organizations"
                       action={switchOrganizationAction}
                     />
                   </div>
@@ -328,11 +390,11 @@ export async function Shell({
 
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                   <div className="space-y-3">
-                    <h1 className="text-3xl font-semibold tracking-[-0.05em] text-white lg:text-4xl">{title}</h1>
-                    <p className="max-w-4xl text-sm leading-7 text-slate-300 lg:text-[15px]">{subtitle}</p>
+                    <h1 className="text-3xl font-semibold tracking-[-0.05em] text-[color:var(--text-primary)] lg:text-4xl">{title}</h1>
+                    <p className="max-w-4xl text-sm leading-7 text-[color:var(--text-secondary)] lg:text-[15px]">{subtitle}</p>
                   </div>
                   <div className="flex flex-wrap gap-3">
-                    {mode === "superadmin" ? <CommandPalette /> : null}
+                    <CommandPalette />
                     <QuickLinks mode={mode} />
                     {action}
                   </div>
@@ -340,7 +402,7 @@ export async function Shell({
               </div>
 
               {!requiresOrganization ? (
-                <div className="mt-5 flex flex-wrap gap-2 text-xs text-slate-300">
+                <div className="mt-5 flex flex-wrap gap-2 text-xs text-[color:var(--text-secondary)]">
                   <span className="mono-pill">Usa Ctrl/⌘ K para saltar</span>
                   <span className="mono-pill">Tu contexto activo se mantiene visible</span>
                   <span className="mono-pill">Portal cliente separado del modo interno</span>
@@ -354,7 +416,16 @@ export async function Shell({
                 </div>
               ) : null}
             </header>
-            <div className="mt-6 space-y-6">{requiresOrganization ? <EmptyActionState title="Antes de operar, confirma el contexto" description="La app ya bloquea pantallas críticas cuando no hay organización activa. Elige una organización desde el bloque superior o entra a Organizaciones para revisar el contexto completo antes de seguir." primaryAction={<AppNavLink href="/organizations" className="primary-btn">Elegir organización</AppNavLink>} secondaryAction={<AppNavLink href="/client/resumen" className="secondary-btn">Abrir vista cliente</AppNavLink>} /> : children}</div>
+            <div className="mt-6 space-y-6">
+              {requiresOrganization ? (
+                <EmptyActionState
+                  title="Antes de operar, confirma el contexto"
+                  description="La app ya bloquea pantallas críticas cuando no hay organización activa. Elige una organización desde el bloque superior o entra a Organizaciones para revisar el contexto completo antes de seguir."
+                  primaryAction={<AppNavLink href="/organizations" className="primary-btn">Elegir organización</AppNavLink>}
+                  secondaryAction={<AppNavLink href="/client/resumen" className="secondary-btn">Abrir vista cliente</AppNavLink>}
+                />
+              ) : children}
+            </div>
           </section>
         </div>
       </div>
@@ -369,12 +440,12 @@ export function Section({ title, subtitle, children, icon = "spark", aside }: { 
         <div>
           <div className="eyebrow">Sección</div>
           <div className="mt-2 flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-2xl border border-white/[0.08] bg-white/[0.04] text-slate-100">
+            <span className="grid h-11 w-11 place-items-center rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] text-[color:var(--text-primary)]">
               <Icon name={icon} className="h-5 w-5" />
             </span>
-            <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">{title}</h2>
+            <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--text-primary)]">{title}</h2>
           </div>
-          {subtitle ? <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">{subtitle}</p> : null}
+          {subtitle ? <p className="mt-3 max-w-3xl text-sm leading-6 text-[color:var(--text-secondary)]">{subtitle}</p> : null}
         </div>
         {aside ? <div>{aside}</div> : null}
       </div>
@@ -389,13 +460,13 @@ export function StatCard({ label, value, hint, icon = "spark", tone = "slate" }:
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="eyebrow">{label}</div>
-          <div className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-white">{value ?? "-"}</div>
+          <div className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[color:var(--text-primary)]">{value ?? "-"}</div>
         </div>
-        <div className="grid h-11 w-11 place-items-center rounded-2xl border border-white/[0.08] bg-white/[0.04] text-slate-100">
+        <div className="grid h-11 w-11 place-items-center rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] text-[color:var(--text-primary)]">
           <Icon name={icon} className="h-5 w-5" />
         </div>
       </div>
-      {hint ? <div className="mt-3 text-sm leading-6 text-slate-300">{hint}</div> : null}
+      {hint ? <div className="mt-3 text-sm leading-6 text-[color:var(--text-secondary)]">{hint}</div> : null}
     </div>
   );
 }
@@ -404,12 +475,12 @@ export function ModuleCard({ title, description, tone = "slate", icon = "spark",
   return (
     <div className={`rounded-3xl border p-4 transition duration-200 hover:-translate-y-0.5 ${toneClass(tone)}`}>
       <div className="flex items-start gap-3">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/[0.08] bg-white/[0.04] text-slate-100">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] text-[color:var(--text-primary)]">
           <Icon name={icon} className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <div className="text-base font-semibold text-white">{title}</div>
-          <p className="mt-2 text-sm leading-6 text-slate-300">{description}</p>
+          <div className="text-base font-semibold text-[color:var(--text-primary)]">{title}</div>
+          <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">{description}</p>
         </div>
       </div>
       {footer ? <div className="mt-4 flex flex-wrap gap-2">{footer}</div> : null}
@@ -433,9 +504,9 @@ export function StatusPill({ status }: { status: string | null | undefined }) {
 
 export function EmptyState({ title, description }: { title: string; description: string; }) {
   return (
-    <div className="rounded-3xl border border-dashed border-white/[0.15] bg-white/[0.03] px-5 py-8 text-sm text-slate-300">
-      <div className="text-xl font-semibold text-white">{title}</div>
-      <div className="mt-2 max-w-2xl leading-6 text-slate-300">{description}</div>
+    <div className="rounded-3xl border border-dashed border-[color:var(--border-strong)] bg-[color:var(--surface-subtle)] px-5 py-8 text-sm text-[color:var(--text-secondary)]">
+      <div className="text-xl font-semibold text-[color:var(--text-primary)]">{title}</div>
+      <div className="mt-2 max-w-2xl leading-6 text-[color:var(--text-secondary)]">{description}</div>
     </div>
   );
 }
@@ -443,15 +514,15 @@ export function EmptyState({ title, description }: { title: string; description:
 export function DataTable({ columns, rows }: { columns: string[]; rows: Array<Array<ReactNode>>; }) {
   if (!rows.length) return <EmptyState title="Todavía no hay datos" description="Cuando haya información disponible, aparecerá aquí de forma clara y ordenada." />;
   return (
-    <div className="overflow-hidden rounded-3xl border border-white/[0.08]">
+    <div className="overflow-hidden rounded-3xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)]">
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-white/[0.08] text-left text-sm">
-          <thead className="bg-white/[0.05] text-slate-300">
+        <table className="waos-data-table min-w-full divide-y divide-[color:var(--border-soft)] text-left text-sm">
+          <thead className="bg-[color:var(--surface-subtle)] text-[color:var(--text-secondary)]">
             <tr>{columns.map((column) => <th key={column} className="px-4 py-3 text-[11px] font-medium uppercase tracking-[0.18em]">{column}</th>)}</tr>
           </thead>
-          <tbody className="divide-y divide-white/[0.08] bg-slate-950/20 text-slate-100">
+          <tbody className="divide-y divide-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] text-[color:var(--text-primary)]">
             {rows.map((row, index) => (
-              <tr key={index} className="transition hover:bg-white/[0.03]">{row.map((cell, cellIndex) => <td key={cellIndex} className="px-4 py-3 align-top text-sm text-slate-100">{cell}</td>)}</tr>
+              <tr key={index} className="transition hover:bg-[color:var(--surface-subtle)]">{row.map((cell, cellIndex) => <td key={cellIndex} data-label={columns[cellIndex] || ''} className="px-4 py-3 align-top text-sm text-[color:var(--text-primary)]">{cell}</td>)}</tr>
             ))}
           </tbody>
         </table>
@@ -473,8 +544,8 @@ export function KeyValueList({ items }: { items: Array<{ label: string; value: R
     <div className="space-y-3">
       {items.map((item) => (
         <div key={item.label} className="surface-row flex items-center justify-between gap-4">
-          <span className="text-sm text-slate-300">{item.label}</span>
-          <span className="text-right text-sm font-medium text-white">{item.value}</span>
+          <span className="text-sm text-[color:var(--text-secondary)]">{item.label}</span>
+          <span className="text-right text-sm font-medium text-[color:var(--text-primary)]">{item.value}</span>
         </div>
       ))}
     </div>
@@ -488,10 +559,10 @@ export function TimelineList({ items }: { items: Array<{ title: string; detail: 
       {items.map((item, index) => (
         <div key={`${item.title}-${index}`} className={`rounded-2xl border p-4 ${toneClass(item.tone || "slate")}`}>
           <div className="flex items-start gap-3">
-            <div className="grid h-8 w-8 place-items-center rounded-full bg-white/[0.10] text-sm font-semibold text-white">{index + 1}</div>
+            <div className="grid h-8 w-8 place-items-center rounded-full border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] text-sm font-semibold text-[color:var(--text-primary)]">{index + 1}</div>
             <div>
-              <div className="font-medium text-white">{item.title}</div>
-              <div className="mt-1 text-sm leading-6 text-slate-300">{item.detail}</div>
+              <div className="font-medium text-[color:var(--text-primary)]">{item.title}</div>
+              <div className="mt-1 text-sm leading-6 text-[color:var(--text-secondary)]">{item.detail}</div>
             </div>
           </div>
         </div>
@@ -502,13 +573,18 @@ export function TimelineList({ items }: { items: Array<{ title: string; detail: 
 
 export function PortalTabs() {
   return (
-    <div className="flex flex-wrap gap-2">
+    <nav aria-label="Secciones del portal cliente" className="flex gap-2 overflow-x-auto pb-1">
       {clientNavigation.map((item) => (
-        <AppNavLink key={item.href} href={item.href} className="secondary-btn" activeClassName="primary-btn">
+        <AppNavLink
+          key={item.href}
+          href={item.href}
+          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full border border-transparent px-4 py-2.5 text-sm font-medium text-[color:var(--text-secondary)] transition hover:border-[color:var(--accent-border)] hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--text-primary)]"
+          activeClassName="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[color:var(--surface-strong)] px-4 py-2.5 text-sm font-semibold text-[color:var(--text-primary)] shadow-[var(--shadow-soft)]"
+        >
           {item.label}
         </AppNavLink>
       ))}
-    </div>
+    </nav>
   );
 }
 
@@ -516,9 +592,9 @@ export function StoryBeat({ step, title, description, outcome, tone = "slate" }:
   return (
     <div className={`rounded-3xl border p-5 ${toneClass(tone)}`}>
       <div className="eyebrow">{step}</div>
-      <div className="mt-2 text-lg font-semibold text-white">{title}</div>
-      <p className="mt-2 text-sm leading-6 text-slate-300">{description}</p>
-      {outcome ? <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm text-slate-200">{outcome}</div> : null}
+      <div className="mt-2 text-lg font-semibold text-[color:var(--text-primary)]">{title}</div>
+      <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">{description}</p>
+      {outcome ? <div className="mt-4 rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] px-4 py-3 text-sm text-[color:var(--text-secondary)]">{outcome}</div> : null}
     </div>
   );
 }
@@ -529,12 +605,12 @@ export function StageRail({ steps, activeStep }: { steps: Array<{ id: string; la
       {steps.map((step, index) => {
         const active = activeStep ? step.id === activeStep : index === 0;
         return (
-          <div key={step.id} className={`rounded-2xl border px-4 py-3 ${active ? "border-emerald-400/[0.25] bg-emerald-400/[0.10]" : "border-white/[0.08] bg-white/[0.03]"}`}>
+          <div key={step.id} className={`rounded-2xl border px-4 py-3 ${active ? "border-[color:var(--accent-border)] bg-[color:var(--accent-soft)]" : "border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)]"}`}>
             <div className="flex items-center gap-3">
-              <span className={`grid h-8 w-8 place-items-center rounded-full text-sm font-semibold ${active ? "bg-emerald-400 text-slate-950" : "bg-white/[0.10] text-white"}`}>{index + 1}</span>
+              <span className={`grid h-8 w-8 place-items-center rounded-full text-sm font-semibold ${active ? "bg-[color:var(--accent)] text-[color:var(--accent-foreground)]" : "border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] text-[color:var(--text-primary)]"}`}>{index + 1}</span>
               <div>
-                <div className="font-medium text-white">{step.label || step.title || `Paso ${index + 1}`}</div>
-                {step.detail ? <div className="text-sm text-slate-300">{step.detail}</div> : null}
+                <div className="font-medium text-[color:var(--text-primary)]">{step.label || step.title || `Paso ${index + 1}`}</div>
+                {step.detail ? <div className="text-sm text-[color:var(--text-secondary)]">{step.detail}</div> : null}
               </div>
             </div>
           </div>
@@ -558,7 +634,7 @@ export function WhatsAppPreview({ title, scenario, userPrompt, blocks, footer, t
           <div className="rounded-[28px] border border-white/[0.10] bg-[#0f172a] p-4">
             <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
               <div>
-                <div className="text-sm font-semibold text-white">{stageLabel || "Vista previa"}</div>
+                <div className="text-sm font-semibold text-[color:var(--text-primary)]">{stageLabel || "Vista previa"}</div>
                 <div className="text-xs text-slate-400">Flujo de conversación</div>
               </div>
               <Badge tone="green">En vivo</Badge>
@@ -581,7 +657,7 @@ export function WhatsAppPreview({ title, scenario, userPrompt, blocks, footer, t
 
 export function SecondaryNav({ items }: { items: Array<{ href: string; label: string; active?: boolean }> }) {
   return (
-    <div className="flex flex-wrap gap-2 rounded-3xl border border-white/[0.08] bg-white/[0.03] p-2">
+    <div className="flex flex-wrap gap-2 rounded-3xl border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-2">
       {items.map((item) => (
         <Link key={`${item.href}-${item.label}`} href={item.href} className={item.active ? "primary-btn" : "secondary-btn"}>
           {item.label}
@@ -593,23 +669,23 @@ export function SecondaryNav({ items }: { items: Array<{ href: string; label: st
 
 export function ContextTip({ title = "Ayuda breve", children }: { title?: string; children: ReactNode }) {
   return (
-    <div className="rounded-3xl border border-sky-400/[0.20] bg-sky-400/[0.10] p-4 text-sm text-sky-50">
-      <div className="font-semibold text-white">{title}</div>
-      <div className="mt-2 leading-6 text-slate-100">{children}</div>
+    <div className="rounded-3xl border border-[color:var(--info-border)] bg-[color:var(--info-soft)] p-4 text-sm text-[color:var(--info-text)]">
+      <div className="font-semibold text-[color:var(--text-primary)]">{title}</div>
+      <div className="mt-2 leading-6 text-[color:var(--info-text)]">{children}</div>
     </div>
   );
 }
 
 export function SuccessState({ title, description, actions }: { title: string; description: string; actions?: ReactNode }) {
   return (
-    <div className="rounded-3xl border border-emerald-400/[0.20] bg-emerald-400/[0.10] p-5">
+    <div className="rounded-3xl border border-[color:var(--success-border)] bg-[color:var(--success-soft)] p-5">
       <div className="flex items-start gap-3">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-emerald-400/[0.25] bg-emerald-400 text-slate-950">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-[color:var(--success-border)] bg-[color:var(--surface-strong)] text-[color:var(--success-text)]">
           <Icon name="check" className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <div className="text-lg font-semibold text-white">{title}</div>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-100">{description}</p>
+          <div className="text-lg font-semibold text-[color:var(--text-primary)]">{title}</div>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[color:var(--success-text)]">{description}</p>
           {actions ? <div className="mt-4 flex flex-wrap gap-2">{actions}</div> : null}
         </div>
       </div>
@@ -619,10 +695,10 @@ export function SuccessState({ title, description, actions }: { title: string; d
 
 export function EmptyActionState({ title, description, primaryAction, secondaryAction }: { title: string; description: string; primaryAction?: ReactNode; secondaryAction?: ReactNode }) {
   return (
-    <div className="rounded-3xl border border-dashed border-white/[0.15] bg-white/[0.03] p-6">
+    <div className="rounded-3xl border border-dashed border-[color:var(--border-strong)] bg-[color:var(--surface-subtle)] p-6">
       <div className="max-w-2xl">
-        <div className="text-xl font-semibold text-white">{title}</div>
-        <p className="mt-2 text-sm leading-6 text-slate-300">{description}</p>
+        <div className="text-xl font-semibold text-[color:var(--text-primary)]">{title}</div>
+        <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">{description}</p>
       </div>
       {(primaryAction || secondaryAction) ? <div className="mt-4 flex flex-wrap gap-2">{primaryAction}{secondaryAction}</div> : null}
     </div>

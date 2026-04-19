@@ -294,9 +294,8 @@ def generate_reactivation_recommendations(conn, organization_id: str, bot_id: st
     return results
 
 
-def ingest_voice_note(conn, *, organization_id: str, bot_id: str, conversation_id: str, contact_id: str, transcript: str, language: str = "es") -> dict:
-    note_id = new_id("voice")
-    lower = transcript.lower()
+def analyze_voice_note_transcript(transcript: str) -> dict[str, str]:
+    lower = (transcript or "").lower()
     intent = "general"
     if any(word in lower for word in ["precio", "cotización", "cotizacion"]):
         intent = "pricing"
@@ -304,12 +303,85 @@ def ingest_voice_note(conn, *, organization_id: str, bot_id: str, conversation_i
         intent = "schedule"
     urgency = "alta" if any(word in lower for word in URGENT_WORDS) else "media"
     emotion = "negativa" if any(word in lower for word in NEGATIVE_WORDS) else "positiva" if any(word in lower for word in POSITIVE_WORDS) else "neutral"
-    summary = transcript[:160] + ("..." if len(transcript) > 160 else "")
+    summary = (transcript or "")[:160] + ("..." if len(transcript or "") > 160 else "")
     response_text = "Gracias por tu audio. Ya tomé tu solicitud y te ayudo a avanzar por aquí."
+    return {
+        "intent": intent,
+        "urgency": urgency,
+        "emotion": emotion,
+        "summary": summary or "Nota de voz recibida; transcripción pendiente.",
+        "response_text": response_text,
+    }
+
+
+def ingest_voice_note(
+    conn,
+    *,
+    organization_id: str,
+    bot_id: str,
+    conversation_id: str,
+    contact_id: str,
+    transcript: str,
+    language: str = "es",
+    message_id: str | None = None,
+    media_id: str | None = None,
+    media_url: str | None = None,
+    media_mime_type: str | None = None,
+    media_sha256: str | None = None,
+    media_size_bytes: int | None = None,
+    consent_status: str = "implicit_inbound_whatsapp",
+    media_expires_at: str | None = None,
+    transcription_source: str = "manual",
+    transcription_confidence: float = 0.0,
+    diarization_json: list[dict[str, Any]] | None = None,
+    segments_json: list[dict[str, Any]] | None = None,
+    audio_quality: str = "unknown",
+    background_noise_level: str = "unknown",
+    processing_status: str = "completed",
+    reply_mode: str = "text",
+    metadata: dict[str, Any] | None = None,
+    summary: str | None = None,
+    suggested_response_text: str | None = None,
+    suggested_response_audio_text: str | None = None,
+) -> dict:
+    note_id = new_id("voice")
+    derived = analyze_voice_note_transcript(transcript)
     execute(
         conn,
-        "INSERT INTO voice_notes (id, organization_id, bot_id, conversation_id, contact_id, message_id, transcript, detected_language, intent, urgency_level, emotion, suggested_response_text, suggested_response_audio_text, summary, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (note_id, organization_id, bot_id, conversation_id, contact_id, transcript, language, intent, urgency, emotion, response_text, response_text, summary, utcnow_iso()),
+        "INSERT INTO voice_notes (id, organization_id, bot_id, conversation_id, contact_id, message_id, transcript, detected_language, intent, urgency_level, emotion, suggested_response_text, suggested_response_audio_text, summary, media_id, media_url, media_mime_type, media_sha256, media_size_bytes, consent_status, media_expires_at, transcription_source, transcription_confidence, diarization_json, segments_json, audio_quality, background_noise_level, processing_status, reply_mode, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            note_id,
+            organization_id,
+            bot_id,
+            conversation_id,
+            contact_id,
+            message_id,
+            transcript,
+            language,
+            derived["intent"],
+            derived["urgency"],
+            derived["emotion"],
+            suggested_response_text or derived["response_text"],
+            suggested_response_audio_text or suggested_response_text or derived["response_text"],
+            summary or derived["summary"],
+            media_id,
+            media_url,
+            media_mime_type,
+            media_sha256,
+            int(media_size_bytes or 0),
+            consent_status,
+            media_expires_at,
+            transcription_source,
+            float(transcription_confidence or 0),
+            to_json(diarization_json or []),
+            to_json(segments_json or []),
+            audio_quality,
+            background_noise_level,
+            processing_status,
+            reply_mode,
+            to_json(metadata or {}),
+            utcnow_iso(),
+        ),
     )
     return fetch_one(conn, "SELECT * FROM voice_notes WHERE id = ?", (note_id,))
 

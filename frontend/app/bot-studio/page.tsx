@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { applyBotVerticalAction, createBotAction } from "../actions";
+import { applyBotVerticalAction, createBotAction, createBotDraftSnapshotAction, createBotSimulationCaseAction, runBotSimulationAction } from "../actions";
 import { EmptyActionState, ModuleCard, Section, Shell, StatCard, SuccessState } from "../components";
 import { getCurrentBotId, getSession } from "../lib/session";
 import { safeText, yesNo } from "../lib/ui";
-import { getBotBehavior, getBotTemplates, getBots, getVerticalCatalog, getVerticalProfile } from "../lib/waos";
+import { getBotBehavior, getBotSimulationCases, getBotSimulationRuns, getBotTemplates, getBots, getVerticalCatalog, getVerticalProfile } from "../lib/waos";
 
 export default async function BotStudioPage() {
   const session = await getSession();
@@ -13,6 +13,8 @@ export default async function BotStudioPage() {
   const selectedBot = bots.find((item) => item.id === currentBotId) || null;
   const selectedVerticalId = selectedBot?.vertical || currentOrg?.vertical || verticals[0]?.id;
   const selectedVertical = selectedVerticalId ? await getVerticalProfile(selectedVerticalId) : null;
+  const simulationCases = selectedBot ? await getBotSimulationCases(selectedBot.id) : [];
+  const simulationRuns = selectedBot ? await getBotSimulationRuns(selectedBot.id) : [];
 
   if (!verticals.length) {
     return (
@@ -133,6 +135,100 @@ export default async function BotStudioPage() {
           <ModuleCard title="Flujos clave" description={selectedVertical?.flows.join(" · ") || "Sin flujos definidos"} icon="route" tone="gold" />
           <ModuleCard title="Integraciones recomendadas" description={selectedVertical?.recommended_integrations.join(" · ") || "base operativa"} icon="plug" tone="slate" />
         </div>
+      </Section>
+
+      <Section title="Simulador y snapshots" subtitle="Antes de publicar, ya puedes guardar snapshot del draft y correr casos de prueba simples contra el comportamiento esperado del bot." icon="spark">
+        {selectedBot && currentOrg ? (
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="space-y-4">
+              <form action={createBotDraftSnapshotAction} className="grid gap-3 rounded-3xl border border-white/[0.08] bg-white/[0.03] p-4">
+                <input type="hidden" name="bot_id" value={selectedBot.id} />
+                <input type="hidden" name="redirect_to" value="/bot-studio" />
+                <label className="field-label">Nota del snapshot
+                  <input className="field-input" name="notes" placeholder="Ej. antes de cambiar follow-up" />
+                </label>
+                <button className="secondary-btn" type="submit">Guardar draft snapshot</button>
+              </form>
+              <form action={createBotSimulationCaseAction} className="grid gap-3 rounded-3xl border border-white/[0.08] bg-white/[0.03] p-4">
+                <input type="hidden" name="bot_id" value={selectedBot.id} />
+                <input type="hidden" name="organization_id" value={currentOrg.id} />
+                <input type="hidden" name="redirect_to" value="/bot-studio" />
+                <label className="field-label">Título del caso
+                  <input className="field-input" name="title" placeholder="Ej. cliente pide reprogramar cita" required />
+                </label>
+                <label className="field-label">Escenario
+                  <textarea className="field-input min-h-[120px]" name="scenario_text" placeholder="Quiero cambiar mi cita para mañana a las 5" required />
+                </label>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <label className="field-label">Acción esperada
+                    <select className="field-input" name="expected_action" defaultValue="schedule">
+                      <option value="">Sin validar</option>
+                      <option value="schedule">schedule</option>
+                      <option value="payment">payment</option>
+                      <option value="sell">sell</option>
+                      <option value="handoff">handoff</option>
+                      <option value="reply">reply</option>
+                    </select>
+                  </label>
+                  <label className="field-label">Queue esperada
+                    <select className="field-input" name="expected_queue" defaultValue="agenda">
+                      <option value="">Sin validar</option>
+                      <option value="agenda">agenda</option>
+                      <option value="ventas">ventas</option>
+                      <option value="cobranza">cobranza</option>
+                      <option value="soporte">soporte</option>
+                    </select>
+                  </label>
+                  <label className="field-label flex items-center gap-3 self-end">
+                    <input type="checkbox" name="expected_must_escalate" />
+                    <span>Debe escalar</span>
+                  </label>
+                </div>
+                <button className="primary-btn" type="submit">Guardar caso de simulación</button>
+              </form>
+              <form action={runBotSimulationAction} className="grid gap-3 rounded-3xl border border-white/[0.08] bg-white/[0.03] p-4">
+                <input type="hidden" name="bot_id" value={selectedBot.id} />
+                <input type="hidden" name="redirect_to" value="/bot-studio" />
+                <label className="field-label">Comparar contra
+                  <select className="field-input" name="compare_target" defaultValue="published">
+                    <option value="draft">Solo draft</option>
+                    <option value="published">Published</option>
+                  </select>
+                </label>
+                <button className="secondary-btn" type="submit">Correr simulación</button>
+              </form>
+            </div>
+            <div className="space-y-4">
+              <ModuleCard title="Casos guardados" description={simulationCases.length ? `${simulationCases.length} casos listos para correr antes de publicar.` : "Todavía no hay casos guardados para esta bot."} icon="check" tone="green" footer={<span className="mono-pill">simulator</span>} />
+              <div className="grid gap-3">
+                {simulationCases.slice(0, 4).map((item) => (
+                  <div key={String(item.id)} className="surface-row">
+                    <div className="text-sm font-medium text-white">{safeText(String(item.title || 'Caso'))}</div>
+                    <div className="mt-2 text-xs text-slate-400">{safeText(String(item.scenario_text || '')).slice(0, 140)}</div>
+                  </div>
+                ))}
+                {!simulationCases.length ? <div className="surface-row text-sm text-slate-300">Guarda 3 a 5 casos críticos antes de tocar copy, prompts o reglas.</div> : null}
+              </div>
+              <div className="grid gap-3">
+                {simulationRuns.slice(0, 3).map((run) => {
+                  const summary = (run.summary || {}) as Record<string, unknown>;
+                  return (
+                    <div key={String(run.id)} className="surface-row">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-medium text-white">Run {safeText(String(run.compare_target || 'draft'))}</div>
+                        <span className="mono-pill">Pass {safeText(String(summary.pass_rate || 0))}%</span>
+                      </div>
+                      <div className="mt-2 text-xs text-slate-400">Casos {safeText(String(run.cases_total || 0))} · Passed {safeText(String(run.passed_count || 0))} · Failed {safeText(String(run.failed_count || 0))}</div>
+                    </div>
+                  );
+                })}
+                {!simulationRuns.length ? <div className="surface-row text-sm text-slate-300">Todavía no hay corridas de simulación en este bot.</div> : null}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <EmptyActionState title="Selecciona un bot para simular" description="El simulador corre sobre un bot concreto y compara contra su draft o published actual." primaryAction={<Link href="/bots" className="primary-btn">Elegir bot</Link>} />
+        )}
       </Section>
 
       <Section title="Plantillas listas para empezar" subtitle="Cuando el bot ya existe, estas plantillas se siembran automaticamente segun la vertical elegida." icon="layers">

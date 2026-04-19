@@ -7,7 +7,7 @@ from ..verticals import build_organization_settings
 from ..performance import clamp_limit, clamp_offset
 from ..repositories import create_audit_log, create_organization, get_org
 from ..security import ensure_org_access
-from ..utils import to_json, utcnow_iso
+from ..utils import from_json, to_json, utcnow_iso
 from .support import org_filter_sql, require_permission
 from .uow import UnitOfWork
 
@@ -31,9 +31,17 @@ class OrganizationService:
         org = get_org(conn, organization_id)
         if not org:
             raise HTTPException(status_code=404, detail="Organization not found")
+        base_settings = build_organization_settings(payload.vertical if payload.vertical is not None else org.get("vertical"), organization_name=payload.name or org["name"])
+        current_settings = from_json(org.get("settings_json"), {})
+        selected_subvertical = payload.subvertical if payload.subvertical is not None else current_settings.get("subvertical") or current_settings.get("active_subvertical")
+        merged_settings = {**base_settings, **current_settings}
+        if selected_subvertical:
+            merged_settings["subvertical"] = selected_subvertical
+            merged_settings["active_subvertical"] = selected_subvertical
         updated = {
             "name": payload.name or org["name"],
             "vertical": payload.vertical if payload.vertical is not None else org.get("vertical"),
+            "subvertical": selected_subvertical,
             "timezone": payload.timezone or org["timezone"],
             "status": payload.status or org["status"],
         }
@@ -43,7 +51,7 @@ class OrganizationService:
             SET name = ?, vertical = ?, timezone = ?, status = ?, settings_json = ?, updated_at = ?
             WHERE id = ?
             """,
-            (updated["name"], updated["vertical"], updated["timezone"], updated["status"], to_json(build_organization_settings(updated["vertical"], organization_name=updated["name"])), utcnow_iso(), organization_id),
+            (updated["name"], updated["vertical"], updated["timezone"], updated["status"], to_json(merged_settings), utcnow_iso(), organization_id),
         )
         create_audit_log(
             conn,

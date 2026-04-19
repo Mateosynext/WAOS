@@ -7,7 +7,10 @@ import httpx
 from .config import settings
 from .db import execute, fetch_one
 from .platform import resolve_secret
-from .utils import RetryableProviderError, from_json, to_json, utcnow_iso
+from .utils import RetryableProviderError, from_json, new_id, to_json, utcnow_iso
+from .circuit_breaker import circuit_guard, record_provider_failure, record_provider_success
+from .whatsapp_channel_runtime import normalize_whatsapp_outbound_request
+from .whatsapp_governance import classify_meta_error_policy, update_whatsapp_number_health
 
 
 WHATSAPP_TOKEN_KEYS = [
@@ -43,17 +46,19 @@ def resolve_whatsapp_app_secret(conn, *, organization_id: str, bot_id: str | Non
 
 def classify_whatsapp_error(status_code: int | None, payload: dict[str, Any] | None = None) -> RetryableProviderError:
     payload = payload or {}
-    error = payload.get("error") or {}
-    code = error.get("code")
-    message = error.get("message") or payload.get("message") or "whatsapp_provider_error"
-    retryable = False
-    if status_code in {408, 409, 423, 429, 500, 502, 503, 504}:
-        retryable = True
-    if code in {1, 2, 4, 17, 32, 613, 130429, 131016, 131048}:  # rate limit / transient infra buckets
-        retryable = True
-    if code in {10, 190, 200, 131005, 131008, 131009, 131021, 131031}:  # auth / permission / integrity
-        retryable = False
-    return RetryableProviderError(message, retryable=retryable, status_code=status_code, details={"provider_error": payload, "provider_code": code})
+    decision = classify_meta_error_policy(status_code, payload)
+    return RetryableProviderError(
+        decision.get("message") or "whatsapp_provider_error",
+        retryable=bool(decision.get("retryable")),
+        status_code=status_code,
+        details={
+            "provider_error": payload,
+            "provider_code": decision.get("provider_code"),
+            "retry_after_seconds": decision.get("retry_after_seconds"),
+            "error_class": decision.get("error_class"),
+            "channel_health": decision.get("health"),
+        },
+    )
 
 
 def send_whatsapp_message(
@@ -70,12 +75,18 @@ def send_whatsapp_message(
     access_token = resolve_whatsapp_access_token(conn, organization_id=organization_id, bot_id=bot_id)
     if not access_token:
         raise RetryableProviderError("missing_whatsapp_access_token", retryable=False)
-    provider_payload = {
-        "messaging_product": "whatsapp",
-        "recipient_type": "individual",
-        "to": _normalize_phone(phone),
-        **payload,
-    }
+    provider_payload = {"messaging_product": "whatsapp", **payload}
+    if provider_payload.get("status") != "read":
+        provider_payload.update({"recipient_type": "individual", "to": _normalize_phone(phone)})
+    allowed, _breaker, _policy = circuit_guard(
+        conn,
+        provider='meta_whatsapp',
+        circuit_key=bot_id or 'global',
+        organization_id=organization_id,
+        metadata={'module': 'whatsapp.send', 'bot_id': bot_id},
+    )
+    if not allowed:
+        raise RetryableProviderError('whatsapp_circuit_open', retryable=True)
     response = httpx.post(
         f"{settings.meta_graph_api_base}/{number['phone_number_id']}/messages",
         headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
@@ -88,7 +99,24 @@ def send_whatsapp_message(
     except Exception:
         data = {"raw_text": response.text}
     if response.status_code >= 400:
+        record_provider_failure(
+            conn,
+            provider='meta_whatsapp',
+            circuit_key=bot_id or 'global',
+            error_text=str(data),
+            organization_id=organization_id,
+            metadata={'module': 'whatsapp.send', 'bot_id': bot_id, 'status_code': response.status_code},
+        )
+        update_whatsapp_number_health(conn, organization_id=organization_id, bot_id=bot_id, status_code=response.status_code, payload=data, success=False, event_type="provider_api")
         raise classify_whatsapp_error(response.status_code, data)
+    record_provider_success(
+        conn,
+        provider='meta_whatsapp',
+        circuit_key=bot_id or 'global',
+        organization_id=organization_id,
+        metadata={'module': 'whatsapp.send', 'bot_id': bot_id, 'status_code': response.status_code},
+    )
+    update_whatsapp_number_health(conn, organization_id=organization_id, bot_id=bot_id, payload=data, success=True, event_type="provider_api")
     external_id = None
     messages = data.get("messages") or []
     if messages:
@@ -128,16 +156,18 @@ def enqueue_manual_whatsapp_message(
     bot_id: str,
     conversation_id: str,
     contact_id: str | None,
-    body: str,
+    body: str | None,
     author_user_id: str | None,
+    whatsapp_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    message_id = f"msg_manual_{utcnow_iso().replace(':','').replace('-','')}"
+    normalized = normalize_whatsapp_outbound_request(body=body, whatsapp_payload=whatsapp_payload)
+    message_id = new_id("msg_manual")
     execute(
         conn,
         """
         INSERT INTO messages
         (id, organization_id, conversation_id, contact_id, bot_id, direction, kind, source, body, external_id, status, metadata_json, created_at)
-        VALUES (?, ?, ?, ?, ?, 'outbound', 'text', 'human', ?, NULL, 'queued', ?, ?)
+        VALUES (?, ?, ?, ?, ?, 'outbound', ?, 'human', ?, NULL, 'queued', ?, ?)
         """,
         (
             message_id,
@@ -145,12 +175,20 @@ def enqueue_manual_whatsapp_message(
             conversation_id,
             contact_id,
             bot_id,
-            body,
-            to_json({"author_user_id": author_user_id, "provider": "queued_for_worker"}),
+            normalized["kind"],
+            normalized["summary"],
+            to_json({
+                "author_user_id": author_user_id,
+                "provider": "queued_for_worker",
+                "whatsapp": {
+                    "message_type": normalized["message_type"],
+                    **normalized["payload"],
+                },
+            }),
             utcnow_iso(),
         ),
     )
-    outbox_id = f"out_manual_{utcnow_iso().replace(':','').replace('-','')}"
+    outbox_id = new_id("out_manual")
     execute(
         conn,
         """
@@ -163,7 +201,14 @@ def enqueue_manual_whatsapp_message(
             organization_id,
             bot_id,
             conversation_id,
-            to_json({"body": body, "message_id": message_id, "contact_id": contact_id, "source": "manual_human"}),
+            to_json({
+                **normalized["payload"],
+                "message_type": normalized["message_type"],
+                "body": normalized["summary"],
+                "message_id": message_id,
+                "contact_id": contact_id,
+                "source": "manual_human",
+            }),
             utcnow_iso(),
             utcnow_iso(),
         ),

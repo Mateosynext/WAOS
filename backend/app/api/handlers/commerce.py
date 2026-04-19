@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from .common import *
 from ...verticals import get_vertical_profile, list_vertical_profiles
+from ...vertical_10x import apply_subvertical_pack, build_strongest_verticals, enrich_vertical_profile_for_runtime, get_subvertical_profile
+from ...schemas.commerce import VerticalSubverticalPackApplyRequest
 
 def business_hub_overview_route(
     organization_id: str | None = Query(default=None),
@@ -106,13 +108,16 @@ def promotion_rules_create(payload: PromotionRuleRequest, user: dict = Depends(g
     with get_connection() as conn:
         return create_promotion_rule(conn, actor_user=user, **payload.model_dump())
 
-def verticals_catalog(user: dict = Depends(get_current_user)) -> list[dict]:
+def verticals_catalog(top_only: bool = Query(default=False), user: dict = Depends(get_current_user)) -> list[dict]:
     _ = user
-    return list_vertical_profiles()
+    profiles = list_vertical_profiles()
+    return build_strongest_verticals(profiles) if top_only else profiles
 
 
-def vertical_profile_get(vertical: str | None = Query(default=None), organization_id: str | None = Query(default=None), bot_id: str | None = Query(default=None), user: dict = Depends(get_current_user)) -> dict:
+def vertical_profile_get(vertical: str | None = Query(default=None), subvertical: str | None = Query(default=None), organization_id: str | None = Query(default=None), bot_id: str | None = Query(default=None), user: dict = Depends(get_current_user)) -> dict:
     resolved_vertical = vertical
+    bot: dict | None = None
+    org: dict | None = None
     with get_connection() as conn:
         if bot_id:
             bot = get_bot(conn, bot_id)
@@ -120,13 +125,36 @@ def vertical_profile_get(vertical: str | None = Query(default=None), organizatio
                 raise HTTPException(status_code=404, detail="Bot not found")
             ensure_bot_access(user, bot)
             resolved_vertical = bot.get("vertical") or resolved_vertical
-        elif organization_id:
+            organization_id = organization_id or bot.get("organization_id")
+        if organization_id:
             ensure_org_access(user, organization_id)
             org = get_org(conn, organization_id)
             if not org:
                 raise HTTPException(status_code=404, detail="Organization not found")
-            resolved_vertical = org.get("vertical") or resolved_vertical
-    return get_vertical_profile(resolved_vertical)
+            resolved_vertical = resolved_vertical or org.get("vertical")
+        profile = get_vertical_profile(resolved_vertical)
+        return enrich_vertical_profile_for_runtime(conn, profile=profile, organization_id=organization_id, bot=bot, org=org, subvertical=subvertical)
+
+
+def vertical_subvertical_profile_get(vertical: str, subvertical: str | None = Query(default=None), user: dict = Depends(get_current_user)) -> dict:
+    _ = user
+    profile = get_vertical_profile(vertical)
+    selected = get_subvertical_profile(profile, subvertical)
+    if not selected:
+        raise HTTPException(status_code=404, detail="Subvertical not found")
+    return {"vertical": profile.get("id"), "vertical_name": profile.get("name"), "subvertical_profile": selected}
+
+
+def vertical_apply_subvertical_pack(payload: VerticalSubverticalPackApplyRequest, user: dict = Depends(get_current_user)) -> dict:
+    ensure_org_access(user, payload.organization_id)
+    _require_permission(user, payload.organization_id, "bot.manage")
+    with get_connection() as conn:
+        bot = get_bot(conn, payload.bot_id)
+        if not bot:
+            raise HTTPException(status_code=404, detail="Bot not found")
+        ensure_bot_access(user, bot)
+        profile = get_vertical_profile(payload.vertical)
+        return apply_subvertical_pack(conn, profile=profile, organization_id=payload.organization_id, bot_id=payload.bot_id, subvertical=payload.subvertical, actor_user=user)
 
 
 def bot_templates_list(organization_id: str | None = Query(default=None), bot_id: str | None = Query(default=None), user: dict = Depends(get_current_user)) -> list[dict]:

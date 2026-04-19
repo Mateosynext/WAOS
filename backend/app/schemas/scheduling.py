@@ -60,3 +60,27 @@ class RoutingRuleRequest(BaseModel):
     assigned_user_id: str | None = None
     assigned_team: str | None = None
     status: Literal["active", "paused"] = "active"
+
+
+
+class AgendaResourceRequest(BaseModel):
+    organization_id: str
+    bot_id: str | None = None
+    name: str = Field(min_length=1, max_length=180)
+    resource_type: Literal["professional", "room", "seat", "machine", "branch"] = "professional"
+    branch: str | None = None
+
+
+class AgendaCapacityRuleRequest(BaseModel):
+    organization_id: str
+    bot_id: str | None = None
+    resource_id: str
+    day_of_week: int = Field(ge=0, le=6)
+    start_time: str
+    end_time: str
+    slot_capacity: int = Field(default=1, ge=1, le=50)
+
+
+class AppointmentResourceAssignRequest(BaseModel):
+    resource_id: str
+    note: str = Field(default="", max_length=500)

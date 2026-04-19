@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from .common import *
+from ...world_class_ext import authenticate_public_api_credential, public_sdk_manifest, register_channel_event
+from ...rate_limiter import public_ingest_rate_limit
+from ...world_class_plus import append_immutable_audit_event, module_health_checks
 
 def root() -> str:
     return f"<html><body style='font-family:Arial,sans-serif;background:#0A0A0A;color:#F5F2EE;padding:32px'><h1>WAOS API {settings.app_version}</h1><p>Runtime listo para operación productiva con PostgreSQL, Business Hub, Customer Preview y Launch Center.</p><ul><li><a style='color:#00E676' href='/app'>Abrir consola WAOS</a></li><li><a style='color:#00E676' href='/docs'>OpenAPI docs</a></li><li><a style='color:#00E676' href='/healthz'>Health</a></li><li><a style='color:#00E676' href='/readyz'>Readiness</a></li></ul></body></html>"
@@ -25,8 +28,9 @@ def health_ready() -> dict:
         queue = queue_overview(conn)
         scheduler = scheduler_overview(conn)
         dead_letters = sum(int(item.get("count") or 0) for item in queue.get("automation_jobs", []) if item.get("status") == "dead_letter") + sum(int(item.get("count") or 0) for item in queue.get("outbox", []) if item.get("status") == "dead_letter")
-    ready = db_ok and dead_letters < 25
-    return {"status": "ready" if ready else "not_ready", "database": db_ok, "app": settings.app_name, "queue": queue, "scheduler": scheduler, "dead_letters": dead_letters}
+        modules = module_health_checks(conn)
+    ready = db_ok and dead_letters < 25 and modules.get("status") != "error"
+    return {"status": "ready" if ready else "not_ready", "database": db_ok, "app": settings.app_name, "queue": queue, "scheduler": scheduler, "dead_letters": dead_letters, "modules": modules}
 
 
 
@@ -54,3 +58,61 @@ def public_sso_providers(email: str | None = Query(default=None), organization_s
                 continue
             providers.append({'id': row.get('id'), 'organization_id': row.get('organization_id'), 'organization_name': row.get('organization_name'), 'organization_slug': row.get('organization_slug'), 'provider': row.get('provider'), 'issuer': row.get('issuer'), 'domain_hint': metadata.get('domain_hint'), 'allowed_domains': normalized_domains, 'button_label': f"Entrar con {metadata.get('display_name') or row.get('provider')}"})
         return providers
+
+
+def public_sdk_manifest_handler() -> dict[str, Any]:
+    return public_sdk_manifest()
+
+
+def public_channel_event_ingest(payload: dict[str, Any], request: Request) -> dict[str, Any]:
+    organization_id = str(payload.get('organization_id') or '')
+    if not organization_id:
+        raise HTTPException(status_code=400, detail='organization_id is required')
+    token = request.headers.get('X-WAOS-Public-Key') or request.headers.get('x-waos-public-key') or ''
+    if not token:
+        raise HTTPException(status_code=401, detail='Missing X-WAOS-Public-Key')
+    channel = str(payload.get('channel') or 'webchat')
+    direction = str(payload.get('direction') or 'inbound')
+    identities = list(payload.get('identities') or [])
+    identity_fingerprint = '|'.join(sorted(f"{item.get('type') or item.get('identity_type')}:{item.get('value') or item.get('identity_value')}" for item in identities if item))
+    rate_scope = f"public:{organization_id}:{channel}:{payload.get('external_user_id') or identity_fingerprint or payload.get('contact_id') or 'anonymous'}"
+    with get_connection() as conn:
+        auth = authenticate_public_api_credential(conn, organization_id=organization_id, token=token, required_scope='channels.write')
+        if not auth:
+            raise HTTPException(status_code=403, detail='Invalid public API credential')
+        rate_limit = public_ingest_rate_limit(
+            conn,
+            organization_id=organization_id,
+            scope_key=rate_scope,
+            channel=channel,
+            direction=direction,
+            metadata={"path": str(request.url.path), "credential_id": auth.get('id')},
+        )
+        if not rate_limit.get('allowed'):
+            conn.commit()
+            raise HTTPException(status_code=429, detail='Rate limit exceeded for public channel ingest')
+        row = register_channel_event(
+            conn,
+            organization_id=organization_id,
+            bot_id=payload.get('bot_id'),
+            conversation_id=payload.get('conversation_id'),
+            contact_id=payload.get('contact_id'),
+            channel=channel,
+            direction=direction,
+            event_type=str(payload.get('event_type') or 'message'),
+            body=payload.get('body'),
+            external_thread_id=payload.get('external_thread_id'),
+            external_user_id=payload.get('external_user_id'),
+            identities=identities,
+            metadata=dict(payload.get('metadata') or {}),
+        )
+        append_immutable_audit_event(
+            conn,
+            organization_id=organization_id,
+            event_type='public.channel_event_ingested',
+            entity_type='channel_event',
+            entity_id=row.get('id'),
+            payload={"channel": channel, "direction": direction, "event_type": payload.get('event_type') or 'message', "credential_id": auth.get('id')},
+        )
+        conn.commit()
+        return {'ok': True, 'data': {**row, 'metadata': from_json(row.get('metadata_json'), {}), 'rate_limit': {'remaining': rate_limit.get('remaining')}}, 'request_id': getattr(request.state, 'request_id', None)}

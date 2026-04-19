@@ -9,10 +9,11 @@ import zipfile
 from pathlib import Path
 
 FORBIDDEN_RUNTIME_PATTERNS = {
-    'sqlite_databases': ['*.db', '*.sqlite', '*.sqlite3'],
+    'sqlite_databases': ['*.db', '*.sqlite', '*.sqlite3', '*.sqlite3-shm', '*.sqlite3-wal'],
     'python_bytecode': ['*.pyc', '*.pyo'],
     'python_cache_dirs': ['__pycache__'],
     'ts_buildinfo': ['*.tsbuildinfo'],
+    'generated_reports': ['*.pdf'],
     'local_env_files': ['.env', '.env.local', '.env.development.local', '.env.test.local', '.env.production.local'],
     'test_artifacts': ['playwright-report', 'test-results', 'coverage', '.pytest_cache'],
     'local_build_dirs': ['node_modules', '.next'],
@@ -59,6 +60,8 @@ def scan(base: Path, profile: str, root_name: str, expected_root_name: str | Non
             if clean.startswith('backend/tests/') or clean.startswith('frontend/tests/'):
                 runtime_only.append(rel)
             elif clean.startswith('backend/scripts/') or clean.startswith('frontend/scripts/'):
+                runtime_only.append(rel)
+            elif clean.startswith('backend/app/artifacts/reports/') and clean != 'backend/app/artifacts/reports/.gitkeep':
                 runtime_only.append(rel)
             elif clean.startswith('docs/'):
                 runtime_only.append(rel)

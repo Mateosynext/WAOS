@@ -1,7 +1,10 @@
-import { apiFetchOrDefault } from "./api";
+import { ApiRequestError, apiFetch, apiFetchOrDefault, apiFetchResult } from "./api";
 import {
   type AgendaOverviewContract,
+  type AppointmentContract,
   type AnalyticsDailyContract,
+  type ActivationSummaryContract,
+  type InboxSavedViewContract,
   type AuditLogContract,
   type BotContract,
   type BotTemplateContract,
@@ -19,12 +22,16 @@ import {
   type IntegrationContract,
   type IntegrationEventContract,
   type IntegrationObservabilityContract,
+  type IntegrationCenterContract,
   type MediaAssetContract,
   type ObservabilityContract,
   type PaymentContract,
   type PortalRequestContract,
   type PromotionContract,
   type QueueOverviewContract,
+  type InboxQueuesContract,
+  type ConversationDecisionSupportContract,
+  type CRMPipelineSummaryContract,
   type RateLimitPolicyContract,
   type RecommendationContract,
   type ReleaseReadinessContract,
@@ -42,6 +49,8 @@ import {
   type VerticalProfileContract,
   normalizeAgendaOverview,
   normalizeAnalyticsDaily,
+  normalizeActivationSummary,
+  normalizeInboxSavedView,
   normalizeAppointment,
   normalizeAuditLog,
   normalizeBot,
@@ -61,12 +70,16 @@ import {
   normalizeIntegration,
   normalizeIntegrationEvent,
   normalizeIntegrationObservability,
+  normalizeIntegrationCenter,
   normalizeMediaAsset,
   normalizeObservability,
   normalizePayment,
   normalizePortalRequest,
   normalizePromotion,
   normalizeQueueOverview,
+  normalizeInboxQueues,
+  normalizeConversationDecisionSupport,
+  normalizeCRMPipelineSummary,
   normalizeRateLimitPolicy,
   normalizeRecommendation,
   normalizeReleaseReadiness,
@@ -135,6 +148,120 @@ async function fetchRecord<T>(path: string, fallback: unknown, normalizeItem: (v
   return normalizeItem(raw);
 }
 
+export type PortalModuleState<T> = {
+  ok: boolean;
+  data: T;
+  error: ApiRequestError | null;
+  endpoint: string;
+};
+
+export type ClientPortalSection = "resumen" | "conversaciones" | "agenda" | "promociones" | "solicitudes" | "bot" | "operaciones";
+
+export type ClientPortalData = {
+  context: { organizationId: string | null; botId: string | null; vertical: string | null };
+  conversations: PortalModuleState<ConversationItem[]>;
+  appointments: PortalModuleState<AppointmentContract[]>;
+  agendaOverview: PortalModuleState<AgendaOverviewContract>;
+  feedback: PortalModuleState<FeedbackItemContract[]>;
+  requests: PortalModuleState<PortalRequestContract[]>;
+  promotions: PortalModuleState<PromotionContract[]>;
+  behavior: PortalModuleState<Record<string, unknown>>;
+  verticalProfile: PortalModuleState<VerticalProfileContract>;
+};
+
+function normalizeLooseRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function portalDisabledState<T>(data: T, endpoint: string): PortalModuleState<T> {
+  return { ok: true, data, error: null, endpoint };
+}
+
+async function fetchArrayState<T>(endpoint: string, fallback: unknown[], normalizeItem: (value: unknown) => T): Promise<PortalModuleState<T[]>> {
+  const result = await apiFetchResult<unknown>(endpoint);
+  if (!result.ok) return { ok: false, data: normalizeCollection(fallback, normalizeItem), error: result.error, endpoint };
+  return { ok: true, data: normalizeCollection(result.data, normalizeItem), error: null, endpoint };
+}
+
+async function fetchRecordState<T>(endpoint: string, fallback: unknown, normalizeItem: (value: unknown) => T): Promise<PortalModuleState<T>> {
+  const result = await apiFetchResult<unknown>(endpoint);
+  if (!result.ok) return { ok: false, data: normalizeItem(fallback), error: result.error, endpoint };
+  return { ok: true, data: normalizeItem(result.data), error: null, endpoint };
+}
+
+export async function getClientPortalData(section: ClientPortalSection, vertical?: string, botId?: string): Promise<ClientPortalData> {
+  const wantsSummary = section === "resumen";
+  const wantsConversations = wantsSummary || section === "conversaciones";
+  const wantsAppointments = wantsSummary || section === "agenda";
+  const wantsRequests = wantsSummary || section === "solicitudes";
+  const wantsPromotions = wantsSummary || section === "promociones";
+  const wantsBot = wantsSummary || section === "bot";
+
+  const query = await orgQuery();
+  const currentBotId = await selectedBotId(botId);
+  const currentOrganizationId = await getCurrentOrganizationId();
+  const verticalValue = vertical || null;
+  const emptyVerticalProfile = normalizeVerticalProfile({
+    id: "",
+    name: "",
+    short_name: "",
+    description: "",
+    problem: "",
+    portfolio_tier: "",
+    master_thesis: "",
+    subverticals: [],
+    objects: [],
+    flows: [],
+    kpis: [],
+    recommended_integrations: [],
+    buyer: {},
+    one_pager: {},
+    demo_flow: [],
+    native_objects: {},
+    pipeline: {},
+    bot_playbook: {},
+    automation_sequences: [],
+    runtime_connection: {},
+  });
+
+  const conversationEndpoint = `/api/v1/conversations?${query}`;
+  const appointmentsEndpoint = `/api/v1/appointments?${query}`;
+  const agendaEndpoint = `/api/v1/agenda/overview?${query}`;
+  const feedbackEndpoint = `/api/v1/feedback?${query}`;
+  const requestsEndpoint = `/api/v1/portal/requests?${query}`;
+  const promotionsEndpoint = `/api/v1/promotions?${[query, currentBotId ? `bot_id=${encodeURIComponent(currentBotId)}` : ""].filter(Boolean).join("&")}`;
+  const behaviorEndpoint = currentBotId ? `/api/v1/bot-studio/behavior?${query}&bot_id=${encodeURIComponent(currentBotId)}` : `/api/v1/bot-studio/behavior?${query}`;
+  const verticalParams = [query, verticalValue ? `vertical=${encodeURIComponent(verticalValue)}` : "", currentBotId ? `bot_id=${encodeURIComponent(currentBotId)}` : ""].filter(Boolean).join("&");
+  const verticalEndpoint = `/api/v1/verticals/profile?${verticalParams}`;
+
+  const [conversations, appointments, agendaOverview, feedback, requests, promotions, behavior, verticalProfile] = await Promise.all([
+    wantsConversations ? fetchArrayState(conversationEndpoint, [], normalizeConversation) : Promise.resolve(portalDisabledState([], conversationEndpoint)),
+    wantsAppointments ? fetchArrayState(appointmentsEndpoint, [], normalizeAppointment) : Promise.resolve(portalDisabledState([], appointmentsEndpoint)),
+    wantsAppointments ? fetchRecordState(agendaEndpoint, { summary: {}, upcoming: [] }, normalizeAgendaOverview) : Promise.resolve(portalDisabledState(normalizeAgendaOverview({ summary: {}, upcoming: [] }), agendaEndpoint)),
+    wantsRequests ? fetchArrayState(feedbackEndpoint, [], normalizeFeedbackItem) : Promise.resolve(portalDisabledState([], feedbackEndpoint)),
+    wantsRequests ? fetchArrayState(requestsEndpoint, [], normalizePortalRequest) : Promise.resolve(portalDisabledState([], requestsEndpoint)),
+    wantsPromotions ? fetchArrayState(promotionsEndpoint, [], normalizePromotion) : Promise.resolve(portalDisabledState([], promotionsEndpoint)),
+    wantsBot
+      ? (currentBotId ? fetchRecordState(behaviorEndpoint, {}, normalizeLooseRecord) : Promise.resolve(portalDisabledState({}, behaviorEndpoint)))
+      : Promise.resolve(portalDisabledState({}, behaviorEndpoint)),
+    wantsBot || wantsSummary
+      ? fetchRecordState(verticalEndpoint, emptyVerticalProfile, normalizeVerticalProfile)
+      : Promise.resolve(portalDisabledState(emptyVerticalProfile, verticalEndpoint)),
+  ]);
+
+  return {
+    context: { organizationId: currentOrganizationId, botId: currentBotId, vertical: verticalValue },
+    conversations,
+    appointments,
+    agendaOverview,
+    feedback,
+    requests,
+    promotions,
+    behavior,
+    verticalProfile,
+  };
+}
+
 export async function getDashboard(): Promise<DashboardContract> {
   const query = await orgQuery();
   return fetchRecord(`/api/v1/analytics/dashboard?${query}`, { summary: {}, bots: [] }, normalizeDashboard);
@@ -187,13 +314,48 @@ export async function getSecrets(): Promise<SecretContract[]> {
   return fetchArray(`/api/v1/secrets?${query}`, [], normalizeSecret);
 }
 
-export async function getConversations(): Promise<ConversationItem[]> {
+export async function getConversations(sort?: string): Promise<ConversationItem[]> {
   const query = await orgQuery();
-  return fetchArray(`/api/v1/conversations?${query}`, [], normalizeConversation);
+  const sortSuffix = sort ? `&sort=${encodeURIComponent(sort)}` : "";
+  return fetchArray(`/api/v1/conversations?${query}${sortSuffix}`, [], normalizeConversation);
+}
+
+export async function getActivationSummary(botId?: string): Promise<ActivationSummaryContract> {
+  const query = await orgQuery();
+  const currentBotId = await selectedBotId(botId);
+  const botSuffix = currentBotId ? `&bot_id=${encodeURIComponent(currentBotId)}` : "";
+  return fetchRecord(`/api/v1/onboarding/summary?${query}${botSuffix}`, { counts: {}, progress: {}, blockers: [], checklist: [], next_step: {}, feature_flags: {} }, normalizeActivationSummary);
+}
+
+export async function getInboxSavedViews(): Promise<InboxSavedViewContract[]> {
+  const query = await orgQuery();
+  return fetchArray(`/api/v1/inbox/saved-views?${query}`, [], normalizeInboxSavedView);
 }
 
 export async function getConversation(conversationId: string): Promise<ConversationDetailContract> {
   return fetchRecord(`/api/v1/conversations/${conversationId}`, { conversation: {}, contact: {}, memory: {}, bot: {}, messages: [] }, normalizeConversationDetail);
+}
+
+
+export async function getInboxQueues(): Promise<InboxQueuesContract> {
+  const query = await orgQuery();
+  return fetchRecord(`/api/v1/inbox/queues?${query}`, { queues: [] }, normalizeInboxQueues);
+}
+
+export async function getConversationDecisionSupport(conversationId: string): Promise<ConversationDecisionSupportContract> {
+  return fetchRecord(`/api/v1/conversations/${conversationId}/decision-support`, { conversation_id: conversationId, queue: {}, sla: {}, explanation: {}, risk_flags: [] }, normalizeConversationDecisionSupport);
+}
+
+export async function getCRMPipelineSummary(botId?: string): Promise<CRMPipelineSummaryContract> {
+  const query = await orgQuery();
+  const currentBotId = await selectedBotId(botId);
+  const suffix = currentBotId ? `&bot_id=${encodeURIComponent(currentBotId)}` : '';
+  return fetchRecord(`/api/v1/crm/pipeline-summary?${query}${suffix}`, { total_leads: 0, weighted_amount: 0, stages: [], lost_reasons: [], recent_stage_changes: [] }, normalizeCRMPipelineSummary);
+}
+
+export async function getIntegrationCenter(): Promise<IntegrationCenterContract> {
+  const query = await orgQuery();
+  return fetchRecord(`/api/v1/integrations/center?${query}`, { summary: {}, integrations: [], observability: {}, recent_sync_runs: [], failed_receipts: [], retry_hotspots: [], dependency_map: [] }, normalizeIntegrationCenter);
 }
 
 export async function getReleaseReadiness(botId?: string): Promise<ReleaseReadinessResponse> {
@@ -226,6 +388,17 @@ export async function getRateLimits(): Promise<RateLimitPolicyContract[]> {
 
 export async function getAccessMatrix() {
   return apiFetchOrDefault<Record<string, unknown>>(`/api/v1/access/matrix`, { current_user_role: "unknown", roles: {} });
+}
+
+export async function getWhatsappDeliveryTruth(botId?: string, options?: { reconcile?: boolean; windowHours?: number; limit?: number }) {
+  const query = await orgQuery();
+  const currentBotId = await selectedBotId(botId);
+  const params = new URLSearchParams(query);
+  if (currentBotId) params.set("bot_id", currentBotId);
+  if (options?.reconcile) params.set("reconcile", "true");
+  if (options?.windowHours) params.set("window_hours", String(options.windowHours));
+  if (options?.limit) params.set("limit", String(options.limit));
+  return apiFetchOrDefault<Record<string, unknown>>(`/api/v1/analytics/whatsapp/delivery-truth?${params.toString()}`, { summary: {}, breakdowns: {}, recent_messages: [], alerts: [], reconciliation: {} });
 }
 
 export async function getDailyAnalytics(botId?: string): Promise<AnalyticsDailyContract> {
@@ -411,18 +584,25 @@ export async function getBotTemplates(botId?: string): Promise<BotTemplateContra
   return fetchArray(`/api/v1/bot-studio/templates?${query}${botSuffix}`, [], normalizeBotTemplate);
 }
 
-export async function getVerticalCatalog(): Promise<VerticalProfileContract[]> {
-  return fetchArray(`/api/v1/verticals`, [], normalizeVerticalProfile);
+export async function getVerticalCatalog(topOnly = false): Promise<VerticalProfileContract[]> {
+  const raw = await apiFetch<unknown>(`/api/v1/verticals${topOnly ? "?top_only=1" : ""}`);
+  return normalizeCollection(raw, normalizeVerticalProfile);
 }
 
-export async function getVerticalProfile(vertical?: string, botId?: string): Promise<VerticalProfileContract> {
-  const query = await orgQuery();
+export async function getStrongestVerticals(): Promise<VerticalProfileContract[]> {
+  return getVerticalCatalog(true);
+}
+
+export async function getVerticalProfile(vertical?: string, botId?: string, subvertical?: string, organizationId?: string): Promise<VerticalProfileContract> {
+  const query = organizationId ? `organization_id=${encodeURIComponent(organizationId)}` : await orgQuery();
   const currentBotId = await selectedBotId(botId);
   const params = [query];
   if (vertical) params.push(`vertical=${encodeURIComponent(vertical)}`);
+  if (subvertical) params.push(`subvertical=${encodeURIComponent(subvertical)}`);
   if (currentBotId) params.push(`bot_id=${encodeURIComponent(currentBotId)}`);
   const qs = params.filter(Boolean).join("&");
-  return fetchRecord(`/api/v1/verticals/profile?${qs}`, {}, normalizeVerticalProfile);
+  const raw = await apiFetch<unknown>(`/api/v1/verticals/profile?${qs}`);
+  return normalizeVerticalProfile(raw);
 }
 
 export async function getBotBehavior(botId?: string) {
@@ -564,3 +744,42 @@ export async function getTalentOverview(botId?: string): Promise<TalentOverviewC
   return fetchRecord(`/api/v1/bots/${currentBotId}/talent/overview`, { bot_id: currentBotId, config: {}, vacancies: [], candidates: [], summary: {} }, normalizeTalentOverview);
 }
 
+
+
+export async function getInboxOwnership() {
+  const query = await orgQuery();
+  return apiFetchOrDefault<Record<string, unknown>>(`/api/v1/inbox/ownership?${query}`, { organization_id: null, unassigned_open: 0, owners: [] });
+}
+
+export async function getBotSimulationCases(botId?: string) {
+  const currentBotId = await selectedBotId(botId);
+  if (!currentBotId) return [];
+  return apiFetchOrDefault<Array<Record<string, unknown>>>(`/api/v1/bots/${currentBotId}/simulation-cases`, []);
+}
+
+export async function getBotSimulationRuns(botId?: string) {
+  const currentBotId = await selectedBotId(botId);
+  if (!currentBotId) return [];
+  return apiFetchOrDefault<Array<Record<string, unknown>>>(`/api/v1/bots/${currentBotId}/simulation-runs`, []);
+}
+
+export async function getAgendaResources(botId?: string) {
+  const query = await orgQuery();
+  const currentBotId = await selectedBotId(botId);
+  const suffix = currentBotId ? `&bot_id=${encodeURIComponent(currentBotId)}` : '';
+  return apiFetchOrDefault<Array<Record<string, unknown>>>(`/api/v1/agenda/resources?${query}${suffix}`, []);
+}
+
+export async function getAgendaCapacityRules(botId?: string) {
+  const query = await orgQuery();
+  const currentBotId = await selectedBotId(botId);
+  const suffix = currentBotId ? `&bot_id=${encodeURIComponent(currentBotId)}` : '';
+  return apiFetchOrDefault<Array<Record<string, unknown>>>(`/api/v1/agenda/capacity-rules?${query}${suffix}`, []);
+}
+
+export async function getAgendaCapacityOverview(botId?: string) {
+  const query = await orgQuery();
+  const currentBotId = await selectedBotId(botId);
+  const suffix = currentBotId ? `&bot_id=${encodeURIComponent(currentBotId)}` : '';
+  return apiFetchOrDefault<Record<string, unknown>>(`/api/v1/agenda/capacity/overview?${query}${suffix}`, { summary: {}, resources: [], rules: [], upcoming: [] });
+}

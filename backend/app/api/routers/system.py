@@ -9,6 +9,11 @@ from ..dependencies import CurrentUoW, CurrentUser
 router = APIRouter(tags=["system"])
 
 
+@router.get("/livez")
+def livez() -> dict:
+    return system_service.livez()
+
+
 @router.get("/healthz")
 def healthz(uow: CurrentUoW) -> dict:
     return system_service.healthz(uow)
@@ -37,3 +42,13 @@ def update_global_settings(payload: SettingsUpdateRequest, user: CurrentUser, uo
 @router.get("/api/v1/runtime/health-panel")
 def runtime_health_panel(uow: CurrentUoW) -> dict:
     return system_service.runtime_health_panel(uow)
+
+
+@router.get("/api/v1/system/deploy-checklist")
+def deploy_checklist(uow: CurrentUoW) -> dict:
+    return system_service.deploy_checklist(uow)
+
+
+@router.get("/api/v1/system/whatsapp-governance")
+def whatsapp_governance_panel(user: CurrentUser, uow: CurrentUoW, bot_id: str | None = None) -> dict:
+    return system_service.whatsapp_governance_panel(uow, user=user, bot_id=bot_id)

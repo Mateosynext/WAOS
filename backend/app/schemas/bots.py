@@ -74,3 +74,24 @@ class BotBehaviorSettingsRequest(BaseModel):
     forbidden_topics: list[str] = Field(default_factory=list)
     required_phrases: list[str] = Field(default_factory=list)
     fallback_message: str = "Te ayudo con gusto, pero necesito un poco mas de detalle para responderte bien."
+
+
+
+class BotSimulationCaseRequest(BaseModel):
+    organization_id: str
+    title: str = Field(min_length=1, max_length=180)
+    scenario_text: str = Field(min_length=1, max_length=4000)
+    expected_action: str | None = None
+    expected_queue: str | None = None
+    expected_must_escalate: bool | None = None
+    tags: list[str] = Field(default_factory=list)
+
+
+class BotSimulationRunRequest(BaseModel):
+    compare_target: Literal["draft", "published", "version"] = "draft"
+    case_ids: list[str] = Field(default_factory=list)
+    right_version_id: str | None = None
+
+
+class BotDraftSnapshotRequest(BaseModel):
+    notes: str = Field(default="", max_length=1000)

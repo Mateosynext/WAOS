@@ -1,0 +1,24 @@
+{
+  "version": "1.0.0",
+  "rows": [
+    {
+      "purpose": "prestar el servicio contratado",
+      "data_categories": [
+        "identificación",
+        "contacto",
+        "operación"
+      ],
+      "legal_basis": "ejecución de contrato / relación jurídica",
+      "retention_rule": "vigencia contractual + plazo legal"
+    },
+    {
+      "purpose": "seguimiento comercial por WhatsApp",
+      "data_categories": [
+        "contacto",
+        "mensajes"
+      ],
+      "legal_basis": "consentimiento",
+      "retention_rule": "hasta revocación o baja"
+    }
+  ]
+}

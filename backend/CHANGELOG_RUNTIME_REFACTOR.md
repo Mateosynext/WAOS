@@ -12,6 +12,10 @@ This package includes a focused backend hardening pass around runtime governance
 - Inbound idempotency + lock strategy in `app/application/inbound_service.py`
 - Strict typed webhook intake in `app/schemas/webhooks.py` and `app/api/handlers/webhooks.py`
 - Runtime pipeline split into understand / decide / generate in `app/runtime_pipeline.py`
+- Agentic orchestration layer in `app/agent_runtime.py` with explicit stages for grounding, planning, action selection, verification, memory curation and post-send evaluation
+- `app/runtime_pipeline.py` kept as compatibility boundary while delegating richer plan/render flows
+- `app/ai.py` runtime now persists planner, grounding and verifier metadata inside execution outputs and operational reasoning
+- Added tests in `tests/test_agent_runtime_orchestration.py` for planner/verifier/stage separation
 - Declarative policy engine in `app/policy_engine.py`
 - Fallback-chain/source tracing in `app/ai.py`
 - Operational reasoning persistence per message in `message_operational_reasoning`

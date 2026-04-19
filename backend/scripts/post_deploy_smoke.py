@@ -12,9 +12,11 @@ def fetch_json(url: str, method: str = "GET", payload: dict | None = None, heade
     with request.urlopen(req, timeout=20) as resp: return resp.getcode(), json.loads(resp.read().decode("utf-8"))
 def main() -> None:
     if not BASE_URL: raise SystemExit("BASE_URL is required")
+    code, live = fetch_json(f"{BASE_URL}/livez"); assert code == 200 and live.get("status") == "ok", live
     code, health = fetch_json(f"{BASE_URL}/healthz"); assert code == 200 and health.get("status") in {"ok", "degraded"}, health
     code, ready = fetch_json(f"{BASE_URL}/readyz"); assert code in {200, 503}, ready
-    result = {"healthz": health, "readyz": ready}
+    code, checklist = fetch_json(f"{BASE_URL}/api/v1/system/deploy-checklist"); assert code == 200 and checklist.get("status") in {"ok", "degraded", "error"}, checklist
+    result = {"livez": live, "healthz": health, "readyz": ready, "deploy_checklist": checklist}
     if SMOKE_EMAIL and SMOKE_PASSWORD:
         code, login = fetch_json(f"{BASE_URL}/api/v1/auth/login", method="POST", payload={"email": SMOKE_EMAIL, "password": SMOKE_PASSWORD})
         assert code == 200, login

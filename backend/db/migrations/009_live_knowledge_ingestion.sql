@@ -1,0 +1,26 @@
+-- Continuous knowledge ingestion: source registry, watcher runs, publication logs.
+CREATE TABLE IF NOT EXISTS knowledge_source_connections (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT NOT NULL,
+    source_key TEXT NOT NULL,
+    connector_key TEXT NOT NULL,
+    label TEXT NOT NULL,
+    source_uri TEXT,
+    owner_user_id TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    watch_mode TEXT NOT NULL DEFAULT 'manual',
+    sync_interval_minutes INTEGER NOT NULL DEFAULT 60,
+    publish_policy TEXT NOT NULL DEFAULT 'auto_publish',
+    validation_policy_json TEXT NOT NULL DEFAULT '{}',
+    config_json TEXT NOT NULL DEFAULT '{}',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    current_snapshot_hash TEXT,
+    last_seen_source_updated_at TEXT,
+    last_synced_at TEXT,
+    last_published_at TEXT,
+    last_error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(organization_id, bot_id, source_key)
+);

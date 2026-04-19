@@ -1,1 +1,1 @@
-export { default } from './playwright.mocked.config';
+export { default } from './playwright.real.config';

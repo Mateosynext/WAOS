@@ -3,8 +3,10 @@ export type JsonMap = Record<string, unknown>;
 export type ApiEnvelope<T = unknown> = {
   ok?: boolean;
   data?: T;
+  error?: { code?: string; message?: string; details?: unknown; retryable?: boolean };
   meta?: Record<string, unknown>;
   request_id?: string | null;
+  correlation_id?: string | null;
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -53,6 +55,15 @@ function nullableNumber(value: unknown): number | null {
   return numberValue(value, 0);
 }
 
+function numberOrNull(value: unknown): number | null {
+  return nullableNumber(value);
+}
+
+function booleanOrNull(value: unknown): boolean | null {
+  if (value === null || value === undefined || value === "") return null;
+  return booleanValue(value);
+}
+
 function stringList(value: unknown): string[] {
   return asArray(value)
     .map((item) => stringOrNull(item))
@@ -85,6 +96,7 @@ export type SessionOrganization = {
   id: string;
   name: string;
   vertical?: string;
+  subvertical?: string;
   timezone?: string;
   status?: string;
 };
@@ -103,6 +115,7 @@ export function normalizeOrganization(raw: unknown): SessionOrganization {
     id: stringValue(record.id),
     name: pickString(record, ["name", "organization_name"], "Organización"),
     vertical: stringOrNull(record.vertical) ?? undefined,
+    subvertical: (() => { const settings = asRecord(record.settings_json); return stringOrNull(record.subvertical) ?? stringOrNull(settings.subvertical) ?? stringOrNull(settings.active_subvertical) ?? undefined; })(),
     timezone: stringOrNull(record.timezone) ?? undefined,
     status: stringOrNull(record.status) ?? undefined,
   };
@@ -207,6 +220,60 @@ export function normalizeBot(raw: unknown): BotContract {
     last_release_at: pickTimestamp(record, "last_release_at", "published_at"),
     created_at: pickTimestamp(record, "created_at") ?? undefined,
     updated_at: pickTimestamp(record, "updated_at") ?? undefined,
+  };
+}
+
+export type ActivationSummaryContract = {
+  organization_id?: string;
+  bot_id?: string | null;
+  tenant_mode?: string;
+  vertical?: string | null;
+  counts: Record<string, number>;
+  progress: Record<string, number>;
+  readiness_score?: number;
+  blockers: Array<Record<string, unknown>>;
+  checklist: Array<Record<string, unknown>>;
+  next_step: Record<string, unknown>;
+  first_value_at?: string | null;
+  created_at?: string | null;
+  feature_flags: Record<string, boolean>;
+};
+
+export function normalizeActivationSummary(raw: unknown): ActivationSummaryContract {
+  const record = asRecord(unwrapApiEnvelope(raw));
+  return {
+    organization_id: stringOrNull(record.organization_id) ?? undefined,
+    bot_id: stringOrNull(record.bot_id),
+    tenant_mode: stringOrNull(record.tenant_mode) ?? undefined,
+    vertical: stringOrNull(record.vertical),
+    counts: asRecord(record.counts) as Record<string, number>,
+    progress: asRecord(record.progress) as Record<string, number>,
+    readiness_score: nullableNumber(record.readiness_score) ?? undefined,
+    blockers: asArray(record.blockers).map((item) => asRecord(item)),
+    checklist: asArray(record.checklist).map((item) => asRecord(item)),
+    next_step: asRecord(record.next_step),
+    first_value_at: pickTimestamp(record, "first_value_at"),
+    created_at: pickTimestamp(record, "created_at"),
+    feature_flags: asRecord(record.feature_flags) as Record<string, boolean>,
+  };
+}
+
+export type InboxSavedViewContract = {
+  id: string;
+  name: string;
+  slug?: string;
+  is_default?: boolean;
+  filters: Record<string, unknown>;
+};
+
+export function normalizeInboxSavedView(raw: unknown): InboxSavedViewContract {
+  const record = asRecord(unwrapApiEnvelope(raw));
+  return {
+    id: stringValue(record.id),
+    name: stringValue(record.name, "Vista"),
+    slug: stringOrNull(record.slug) ?? undefined,
+    is_default: booleanValue(record.is_default),
+    filters: asRecord(record.filters),
   };
 }
 
@@ -317,6 +384,18 @@ export type ConversationItem = {
   last_inbound_at?: string;
   updated_at?: string;
   created_at?: string;
+  priority_score?: number;
+  priority_band?: string;
+  next_best_action?: string;
+  attention_class?: string;
+  stalled?: boolean;
+  requires_human?: boolean;
+  work_queue_role?: string;
+  work_queue_reason?: string;
+  sla_status?: string;
+  sla_due_at?: string;
+  sla_target_minutes?: number;
+  sla_overdue_minutes?: number;
 };
 
 export function normalizeConversation(raw: unknown): ConversationItem {
@@ -349,6 +428,18 @@ export function normalizeConversation(raw: unknown): ConversationItem {
     last_inbound_at: pickTimestamp(record, "last_inbound_at") ?? undefined,
     updated_at: pickTimestamp(record, "updated_at", "last_message_at", "created_at") ?? undefined,
     created_at: pickTimestamp(record, "created_at") ?? undefined,
+    priority_score: nullableNumber(record.priority_score) ?? undefined,
+    priority_band: stringOrNull(record.priority_band) ?? undefined,
+    next_best_action: stringOrNull(record.next_best_action) ?? undefined,
+    attention_class: stringOrNull(record.attention_class) ?? undefined,
+    stalled: booleanValue(record.stalled),
+    requires_human: booleanValue(record.requires_human),
+    work_queue_role: stringOrNull(record.work_queue_role) ?? undefined,
+    work_queue_reason: stringOrNull(record.work_queue_reason) ?? undefined,
+    sla_status: stringOrNull(record.sla_status) ?? undefined,
+    sla_due_at: pickTimestamp(record, "sla_due_at") ?? undefined,
+    sla_target_minutes: nullableNumber(record.sla_target_minutes) ?? undefined,
+    sla_overdue_minutes: nullableNumber(record.sla_overdue_minutes) ?? undefined,
   };
 }
 
@@ -356,6 +447,9 @@ export type MessageContract = {
   id: string;
   direction?: string;
   type?: string;
+  kind?: string;
+  status?: string;
+  source?: string;
   body: string;
   content: string;
   created_at?: string | null;
@@ -373,6 +467,9 @@ export function normalizeMessage(raw: unknown): MessageContract {
     id: stringValue(record.id || createdAt || body || Math.random().toString(36).slice(2)),
     direction: stringOrNull(record.direction) ?? undefined,
     type,
+    kind: type,
+    status: stringOrNull(record.status) ?? undefined,
+    source: stringOrNull(record.source) ?? undefined,
     body,
     content: body,
     created_at: createdAt,
@@ -1317,6 +1414,33 @@ export type VerticalTransactionalMotorV12Contract = {
   event_catalog: JsonMap[];
 };
 
+
+
+export type VerticalSubverticalProfileContract = {
+  id: string;
+  name: string;
+  strength_score?: number;
+  promise?: string;
+  growth_motion?: string;
+  buyer?: string;
+  monetizes: string[];
+  service_bundle: string[];
+  qualification_questions: string[];
+  objections: string[];
+  automation_priorities: string[];
+  kpi_pack: string[];
+  recommended_commands: string[];
+  launch_assets: string[];
+  templates: JsonMap[];
+};
+
+export type VerticalRuntimeConnectionContract = {
+  active_vertical?: string;
+  active_subvertical?: string;
+  pack_status: JsonMap;
+  surface_focus: JsonMap;
+};
+
 export type VerticalProfileContract = {
   id: string;
   name: string;
@@ -1345,6 +1469,16 @@ export type VerticalProfileContract = {
   transactional_motor_v12: VerticalTransactionalMotorV12Contract;
   subvertical_playbooks: VerticalNamedFocusContract[];
   business_e2e_tests: VerticalNamedFocusContract[];
+  is_strongest_vertical?: boolean;
+  strongest_rank?: number;
+  ten_x_score?: number;
+  ten_x_narrative?: string;
+  ten_x_growth_loops: string[];
+  recommended_subverticals: string[];
+  ten_x_operational_pack: JsonMap;
+  subvertical_profiles: VerticalSubverticalProfileContract[];
+  selected_subvertical?: VerticalSubverticalProfileContract;
+  runtime_connection?: VerticalRuntimeConnectionContract;
 };
 
 function normalizeVerticalBuyer(raw: unknown): VerticalBuyerContract {
@@ -1505,6 +1639,29 @@ function normalizeVerticalTransactionalMotorV12(raw: unknown): VerticalTransacti
   };
 }
 
+
+
+function normalizeVerticalSubverticalProfile(raw: unknown): VerticalSubverticalProfileContract {
+  const record = asRecord(raw);
+  return {
+    id: pickString(record, ["id", "slug", "name"], "subvertical"),
+    name: pickString(record, ["name", "title"], "Subvertical"),
+    strength_score: numberOrNull(record.strength_score) ?? undefined,
+    promise: stringOrNull(record.promise) ?? undefined,
+    growth_motion: stringOrNull(record.growth_motion) ?? undefined,
+    buyer: stringOrNull(record.buyer) ?? undefined,
+    monetizes: stringList(record.monetizes),
+    service_bundle: stringList(record.service_bundle),
+    qualification_questions: stringList(record.qualification_questions),
+    objections: stringList(record.objections),
+    automation_priorities: stringList(record.automation_priorities),
+    kpi_pack: stringList(record.kpi_pack),
+    recommended_commands: stringList(record.recommended_commands),
+    launch_assets: stringList(record.launch_assets),
+    templates: asArray(record.templates).map((item) => asRecord(item)),
+  };
+}
+
 function normalizeVerticalNamedFocus(raw: unknown): VerticalNamedFocusContract {
   const record = asRecord(raw);
   return {
@@ -1544,6 +1701,21 @@ export function normalizeVerticalProfile(raw: unknown): VerticalProfileContract 
     transactional_motor_v12: normalizeVerticalTransactionalMotorV12(record.transactional_motor_v12),
     subvertical_playbooks: asArray(record.subvertical_playbooks).map(normalizeVerticalNamedFocus),
     business_e2e_tests: asArray(record.business_e2e_tests).map(normalizeVerticalNamedFocus),
+    is_strongest_vertical: booleanOrNull(record.is_strongest_vertical) ?? undefined,
+    strongest_rank: numberOrNull(record.strongest_rank) ?? undefined,
+    ten_x_score: numberOrNull(record.ten_x_score) ?? undefined,
+    ten_x_narrative: stringOrNull(record.ten_x_narrative) ?? undefined,
+    ten_x_growth_loops: stringList(record.ten_x_growth_loops),
+    recommended_subverticals: stringList(record.recommended_subverticals),
+    ten_x_operational_pack: asRecord(record.ten_x_operational_pack),
+    subvertical_profiles: asArray(record.subvertical_profiles).map(normalizeVerticalSubverticalProfile),
+    selected_subvertical: Object.keys(asRecord(record.selected_subvertical)).length ? normalizeVerticalSubverticalProfile(record.selected_subvertical) : undefined,
+    runtime_connection: Object.keys(asRecord(record.runtime_connection)).length ? {
+      active_vertical: stringOrNull(asRecord(record.runtime_connection).active_vertical) ?? undefined,
+      active_subvertical: stringOrNull(asRecord(record.runtime_connection).active_subvertical) ?? undefined,
+      pack_status: asRecord(asRecord(record.runtime_connection).pack_status),
+      surface_focus: asRecord(asRecord(record.runtime_connection).surface_focus),
+    } : undefined,
   };
 }
 
@@ -1700,5 +1872,111 @@ export function normalizeTalentOverview(raw: unknown): TalentOverviewContract {
     vacancies: asArray(record.vacancies).map(normalizeTalentVacancy).filter((item) => Boolean(item.id)),
     candidates: asArray(record.candidates).map(normalizeTalentCandidate).filter((item) => Boolean(item.id)),
     summary: asRecord(record.summary),
+  };
+}
+
+
+export type InboxQueueContract = {
+  role_key: string;
+  count: number;
+  requires_human: number;
+  stalled: number;
+  sla_breached: number;
+  top_priority: number;
+};
+
+export type InboxQueuesContract = {
+  organization_id?: string;
+  queues: InboxQueueContract[];
+};
+
+export function normalizeInboxQueues(raw: unknown): InboxQueuesContract {
+  const record = asRecord(unwrapApiEnvelope(raw));
+  return {
+    organization_id: stringOrNull(record.organization_id) ?? undefined,
+    queues: asArray(record.queues).map((item) => {
+      const queue = asRecord(item);
+      return {
+        role_key: stringValue(queue.role_key),
+        count: numberValue(queue.count),
+        requires_human: numberValue(queue.requires_human),
+        stalled: numberValue(queue.stalled),
+        sla_breached: numberValue(queue.sla_breached),
+        top_priority: numberValue(queue.top_priority),
+      };
+    }).filter((item) => Boolean(item.role_key)),
+  };
+}
+
+export type ConversationDecisionSupportContract = {
+  conversation_id: string;
+  next_best_action?: string;
+  priority_score?: number;
+  priority_band?: string;
+  confidence_score?: number;
+  confidence_band?: string;
+  queue: Record<string, unknown>;
+  sla: Record<string, unknown>;
+  explanation: Record<string, unknown>;
+  risk_flags: Record<string, unknown>[];
+};
+
+export function normalizeConversationDecisionSupport(raw: unknown): ConversationDecisionSupportContract {
+  const record = asRecord(unwrapApiEnvelope(raw));
+  return {
+    conversation_id: stringValue(record.conversation_id),
+    next_best_action: stringOrNull(record.next_best_action) ?? undefined,
+    priority_score: nullableNumber(record.priority_score) ?? undefined,
+    priority_band: stringOrNull(record.priority_band) ?? undefined,
+    confidence_score: nullableNumber(record.confidence_score) ?? undefined,
+    confidence_band: stringOrNull(record.confidence_band) ?? undefined,
+    queue: asRecord(record.queue),
+    sla: asRecord(record.sla),
+    explanation: asRecord(record.explanation),
+    risk_flags: asArray(record.risk_flags).map((item) => asRecord(item)),
+  };
+}
+
+export type CRMPipelineSummaryContract = {
+  total_leads: number;
+  weighted_amount: number;
+  stages: Record<string, unknown>[];
+  lost_reasons: Record<string, unknown>[];
+  recent_stage_changes: Record<string, unknown>[];
+};
+
+export function normalizeCRMPipelineSummary(raw: unknown): CRMPipelineSummaryContract {
+  const record = asRecord(unwrapApiEnvelope(raw));
+  return {
+    total_leads: numberValue(record.total_leads),
+    weighted_amount: numberValue(record.weighted_amount),
+    stages: asArray(record.stages).map((item) => asRecord(item)),
+    lost_reasons: asArray(record.lost_reasons).map((item) => asRecord(item)),
+    recent_stage_changes: asArray(record.recent_stage_changes).map((item) => asRecord(item)),
+  };
+}
+
+export type IntegrationCenterContract = {
+  organization_id?: string;
+  summary: Record<string, unknown>;
+  integrations: IntegrationContract[];
+  observability: Record<string, unknown>;
+  recent_sync_runs: Record<string, unknown>[];
+  failed_receipts: Record<string, unknown>[];
+  retry_hotspots: Record<string, unknown>[];
+  dependency_map: Record<string, unknown>[];
+};
+
+export function normalizeIntegrationCenter(raw: unknown): IntegrationCenterContract {
+  const record = asRecord(unwrapApiEnvelope(raw));
+  return {
+    organization_id: stringOrNull(record.organization_id) ?? undefined,
+    summary: asRecord(record.summary),
+    integrations: asArray(record.integrations).map(normalizeIntegration).filter((item) => Boolean(item.id)),
+    observability: asRecord(record.observability),
+    recent_sync_runs: asArray(record.recent_sync_runs).map((item) => asRecord(item)),
+    failed_receipts: asArray(record.failed_receipts).map((item) => asRecord(item)),
+    retry_hotspots: asArray(record.retry_hotspots).map((item) => asRecord(item)),
+    dependency_map: asArray(record.dependency_map).map((item) => asRecord(item)),
   };
 }

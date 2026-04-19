@@ -35,10 +35,123 @@ class WhatsAppFlowCreateRequest(BaseModel):
         "post_sale_survey",
         "client_onboarding",
     ]
-    status: Literal["draft", "active", "paused"] = "active"
+    status: Literal["draft", "active", "paused"] = "draft"
     language: str = "es"
     screens: list[dict[str, Any]] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    flow_json: dict[str, Any] | None = None
+    categories: list[str] = Field(default_factory=list)
+    endpoint_uri: str | None = None
+    fallback: dict[str, Any] = Field(default_factory=dict)
+    runtime_config: dict[str, Any] = Field(default_factory=dict)
+    compatibility: dict[str, Any] = Field(default_factory=dict)
+
+
+class WhatsAppFlowVersionCreateRequest(BaseModel):
+    flow_json: dict[str, Any] | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    compatibility: dict[str, Any] = Field(default_factory=dict)
+    cloned_from_version_id: str | None = None
+
+
+class WhatsAppFlowPublishRequest(BaseModel):
+    version_id: str | None = None
+    register_encryption_public_key: str | None = None
+
+
+class WhatsAppFlowRollbackRequest(BaseModel):
+    target_version_id: str
+    register_encryption_public_key: str | None = None
+
+
+class WhatsAppFlowExecutionRequest(BaseModel):
+    conversation_id: str | None = None
+    contact_id: str | None = None
+    flow_token: str | None = None
+    version_id: str | None = None
+    client_capabilities: dict[str, Any] = Field(default_factory=dict)
+    source: str = "api"
+    send_message: bool = False
+
+
+class WhatsAppFlowRuntimeRequest(BaseModel):
+    execution_id: str
+    action: Literal["init", "navigate", "next", "submit", "complete"] = "navigate"
+    screen_id: str | None = None
+    submitted_data: dict[str, Any] = Field(default_factory=dict)
+    client_capabilities: dict[str, Any] = Field(default_factory=dict)
+
+
+class WhatsAppFlowTelemetryRequest(BaseModel):
+    execution_id: str | None = None
+    event_type: str
+    screen_id: str | None = None
+    step_index: int | None = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class WhatsAppFlowExperimentCreateRequest(BaseModel):
+    version_a_id: str
+    version_b_id: str
+    rollout_percentage: int = 50
+    status: Literal["draft", "active", "paused"] = "active"
+    note: str | None = None
+
+
+class WhatsAppTemplateVariableDefinition(BaseModel):
+    component: Literal["body", "header"] = "body"
+    index: int
+    name: str | None = None
+    sample: str | None = None
+
+
+class WhatsAppTemplateVersionSpec(BaseModel):
+    language_code: str = "es_MX"
+    category: Literal["marketing", "utility", "authentication"] = "utility"
+    body_text: str
+    header_type: Literal["NONE", "TEXT", "IMAGE", "VIDEO", "DOCUMENT"] = "NONE"
+    header_text: str | None = None
+    footer_text: str | None = None
+    buttons: list[dict[str, Any]] = Field(default_factory=list)
+    variables: list[WhatsAppTemplateVariableDefinition] = Field(default_factory=list)
+    assets: dict[str, Any] = Field(default_factory=dict)
+    sample_values: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    approval_status: Literal["draft", "pending", "approved", "rejected", "paused", "disabled"] = "draft"
+    fallback_template_id: str | None = None
+
+
+class WhatsAppTemplateCreateRequest(BaseModel):
+    organization_id: str
+    bot_id: str
+    name: str
+    category: Literal["marketing", "utility", "authentication"] = "utility"
+    default_language: str = "es_MX"
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    fallback_template_id: str | None = None
+    version: WhatsAppTemplateVersionSpec
+
+
+class WhatsAppTemplateVersionCreateRequest(WhatsAppTemplateVersionSpec):
+    pass
+
+
+class WhatsAppTemplateSyncRequest(BaseModel):
+    version_id: str | None = None
+    action: Literal["publish", "sync", "resubmit"] = "publish"
+
+
+class WhatsAppTemplateApprovalUpdateRequest(BaseModel):
+    version_id: str | None = None
+    approval_status: Literal["draft", "pending", "approved", "rejected", "paused", "disabled"]
+    rejection_reason: str | None = None
+    remote_status: str | None = None
+    remote_quality_rating: str | None = None
+
+
+class WhatsAppTemplateLintRequest(BaseModel):
+    name: str
+    version: WhatsAppTemplateVersionSpec
 
 
 class ServiceRequestCreate(BaseModel):
@@ -142,7 +255,7 @@ class CatalogPromotionRequest(BaseModel):
     organization_id: str
     bot_id: str | None = None
     name: str
-    promo_type: Literal["discount", "2x1", "bundle", "gift", "free_shipping", "upgrade"] = "discount"
+    promo_type: Literal["discount", "bundle", "seasonal", "launch", "coupon", "upsell"] = "discount"
     message_short: str = ""
     message_long: str = ""
     banner_asset_id: str | None = None
@@ -165,11 +278,18 @@ class PromotionRuleRequest(BaseModel):
     organization_id: str
     promotion_id: str
     name: str
-    trigger_type: Literal["intent_and_score", "inventory_push", "returning_customer", "post_no_purchase"] = "intent_and_score"
+    trigger_type: Literal["keyword", "cart_value", "first_visit", "intent", "schedule", "manual"] = "keyword"
     conditions: dict[str, Any] = Field(default_factory=dict)
     action: dict[str, Any] = Field(default_factory=dict)
     priority: int = 50
     is_active: bool = True
+
+
+class VerticalSubverticalPackApplyRequest(BaseModel):
+    organization_id: str
+    bot_id: str
+    vertical: str
+    subvertical: str | None = None
 
 
 class CustomerExperiencePreviewRequest(BaseModel):
@@ -178,4 +298,4 @@ class CustomerExperiencePreviewRequest(BaseModel):
     query: str
     conversation_id: str | None = None
     contact_id: str | None = None
-    source_channel: Literal["whatsapp", "instagram_dm", "webchat"] = "whatsapp"
+    source_channel: str = "whatsapp"

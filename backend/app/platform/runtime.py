@@ -8,6 +8,8 @@ from ..config import settings
 from ..db import execute, fetch_all, fetch_one
 from ..contracts import count_row, runtime_callback_row, integration_sync_run_row
 from ..verticals import get_vertical_profile
+from ..world_class import circuit_breaker_summary, summarize_ai_usage
+from ..telemetry_runtime import observability_dashboard_summary
 from ..utils import (
     add_minutes,
     current_mfa_code,
@@ -41,9 +43,11 @@ def start_execution_run(
     queue_name: str | None,
     input_payload: dict[str, Any],
     attempt: int = 1,
+    trace_id: str | None = None,
+    correlation_id: str | None = None,
 ) -> dict[str, Any]:
     run_id = new_id("run")
-    trace_id = new_id("trace")
+    trace_id = trace_id or correlation_id or new_id("trace")
     execution_id = new_id("exec")
     now = utcnow_iso()
     execute(
@@ -218,6 +222,8 @@ def compute_observability_overview(conn, organization_id: str | None = None, bot
     dead_jobs = fetch_one(conn, f"SELECT COUNT(*) AS value FROM automation_jobs {where_sql} {'AND' if where_sql else 'WHERE'} status = 'dead_letter'", params)
     dead_outbox = fetch_one(conn, f"SELECT COUNT(*) AS value FROM outbox_messages {where_sql} {'AND' if where_sql else 'WHERE'} status = 'dead_letter'", params)
     callbacks = fetch_one(conn, f"SELECT COUNT(*) AS value FROM runtime_callbacks {where_sql}", params)
+    ai_usage = summarize_ai_usage(conn, organization_id=organization_id, bot_id=bot_id, limit=500)
+    circuits = circuit_breaker_summary(conn)
     return {
         "totals": {
             "runs": total,
@@ -229,8 +235,11 @@ def compute_observability_overview(conn, organization_id: str | None = None, bot
             "dead_letter_outbox": int((dead_outbox or {}).get("value") or 0),
             "callbacks": int((callbacks or {}).get("value") or 0),
         },
+        "ai": ai_usage,
+        "circuits": circuits,
         "recent_failures": recent_failures,
         "recent_logs": logs,
+        "dashboards": observability_dashboard_summary(conn, organization_id=organization_id, bot_id=bot_id),
     }
 
 

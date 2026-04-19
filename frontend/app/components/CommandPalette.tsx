@@ -52,15 +52,15 @@ export default function CommandPalette() {
     <>
       <button type="button" className="secondary-btn" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open}>
         Buscar o saltar
-        <span className="ml-2 rounded-full border border-white/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.16em] text-slate-400">Ctrl/⌘ K</span>
+        <span className="ml-2 rounded-full border border-[color:var(--border-soft)] px-2 py-0.5 text-[11px] uppercase tracking-[0.16em] text-[color:var(--text-muted)]">Ctrl/⌘ K</span>
       </button>
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/70 px-4 py-10 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-[color:var(--text-inverse)]/55 px-4 py-10 backdrop-blur-sm">
           <div role="dialog" aria-modal="true" className="panel w-full max-w-3xl overflow-hidden">
-            <div className="border-b border-white/[0.08] p-4">
+            <div className="border-b border-[color:var(--border-soft)] p-4">
               <div className="eyebrow">Buscar pantalla</div>
-              <div className="mt-2 text-xl font-semibold text-white">Encuentra una pantalla sin recorrer todo el menú</div>
-              <p className="mt-2 text-sm leading-6 text-slate-300">Piensa en intención: vender, responder, publicar, revisar agenda o abrir el portal cliente.</p>
+              <div className="mt-2 text-xl font-semibold text-[color:var(--text-primary)]">Encuentra una pantalla sin recorrer todo el menú</div>
+              <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">Piensa en intención: vender, responder, publicar, revisar agenda o abrir el portal cliente.</p>
               <input
                 autoFocus
                 type="search"
@@ -70,7 +70,7 @@ export default function CommandPalette() {
                 onChange={(event) => setQuery(event.currentTarget.value)}
               />
             </div>
-            <div className="border-b border-white/[0.08] px-4 py-3 text-xs text-slate-400">
+            <div className="border-b border-[color:var(--border-soft)] px-4 py-3 text-xs text-[color:var(--text-muted)]">
               Atajos útiles: inbox, puesta en marcha, comercial, portal cliente, publicaciones.
             </div>
             <div className="max-h-[65vh] overflow-y-auto p-3">
@@ -79,22 +79,22 @@ export default function CommandPalette() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="block rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 transition hover:border-emerald-400/[0.22] hover:bg-emerald-400/[0.08]"
+                    className="block rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] px-4 py-3 transition hover:border-[color:var(--accent-border)] hover:bg-[color:var(--accent-soft)]"
                     onClick={() => setOpen(false)}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="font-medium text-white">{item.label}</div>
-                        <div className="mt-1 text-sm leading-6 text-slate-300">{item.description}</div>
+                        <div className="font-medium text-[color:var(--text-primary)]">{item.label}</div>
+                        <div className="mt-1 text-sm leading-6 text-[color:var(--text-secondary)]">{item.description}</div>
                       </div>
                       <span className="mono-pill">{item.href}</span>
                     </div>
                   </Link>
                 ))}
-                {!filtered.length ? <div className="rounded-2xl border border-dashed border-white/[0.12] px-4 py-6 text-sm text-slate-300">No encontramos una pantalla con ese texto. Prueba con inbox, puesta en marcha, operaciones o portal cliente.</div> : null}
+                {!filtered.length ? <div className="rounded-2xl border border-dashed border-[color:var(--border-strong)] px-4 py-6 text-sm text-[color:var(--text-secondary)]">No encontramos una pantalla con ese texto. Prueba con inbox, puesta en marcha, operaciones o portal cliente.</div> : null}
               </div>
             </div>
-            <div className="border-t border-white/[0.08] px-4 py-3 text-xs text-slate-400">Tip: también puedes abrir esto con Ctrl/⌘ K y cerrarlo con Escape.</div>
+            <div className="border-t border-[color:var(--border-soft)] px-4 py-3 text-xs text-[color:var(--text-muted)]">Tip: también puedes abrir esto con Ctrl/⌘ K y cerrarlo con Escape.</div>
           </div>
         </div>
       ) : null}

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from .common import *
+from .common import _require_permission
+from ...whatsapp_delivery_truth import build_whatsapp_delivery_truth_report
 
 def analytics_dashboard(
     organization_id: str | None = Query(default=None),
@@ -207,3 +209,37 @@ def analytics_closure_attribution(organization_id: str | None = Query(default=No
             "ai_only_share": round((ai_only / total) * 100, 2),
             "assisted_share": round((assisted / total) * 100, 2),
         }
+
+
+def analytics_whatsapp_delivery_truth(
+    organization_id: str | None = Query(default=None),
+    bot_id: str | None = Query(default=None),
+    window_hours: int = Query(default=168),
+    reconcile: bool = Query(default=False),
+    reconcile_hours: int | None = Query(default=None),
+    limit: int = Query(default=25),
+    user: dict = Depends(get_current_user),
+) -> dict:
+    if not organization_id:
+        orgs = accessible_org_ids(user)
+        organization_id = orgs[0] if orgs else None
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="organization_id is required")
+    ensure_org_access(user, organization_id)
+    _require_permission(user, organization_id, "insights.read")
+    with get_connection() as conn:
+        if bot_id:
+            bot = get_bot(conn, bot_id)
+            if not bot:
+                raise HTTPException(status_code=404, detail="Bot not found")
+            ensure_bot_access(user, bot)
+        report = build_whatsapp_delivery_truth_report(
+            conn,
+            organization_id=organization_id,
+            bot_id=bot_id,
+            window_hours=max(1, min(int(window_hours or 168), 24 * 90)),
+            reconcile=bool(reconcile),
+            reconcile_hours=max(1, min(int(reconcile_hours or window_hours or 168), 24 * 90)),
+            limit=max(1, min(int(limit or 25), 100)),
+        )
+        return ok(report)

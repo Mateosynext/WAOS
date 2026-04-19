@@ -46,6 +46,13 @@ class RetryableProviderError(Exception):
 
 
 def utcnow() -> dt.datetime:
+    fixed_now = os.getenv("WAOS_FIXED_NOW")
+    if fixed_now:
+        value = fixed_now.replace("Z", "+00:00")
+        parsed = dt.datetime.fromisoformat(value)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=dt.timezone.utc)
+        return parsed.astimezone(dt.timezone.utc)
     return dt.datetime.now(dt.timezone.utc)
 
 

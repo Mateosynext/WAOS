@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { ClientPortalContent, type ClientSection } from "../ClientPortalContent";
 
-const allowed = new Set<ClientSection>(["resumen", "conversaciones", "agenda", "promociones", "solicitudes", "bot"]);
+const allowed = new Set<ClientSection>(["resumen", "conversaciones", "agenda", "promociones", "solicitudes", "bot", "operaciones"]);
 
 export default async function ClientSectionPage({ params }: { params: Promise<{ section: string }> }) {
   const { section } = await params;

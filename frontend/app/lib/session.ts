@@ -99,6 +99,26 @@ async function fetchSessionUser(accessToken: string) {
   return response;
 }
 
+async function keepScopeConsistent(store: Awaited<ReturnType<typeof cookies>>, resolvedOrgId: string | null, selectedOrgId: string | null) {
+  if (resolvedOrgId && resolvedOrgId !== selectedOrgId) {
+    try {
+      store.set(ORG_COOKIE, resolvedOrgId, sessionScopeCookieOptions());
+      store.delete(BOT_COOKIE);
+    } catch {
+      // Read-only cookie contexts are acceptable here.
+    }
+    return;
+  }
+  if (!resolvedOrgId && selectedOrgId) {
+    try {
+      store.delete(ORG_COOKIE);
+      store.delete(BOT_COOKIE);
+    } catch {
+      // Ignore read-only cookie contexts.
+    }
+  }
+}
+
 export async function getSession(): Promise<{ user: SessionUser; organizationId: string | null } | null> {
   let accessToken = await getAccessToken();
   if (!accessToken || !API_BASE) return null;
@@ -120,13 +140,7 @@ export async function getSession(): Promise<{ user: SessionUser; organizationId:
       : available.length === 1
         ? available[0].id
         : null;
-    if (resolvedOrgId && resolvedOrgId !== selectedOrgId) {
-      try {
-        store.set(ORG_COOKIE, resolvedOrgId, sessionScopeCookieOptions());
-      } catch {
-        // Read-only cookie contexts are acceptable here.
-      }
-    }
+    await keepScopeConsistent(store, resolvedOrgId, selectedOrgId);
     return { user, organizationId: resolvedOrgId };
   } catch {
     return null;

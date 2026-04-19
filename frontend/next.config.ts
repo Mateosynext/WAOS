@@ -12,11 +12,32 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: "standalone",
   poweredByHeader: false,
+  compress: true,
+  generateEtags: true,
   async headers() {
     return [
       {
+        source: "/_next/static/:path*",
+        headers: [
+          ...securityHeaders,
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+          { key: "Vary", value: "Accept-Encoding" },
+        ],
+      },
+      {
+        source: "/static/:path*",
+        headers: [
+          ...securityHeaders,
+          { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
+          { key: "Vary", value: "Accept-Encoding" },
+        ],
+      },
+      {
         source: "/:path*",
-        headers: securityHeaders,
+        headers: [
+          ...securityHeaders,
+          { key: "Cache-Control", value: "no-store" },
+        ],
       },
     ];
   },

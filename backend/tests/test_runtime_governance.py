@@ -29,6 +29,9 @@ def test_runtime_migrations_create_reasoning_and_lock_tables() -> None:
         assert "schema_migrations" in tables
         assert "message_operational_reasoning" in tables
         assert "inbound_message_locks" in tables
+        assert "knowledge_documents" in tables
+        assert "knowledge_document_versions" in tables
+        assert "knowledge_refresh_events" in tables
         status = migration_status(conn)
         assert status["pending_count"] == 0
         assert status["current_version"]

@@ -699,6 +699,8 @@ async function loadSettings() {
     $('#global-policy').value = data.global_policy || '';
     $('#global-model').value = data.default_model || '';
     $('#global-freeze').value = data.freeze_minutes_after_takeover || 30;
+    $('#ai-optimization-json').value = JSON.stringify(data.ai_optimization || {}, null, 2);
+    $('#memory-runtime-json').value = JSON.stringify(data.memory_runtime || {}, null, 2);
     section.classList.remove('hidden');
   } catch (err) {
     setHtml('#section-settings', '<div class="panel"><div class="muted">Solo Super Admin puede ver settings globales.</div></div>');
@@ -1977,6 +1979,8 @@ async function saveSettingsForm() {
       global_policy: $('#global-policy').value,
       default_model: $('#global-model').value,
       freeze_minutes_after_takeover: Number($('#global-freeze').value),
+      ai_optimization: JSON.parse($('#ai-optimization-json').value || '{}'),
+      memory_runtime: JSON.parse($('#memory-runtime-json').value || '{}'),
     }),
   });
   setStatus($('#settings-result'), 'Settings guardados.', 'success');

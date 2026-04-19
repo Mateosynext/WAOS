@@ -16,7 +16,7 @@ export default async function OrganizationsPage({ searchParams }: { searchParams
   const selectedOrg = organizations.find((item) => item.id === session?.organizationId) || null;
   const [verticals, currentVertical] = await Promise.all([
     getVerticalCatalog(),
-    getVerticalProfile(selectedOrg?.vertical),
+    getVerticalProfile(selectedOrg?.vertical, undefined, selectedOrg?.subvertical, selectedOrg?.id),
   ]);
 
   return (
@@ -27,6 +27,7 @@ export default async function OrganizationsPage({ searchParams }: { searchParams
         <StatCard label="Verticales madre" value={String(verticals.length)} hint="Catalogo habilitado para super admin" icon="layers" tone="blue" />
         <StatCard label="Tenant activo" value={safeText(selectedOrg?.name, "sin seleccionar")} hint="Sobre este tenant se aplican los cambios" icon="target" tone="gold" />
         <StatCard label="Vertical actual" value={safeText(currentVertical.short_name || currentVertical.name, "sin definir")} hint="Perfil operativo guardado en la organizacion" icon="wand" tone="slate" />
+        <StatCard label="Subvertical activa" value={safeText(selectedOrg?.subvertical, currentVertical.selected_subvertical?.name || "sin definir")} hint="Se propaga a onboarding, inbox, agenda y portal" icon="spark" tone="green" />
       </div>
 
       <Section title="Contexto de trabajo" subtitle="Elige una organizacion para cargar bots, integraciones, inbox y releases con el contexto correcto." icon="client">
@@ -37,7 +38,7 @@ export default async function OrganizationsPage({ searchParams }: { searchParams
         )}
       </Section>
 
-      <Section title="Aplicar vertical al tenant activo" subtitle="Este formulario actualiza la organizacion seleccionada y deja persistida la vertical madre para onboarding, super admin y portal cliente." icon="wand">
+      <Section title="Aplicar vertical al tenant activo" subtitle="Este formulario actualiza la organizacion seleccionada y deja persistida la vertical madre y la subvertical operativa para onboarding, inbox, agenda, comercial y portal cliente." icon="wand">
         {selectedOrg ? (
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
             <form action={updateOrganizationVerticalAction} className="grid gap-4 md:grid-cols-2">
@@ -50,6 +51,12 @@ export default async function OrganizationsPage({ searchParams }: { searchParams
                 <select className="field-input" name="vertical" defaultValue={selectedOrg.vertical || ""} required>
                   <option value="">Selecciona una vertical</option>
                   {verticals.map((vertical) => <option key={vertical.id} value={vertical.id}>{vertical.name}</option>)}
+                </select>
+              </label>
+              <label className="field-label md:col-span-2">Subvertical activa
+                <select className="field-input" name="subvertical" defaultValue={selectedOrg.subvertical || currentVertical.selected_subvertical?.name || currentVertical.recommended_subverticals[0] || ""}>
+                  <option value="">Sin subvertical fija</option>
+                  {(currentVertical.subvertical_profiles.length ? currentVertical.subvertical_profiles.map((item) => item.name) : currentVertical.recommended_subverticals).map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </label>
               <div className="md:col-span-2">

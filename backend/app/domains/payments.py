@@ -240,6 +240,61 @@ def create_payment_request(
     return payment
 
 
+def build_payment_receipt_body(payment: dict[str, Any]) -> str:
+    return f"Pago confirmado por {payment['title']} por {payment['currency']} {payment['amount']:.2f}. Te compartimos tu comprobante por WhatsApp."
+
+
+def send_payment_receipt(
+    conn,
+    *,
+    payment_id: str,
+    actor_user: dict | None = None,
+    receipt_body: str | None = None,
+    allow_unpaid: bool = False,
+) -> tuple[dict, dict]:
+    payment = fetch_one(conn, "SELECT * FROM commerce_payments WHERE id = ?", (payment_id,))
+    if not payment:
+        raise ValueError("payment_not_found")
+    if str(payment.get("status") or "").lower() != "paid" and not allow_unpaid:
+        raise ValueError("payment_not_paid")
+    now = utcnow_iso()
+    body = receipt_body or build_payment_receipt_body(payment)
+    message = create_message(
+        conn,
+        organization_id=payment["organization_id"],
+        conversation_id=payment["conversation_id"],
+        contact_id=payment["contact_id"],
+        bot_id=payment["bot_id"],
+        direction="outbound",
+        kind="text",
+        source="system",
+        body=body,
+        status="queued",
+        metadata={"type": "payment_receipt", "payment_id": payment_id},
+    )
+    execute(
+        conn,
+        """
+        INSERT INTO outbox_messages (id, organization_id, bot_id, execution_run_id, conversation_id, channel, payload_json, status, attempts, last_error, provider_response_json, priority, next_attempt_at, locked_at, scheduled_for, sent_at, created_at)
+        VALUES (?, ?, ?, NULL, ?, 'whatsapp', ?, 'queued', 0, NULL, '{}', 100, NULL, NULL, ?, NULL, ?)
+        """,
+        (
+            new_id("out"),
+            payment["organization_id"],
+            payment["bot_id"],
+            payment["conversation_id"],
+            to_json({"message_id": message["id"], "contact_id": payment["contact_id"], "body": body}),
+            now,
+            now,
+        ),
+    )
+    execute(conn, "UPDATE commerce_payments SET receipt_sent_at = ?, updated_at = ? WHERE id = ?", (now, now, payment_id))
+    updated = fetch_one(conn, "SELECT * FROM commerce_payments WHERE id = ?", (payment_id,)) or payment
+    if actor_user:
+        create_audit_log(conn, organization_id=payment["organization_id"], actor_user_id=actor_user.get("id"), actor_type="user", entity_type="commerce_payment", entity_id=payment_id, action="commerce.payment_receipt_sent", metadata={"message_id": message["id"]})
+    return updated, message
+
+
 def confirm_payment(conn, payment_id: str, actor_user: dict | None = None, provider_reference: str | None = None) -> dict:
     payment = fetch_one(conn, "SELECT * FROM commerce_payments WHERE id = ?", (payment_id,))
     if not payment:
@@ -256,37 +311,7 @@ def confirm_payment(conn, payment_id: str, actor_user: dict | None = None, provi
         (now, payment["crm_lead_id"]),
     )
     _update_memory_closed(conn, organization_id=payment["organization_id"], contact_id=payment["contact_id"], bot_id=payment["bot_id"], next_action="Enviar onboarding / comprobante")
-    receipt_body = f"Pago confirmado por {payment['title']} por {payment['currency']} {payment['amount']:.2f}. Te compartimos tu comprobante por WhatsApp."
-    message = create_message(
-        conn,
-        organization_id=payment["organization_id"],
-        conversation_id=payment["conversation_id"],
-        contact_id=payment["contact_id"],
-        bot_id=payment["bot_id"],
-        direction="outbound",
-        kind="text",
-        source="system",
-        body=receipt_body,
-        status="queued",
-        metadata={"type": "payment_receipt", "payment_id": payment_id},
-    )
-    execute(
-        conn,
-        """
-        INSERT INTO outbox_messages (id, organization_id, bot_id, execution_run_id, conversation_id, channel, payload_json, status, attempts, last_error, provider_response_json, priority, next_attempt_at, locked_at, scheduled_for, sent_at, created_at)
-        VALUES (?, ?, ?, NULL, ?, 'whatsapp', ?, 'queued', 0, NULL, '{}', 100, NULL, NULL, ?, NULL, ?)
-        """,
-        (
-            new_id("out"),
-            payment["organization_id"],
-            payment["bot_id"],
-            payment["conversation_id"],
-            to_json({"message_id": message["id"], "contact_id": payment["contact_id"], "body": receipt_body}),
-            now,
-            now,
-        ),
-    )
-    execute(conn, "UPDATE commerce_payments SET receipt_sent_at = ? WHERE id = ?", (now, payment_id))
+    updated_payment, _ = send_payment_receipt(conn, payment_id=payment_id, actor_user=actor_user)
     from ..payments_runtime import _reconcile_payment_with_appointments
 
     updated_payment = fetch_one(conn, "SELECT * FROM commerce_payments WHERE id = ?", (payment_id,))
@@ -296,19 +321,40 @@ def confirm_payment(conn, payment_id: str, actor_user: dict | None = None, provi
     return updated_payment
 
 
-def create_whatsapp_flow(conn, *, organization_id: str, bot_id: str, name: str, flow_type: str, language: str = "es", status: str = "active", screens: list[dict] | None = None, metadata: dict[str, Any] | None = None) -> dict:
-    flow_id = new_id("flow")
-    now = utcnow_iso()
-    definition = {
-        "type": flow_type,
-        "screens": screens or [
-            {"id": "screen_1", "title": "Inicio", "components": ["text", "input", "cta"]},
-            {"id": "screen_2", "title": "Confirmación", "components": ["summary", "submit"]},
-        ],
-    }
-    execute(
+def create_whatsapp_flow(
+    conn,
+    *,
+    organization_id: str,
+    bot_id: str,
+    name: str,
+    flow_type: str,
+    language: str = "es",
+    status: str = "draft",
+    screens: list[dict] | None = None,
+    metadata: dict[str, Any] | None = None,
+    flow_json: dict[str, Any] | None = None,
+    categories: list[str] | None = None,
+    endpoint_uri: str | None = None,
+    fallback: dict[str, Any] | None = None,
+    runtime_config: dict[str, Any] | None = None,
+    compatibility: dict[str, Any] | None = None,
+) -> dict:
+    from .whatsapp_flows import create_whatsapp_flow as create_whatsapp_flow_v2
+
+    return create_whatsapp_flow_v2(
         conn,
-        "INSERT INTO whatsapp_flows (id, organization_id, bot_id, name, flow_type, status, language, definition_json, metadata_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (flow_id, organization_id, bot_id, name, flow_type, status, language, to_json(definition), to_json(metadata or {}), now, now),
+        organization_id=organization_id,
+        bot_id=bot_id,
+        name=name,
+        flow_type=flow_type,
+        language=language,
+        status=status,
+        screens=screens,
+        metadata=metadata,
+        flow_json=flow_json,
+        categories=categories,
+        endpoint_uri=endpoint_uri,
+        fallback=fallback,
+        runtime_config=runtime_config,
+        compatibility=compatibility,
     )
-    return fetch_one(conn, "SELECT * FROM whatsapp_flows WHERE id = ?", (flow_id,))

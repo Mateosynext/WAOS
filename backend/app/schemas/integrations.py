@@ -68,3 +68,8 @@ class MetaEmbeddedSignupCompleteRequest(BaseModel):
     app_secret: str | None = None
     webhook_verify_token: str | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class WebhookReplayRequest(BaseModel):
+    dry_run: bool = True
+    note: str | None = None

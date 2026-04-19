@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Badge, ContextTip, DataTable, ModuleCard, Section, SegmentedLinks, Shell, StatCard } from "../components";
 import { formatNumber, safeText } from "../lib/ui";
-import { getVerticalCatalog, getVerticalProfile } from "../lib/waos";
+import { getStrongestVerticals, getVerticalCatalog, getVerticalProfile } from "../lib/waos";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }
@@ -36,7 +36,8 @@ function waveLabel(value?: string) {
 export default async function VerticalsPage({ searchParams }: { searchParams?: Promise<SearchParams> }) {
   const params = (await searchParams) || {};
   const selectedVerticalId = first(params.vertical);
-  const verticals = await getVerticalCatalog();
+  const selectedSubvertical = first(params.subvertical);
+  const [verticals, strongestVerticals] = await Promise.all([getVerticalCatalog(), getStrongestVerticals()]);
   const selected = verticals.find((item) => item.id === selectedVerticalId) || verticals[0];
 
   if (!selected) {
@@ -58,13 +59,21 @@ export default async function VerticalsPage({ searchParams }: { searchParams?: P
     );
   }
 
-  const profile = await getVerticalProfile(selected.id);
+  const profile = await getVerticalProfile(selected.id, undefined, selectedSubvertical);
+  const strongestIds = new Set(strongestVerticals.map((item) => item.id));
 
   const segmented = verticals.map((item) => ({
     href: `/verticals?vertical=${encodeURIComponent(item.id)}`,
     label: safeText(item.name).replace(/^WAOS\s+/i, ""),
     active: item.id === selected.id,
   }));
+
+  const subverticalSegmented = (profile.subvertical_profiles.length ? profile.subvertical_profiles : profile.subverticals.map((item) => ({ id: item.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name: item }))).map((item) => ({
+    href: `/verticals?vertical=${encodeURIComponent(profile.id)}&subvertical=${encodeURIComponent(item.name)}` ,
+    label: safeText(item.name),
+    active: safeText(item.name).toLowerCase() === safeText(profile.selected_subvertical?.name, profile.recommended_subverticals[0] || item.name).toLowerCase(),
+  }));
+  const activeSubvertical = profile.selected_subvertical || profile.subvertical_profiles.find((item) => item.name === profile.recommended_subverticals[0]) || profile.subvertical_profiles[0];
 
   const pipelineRows = [
     ...(profile.pipeline.primary ? [[safeText(profile.pipeline.primary.name), safeText(profile.pipeline.primary.states.join(" • "), "Sin estados")]] : []),
@@ -94,7 +103,7 @@ export default async function VerticalsPage({ searchParams }: { searchParams?: P
   return (
     <Shell
       title="Portafolio vertical WAOS"
-      subtitle="Una capa de producto y GTM para vender WAOS como sistema operativo conversacional por vertical, no como bot horizontal. Cada vertical baja a buyer, demo, objetos nativos, pipeline, playbook, automatizaciones y KPIs."
+      subtitle="Una capa de producto y GTM para vender WAOS como sistema operativo conversacional por vertical, no como bot horizontal. Cada vertical baja a buyer, lanzamiento, objetos nativos, pipeline, playbook, automatizaciones y KPIs."
       action={<Link href="/onboarding" className="primary-btn">Ir a onboarding</Link>}
     >
       <Section title="Vertical activa" subtitle="Selecciona una línea de producto para ver su tesis comercial y operativa." icon="layers">
@@ -104,6 +113,22 @@ export default async function VerticalsPage({ searchParams }: { searchParams?: P
       <ContextTip title="Qué cambia con esta capa">
         WAOS ya no se presenta como un bot que responde, sino como una torre de control comercial y operativa sobre WhatsApp: inbox, takeover humano, memoria, follow-ups, agenda, pagos, catálogo, promociones, revenue, operaciones, insights, launch y despliegue.
       </ContextTip>
+
+
+      <Section title="Las 5 verticales más fuertes" subtitle="Prioridad 10x para vender, activar y operar WAOS con más profundidad por vertical y subvertical." icon="rocket">
+        <div className="grid gap-4 xl:grid-cols-5">
+          {strongestVerticals.map((item) => (
+            <ModuleCard
+              key={item.id}
+              title={`${item.strongest_rank || "-"}. ${safeText(item.name).replace(/^WAOS\s+/i, "")}`}
+              description={safeText(item.ten_x_narrative, item.description)}
+              icon="target"
+              tone={item.id === profile.id ? "green" : "slate"}
+              footer={<div className="text-xs text-slate-400">Score {safeText(item.ten_x_score)} • Subverticales foco: {safeText(item.recommended_subverticals.join(" • "), "Sin foco")}</div>}
+            />
+          ))}
+        </div>
+      </Section>
 
       <Section title="Resumen ejecutivo" subtitle="Lectura rápida para dirección, producto, ventas y onboarding." icon="briefcase">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -120,6 +145,33 @@ export default async function VerticalsPage({ searchParams }: { searchParams?: P
         </div>
       </Section>
 
+
+      {profile.is_strongest_vertical ? (
+        <Section title="Subvertical 10x" subtitle="Empaque táctico para bajar la vertical a una subvertical vendible, operable y medible." icon="spark">
+          {subverticalSegmented.length ? <SegmentedLinks items={subverticalSegmented} /> : null}
+          <div className="mt-4 grid gap-4 xl:grid-cols-4">
+            <StatCard label="Score subvertical" value={safeText(activeSubvertical?.strength_score, "-")} hint={safeText(activeSubvertical?.growth_motion, "Sin motion")} icon="rocket" tone="green" />
+            <StatCard label="Buyer" value={safeText(activeSubvertical?.buyer, profile.buyer.primary)} hint="Quién compra primero" icon="client" tone="blue" />
+            <StatCard label="Servicios pack" value={formatNumber(activeSubvertical?.service_bundle.length || 0)} hint="Bundle seed aplicable" icon="folder" tone="gold" />
+            <StatCard label="KPIs pack" value={formatNumber(activeSubvertical?.kpi_pack.length || 0)} hint="Métricas subverticales" icon="stats" tone="slate" />
+          </div>
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            <ModuleCard title="Promesa subvertical" description={safeText(activeSubvertical?.promise, "Sin promesa subvertical") } icon="wand" tone="green" footer={<div className="text-xs text-slate-400">Monetiza: {safeText(activeSubvertical?.monetizes.join(" • "), "Sin monetización")}</div>} />
+            <ModuleCard title="Growth loops 10x" description={safeText(profile.ten_x_growth_loops.join(" • "), "Sin loops") } icon="refresh" tone="blue" footer={<div className="text-xs text-slate-400">Comandos: {safeText(activeSubvertical?.recommended_commands.join(" • "), safeText((profile.ten_x_operational_pack.recommended_commands as string[] || []).join(" • ")))}</div>} />
+          </div>
+          <div className="mt-4 grid gap-4 xl:grid-cols-3">
+            <ModuleCard title="Bundle de servicios" description={safeText(activeSubvertical?.service_bundle.join(" • "), "Sin bundle")} icon="stack" tone="green" />
+            <ModuleCard title="Preguntas de calificación" description={safeText(activeSubvertical?.qualification_questions.join(" • "), "Sin preguntas")} icon="support" tone="gold" />
+            <ModuleCard title="Objeciones" description={safeText(activeSubvertical?.objections.join(" • "), "Sin objeciones")} icon="alert" tone="slate" />
+          </div>
+          <div className="mt-4 grid gap-4 xl:grid-cols-3">
+            <ModuleCard title="Automatizaciones prioritarias" description={safeText(activeSubvertical?.automation_priorities.join(" • "), "Sin automatizaciones")} icon="bot" tone="blue" />
+            <ModuleCard title="KPIs del pack" description={safeText(activeSubvertical?.kpi_pack.join(" • "), "Sin KPIs")} icon="stats" tone="green" />
+            <ModuleCard title="Assets de lanzamiento" description={safeText(activeSubvertical?.launch_assets.join(" • "), "Sin assets")} icon="check" tone="gold" />
+          </div>
+        </Section>
+      ) : null}
+
       <Section title="One-pager comercial" subtitle="La versión vendible de la vertical: qué vende, qué promete y cómo se empaqueta." icon="rocket">
         <div className="grid gap-4 xl:grid-cols-2">
           <ModuleCard title={safeText(profile.one_pager.headline, profile.name)} description={safeText(profile.one_pager.thesis, "Sin tesis comercial.")} icon="wand" tone="green" footer={<div className="text-xs text-slate-400">Promesa: {safeText(profile.one_pager.promise, "Sin promesa")}</div>} />
@@ -132,7 +184,7 @@ export default async function VerticalsPage({ searchParams }: { searchParams?: P
       </Section>
 
       <Section title="Demo flow" subtitle="Historia mínima que debe poder mostrarse como producto listo." icon="play">
-        <DataTable columns={["Paso", "Qué demuestra WAOS"]} rows={profile.demo_flow.map((step, index) => [`${index + 1}`, step])} />
+        <DataTable columns={["Paso", "Qué valida WAOS"]} rows={profile.demo_flow.map((step, index) => [`${index + 1}`, step])} />
       </Section>
 
       <Section title="Esquema de objetos nativos" subtitle="No son solo chats y contactos: es el modelo operativo del negocio." icon="folder">

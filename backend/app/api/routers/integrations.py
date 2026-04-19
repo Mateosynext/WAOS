@@ -16,6 +16,7 @@ from ...schemas import (
     RateLimitPolicyRequest,
     SecretCreateRequest,
     StripeIntegrationConfigRequest,
+    WebhookReplayRequest,
 )
 from ..dependencies import CurrentUoW, CurrentUser
 
@@ -136,3 +137,13 @@ def finish_google_oauth(state: str, code: str, uow: CurrentUoW):
 @router.get("/api/v1/integrations/{integration_id}/oauth/google/calendars")
 def google_calendars(integration_id: str, user: CurrentUser, uow: CurrentUoW) -> list[dict]:
     return integration_service.list_google_calendars(uow, integration_id=integration_id, user=user)
+
+
+@router.get("/api/v1/integrations/center")
+def integration_center(user: CurrentUser, uow: CurrentUoW, organization_id: str = Query(...)) -> dict:
+    return integration_service.integration_center(uow, organization_id=organization_id, user=user)
+
+
+@router.post("/api/v1/integrations/webhooks/{receipt_id}/replay")
+def replay_webhook_receipt(receipt_id: str, payload: WebhookReplayRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
+    return integration_service.replay_webhook_receipt(uow, receipt_id=receipt_id, payload=payload, user=user)

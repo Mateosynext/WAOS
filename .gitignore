@@ -1,24 +1,29 @@
-# build outputs
-/dist/
-*.zip
-
-# python
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
 
-# local env
+# Node / Next
+frontend/.next/
+frontend/node_modules/
+*.tsbuildinfo
+playwright-report/
+test-results/
+coverage/
+
+# Local envs
 .env
 .env.local
 .env.*.local
+backend/.env
+frontend/.env.local
+frontend/.env.production.local
 
-# frontend build outputs
-frontend/.next/
-frontend/node_modules/
-frontend/playwright-report/
-frontend/test-results/
-frontend/tsconfig.tsbuildinfo
-
-# backend local state
-backend/waos.db
-backend/*.sqlite3
+# Local sqlite
+*.db
+*.sqlite
+*.sqlite3
+backend/test_suite.sqlite3
+# Runtime-generated artifacts
+backend/app/artifacts/reports/*.pdf
+dist/

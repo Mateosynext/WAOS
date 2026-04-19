@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { ContextTip, EmptyActionState, ModuleCard, Section, Shell, StatCard, SuccessState, TimelineList } from "./components";
-import { formatMoney, formatNumber } from "./lib/ui";
-import { getSession } from "./lib/session";
-import { getAgendaOverview, getBots, getBusinessHubOverview, getDashboard, getIntegrations, getQueue } from "./lib/waos";
+import { formatMoney, formatNumber, safeText } from "./lib/ui";
+import { getCurrentBotId, getSession } from "./lib/session";
+import { getAgendaOverview, getBots, getBusinessHubOverview, getDashboard, getIntegrations, getQueue, getVerticalProfile } from "./lib/waos";
 
 function countConnectedIntegrations(integrations: Array<{ status?: string; credential_status?: string }>) {
   return integrations.filter((item) => {
@@ -14,6 +14,7 @@ function countConnectedIntegrations(integrations: Array<{ status?: string; crede
 
 export default async function HomePage() {
   const session = await getSession();
+  const currentBotId = await getCurrentBotId();
   const [dashboard, hub, queue, integrations, bots, agenda] = await Promise.all([
     getDashboard(),
     getBusinessHubOverview(),
@@ -23,6 +24,11 @@ export default async function HomePage() {
     getAgendaOverview(),
   ]);
 
+  const currentOrg = session?.user.organizations.find((item) => item.id === session?.organizationId) || null;
+  const selectedBot = bots.find((item) => String(item.id || "") === String(currentBotId || "")) || bots[0] || null;
+  const activeVerticalId = selectedBot?.vertical || currentOrg?.vertical || undefined;
+  const verticalProfile = activeVerticalId ? await getVerticalProfile(activeVerticalId, selectedBot?.id, currentOrg?.subvertical, session?.organizationId || undefined) : null;
+  const packStatus = verticalProfile?.runtime_connection?.pack_status || {};
   const summary = dashboard.summary || {};
   const hubSummary = hub.summary || {};
   const connectedIntegrations = countConnectedIntegrations(integrations);
@@ -67,11 +73,27 @@ export default async function HomePage() {
         <StatCard label="Conversaciones activas" value={formatNumber(summary.active_conversations)} hint="Trabajo vivo hoy" icon="chat" tone="blue" />
         <StatCard label="Canales conectados" value={formatNumber(connectedIntegrations)} hint="Capacidad real para operar" icon="plug" tone="green" />
         <StatCard label="Leads calientes" value={formatNumber(hotLeads)} hint="Seguimiento comercial" icon="target" tone="gold" />
-        <StatCard label="Ingreso visible" value={formatMoney(Number(summary.revenue || 0), "MXN")} hint="Señal resumida del negocio" icon="money" tone="slate" />
+        <StatCard label="Ingreso visible" value={formatMoney(Number(0), "MXN")} hint="Señal resumida del negocio" icon="money" tone="slate" />
       </div>
 
+      {verticalProfile?.id ? (
+        <Section title="Vertical activa de punta a punta" subtitle="La vertical ya no vive aislada en la configuración. Este tenant ya arrastra su lenguaje comercial y operativo hacia onboarding, inbox, agenda, portal y comercial." icon="wand">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Vertical" value={safeText(verticalProfile.name)} hint={safeText(verticalProfile.ten_x_narrative, verticalProfile.description)} icon="layers" tone="green" />
+            <StatCard label="Subvertical activa" value={safeText(verticalProfile.selected_subvertical?.name, currentOrg?.subvertical || "sin definir")} hint={safeText(String(verticalProfile.runtime_connection?.surface_focus?.onboarding || "Sin foco"))} icon="spark" tone="blue" />
+            <StatCard label="Pack listo" value={`${formatNumber(Number(packStatus.coverage_score || 0))}%`} hint={`Servicios ${formatNumber(Number(packStatus.services_seeded || 0))}/${formatNumber(Number(packStatus.services_expected || 0))} · Templates ${formatNumber(Number(packStatus.templates_seeded || 0))}/${formatNumber(Number(packStatus.templates_expected || 0))}`} icon="target" tone={Number(packStatus.pack_applied || 0) ? "green" : "gold"} />
+            <StatCard label="Foco de hoy" value={safeText(String(verticalProfile.runtime_connection?.surface_focus?.commercial || 'seguimiento'))} hint={safeText(String(verticalProfile.runtime_connection?.surface_focus?.inbox || 'calificación'))} icon="briefcase" tone="gold" />
+          </div>
+          <div className="mt-4 grid gap-4 xl:grid-cols-3">
+            <ModuleCard title="Inbox" description={`El inbox ya debe priorizar ${safeText(String(verticalProfile.runtime_connection?.surface_focus?.inbox || 'calificación'))} para ${safeText(verticalProfile.selected_subvertical?.name, verticalProfile.name)}.`} icon="chat" tone="blue" footer={<Link href="/inbox" className="secondary-btn">Abrir inbox</Link>} />
+            <ModuleCard title="Agenda" description={`La agenda ya se interpreta con foco en ${safeText(String(verticalProfile.runtime_connection?.surface_focus?.agenda || 'agenda vertical'))} y no como calendario plano.`} icon="calendar" tone="green" footer={<Link href="/agenda" className="secondary-btn">Abrir agenda</Link>} />
+            <ModuleCard title="Portal y comercial" description={`El portal y el business hub ya leen ${safeText(String(verticalProfile.runtime_connection?.surface_focus?.portal || 'resumen vertical'))} y ${safeText(String(verticalProfile.runtime_connection?.surface_focus?.commercial || 'seguimiento'))}.`} icon="client" tone="slate" footer={<Link href="/business-hub?tab=pipeline" className="secondary-btn">Abrir comercial</Link>} />
+          </div>
+        </Section>
+      ) : null}
+
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <Section title="1. Lo mínimo para salir bien" subtitle="Una lectura corta del setup mínimo para que el producto deje de sentirse incompleto." icon="route">
+      <Section title="1. Lo mínimo para salir bien" subtitle="Una lectura corta del setup mínimo para que el producto deje de sentirse incompleto." icon="route">
           {!setupReady ? (
             <>
               <TimelineList items={launchChecklist} />

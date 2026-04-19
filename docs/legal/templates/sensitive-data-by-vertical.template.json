@@ -1,0 +1,53 @@
+{
+  "version": "1.0.0",
+  "verticals": [
+    {
+      "vertical": "dental",
+      "sensitive_categories": [
+        "salud",
+        "imagen"
+      ],
+      "controls": [
+        "consentimiento reforzado",
+        "handoff humano",
+        "minimización"
+      ]
+    },
+    {
+      "vertical": "aesthetic",
+      "sensitive_categories": [
+        "salud",
+        "imagen"
+      ],
+      "controls": [
+        "consentimiento de imagen",
+        "restricción de marketing",
+        "aprobación humana"
+      ]
+    },
+    {
+      "vertical": "vet",
+      "sensitive_categories": [
+        "datos del tutor",
+        "datos clínicos"
+      ],
+      "controls": [
+        "validación de responsable",
+        "minimización",
+        "retención delimitada"
+      ]
+    },
+    {
+      "vertical": "education",
+      "sensitive_categories": [
+        "menores",
+        "desempeño académico"
+      ],
+      "controls": [
+        "age gate",
+        "tutor",
+        "restricción de perfilado"
+      ]
+    }
+  ]
+}

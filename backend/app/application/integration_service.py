@@ -3,7 +3,8 @@ from __future__ import annotations
 from fastapi import HTTPException
 
 from ..config import settings
-from ..db import execute, fetch_all, fetch_one
+from ..contracts import ok
+from ..db import execute, fetch_all, fetch_one, table_exists
 from ..integration_observability import integration_observability_summary, list_integration_events
 from ..providers.google_calendar import google_calendar_provider
 from ..providers.meta import meta_provider
@@ -21,7 +22,7 @@ from ..platform import (
 )
 from ..repositories import create_audit_log, get_bot, get_whatsapp_number_for_bot
 from ..security import ensure_bot_access, ensure_org_access
-from ..utils import from_json, new_id, utcnow_iso
+from ..utils import from_json, new_id, to_json, utcnow_iso
 from ..whatsapp import resolve_whatsapp_app_secret
 from .support import org_filter_sql, require_permission
 from .uow import UnitOfWork
@@ -486,6 +487,77 @@ class IntegrationService:
         ensure_org_access(user, organization_id)
         require_permission(user, organization_id, "integration.manage")
         return integration_observability_summary(uow.conn, organization_id=organization_id, integration_id=integration_id)
+
+    def integration_center(self, uow: UnitOfWork, *, organization_id: str, user: dict) -> dict:
+        ensure_org_access(user, organization_id)
+        require_permission(user, organization_id, "integration.manage")
+        integrations = self.list_integrations(uow, organization_id=organization_id, bot_id=None, limit=200, offset=0, user=user, clamp_limit=lambda value: value, clamp_offset=lambda value: value)
+        observability = integration_observability_summary(uow.conn, organization_id=organization_id, integration_id=None)
+        sync_runs = list_integration_sync_runs(uow.conn, organization_id=organization_id, integration_id=None)[:20]
+        receipts = fetch_all(uow.conn, "SELECT * FROM webhook_event_receipts WHERE organization_id = ? ORDER BY created_at DESC LIMIT 30", (organization_id,)) if table_exists(uow.conn, "webhook_event_receipts") else []
+        receipt_rows = [{**row, "replay_supported": True} for row in receipts]
+        dependency_map = [
+            {"integration_type": "whatsapp", "modules": ["inbox", "bot-studio", "crm"]},
+            {"integration_type": "calendar", "modules": ["agenda", "inbox", "appointments"]},
+            {"integration_type": "payments", "modules": ["commerce", "crm", "client portal"]},
+        ]
+        degraded = [item for item in integrations if str(item.get("health_status") or item.get("status") or "").lower() not in {"healthy", "ok", "connected", "configured", "active"}]
+        expiring = [item for item in integrations if item.get("credential_expires_at") or item.get("expires_at") or str(item.get("credential_status") or "").lower() in {"expired", "expiring"}]
+        retry_hotspots = [
+            {
+                "integration_id": item.get("id"),
+                "name": item.get("name"),
+                "provider": item.get("provider"),
+                "retry_count": int(item.get("retry_count") or 0),
+                "last_error": item.get("last_error"),
+                "health_status": item.get("health_status") or item.get("status"),
+            }
+            for item in integrations if int(item.get("retry_count") or 0) > 0 or item.get("last_error")
+        ]
+        return ok({
+            "organization_id": organization_id,
+            "summary": {
+                "total_integrations": len(integrations),
+                "active_integrations": len([item for item in integrations if str(item.get("status") or "").lower() in {"active", "connected", "configured"}]),
+                "degraded_integrations": len(degraded),
+                "credential_alerts": len(expiring),
+                "failed_receipts": len([item for item in receipt_rows if str(item.get("status") or "").lower() not in {"processed", "ok", "completed"}]),
+                "retry_hotspots": len(retry_hotspots),
+            },
+            "integrations": integrations,
+            "observability": observability,
+            "recent_sync_runs": [{**row, "summary": from_json(row.get("summary_json"), {}), "error": from_json(row.get("error_json"), {})} for row in sync_runs],
+            "failed_receipts": receipt_rows,
+            "retry_hotspots": retry_hotspots,
+            "dependency_map": dependency_map,
+        })
+
+    def replay_webhook_receipt(self, uow: UnitOfWork, *, receipt_id: str, payload, user: dict) -> dict:
+        receipt = fetch_one(uow.conn, "SELECT * FROM webhook_event_receipts WHERE id = ?", (receipt_id,))
+        if not receipt:
+            raise HTTPException(status_code=404, detail="Webhook receipt not found")
+        organization_id = receipt.get("organization_id")
+        ensure_org_access(user, organization_id)
+        require_permission(user, organization_id, "integration.replay")
+        now = utcnow_iso()
+        preview = {
+            "receipt_id": receipt_id,
+            "channel": receipt.get("channel"),
+            "external_event_id": receipt.get("external_event_id"),
+            "current_status": receipt.get("status"),
+            "dry_run": bool(payload.dry_run),
+            "note": payload.note,
+            "recommended_action": "safe_replay" if str(receipt.get("status") or "").lower() not in {"processed", "completed", "ok"} else "skip_duplicate",
+        }
+        if table_exists(uow.conn, "integration_replay_requests"):
+            execute(
+                uow.conn,
+                "INSERT INTO integration_replay_requests (id, organization_id, webhook_receipt_id, requested_by, dry_run, status, result_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (new_id("ireplay"), organization_id, receipt_id, user["id"], 1 if payload.dry_run else 0, "dry_run" if payload.dry_run else "requested", to_json(preview), now, now),
+            )
+        create_audit_log(uow.conn, organization_id=organization_id, actor_user_id=user["id"], actor_type="user", entity_type="webhook_receipt", entity_id=receipt_id, action="integration.webhook_replay_requested", metadata=preview)
+        uow.commit()
+        return ok(preview)
 
 
 integration_service = IntegrationService()

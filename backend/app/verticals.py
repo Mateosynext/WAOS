@@ -5,6 +5,8 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from .vertical_10x import enrich_vertical_profile
+
 
 def _deep_merge(base: Any, updates: Any) -> Any:
     if isinstance(base, dict) and isinstance(updates, dict):
@@ -939,7 +941,8 @@ def normalize_vertical_key(value: str | None) -> str:
 
 
 def get_vertical_profile(value: str | None) -> dict[str, Any]:
-    return _apply_global_conversation_defaults(_VERTICALS_BY_ID[normalize_vertical_key(value)])
+    base_profile = _apply_global_conversation_defaults(_VERTICALS_BY_ID[normalize_vertical_key(value)])
+    return enrich_vertical_profile(base_profile)
 
 
 def list_vertical_profiles() -> list[dict[str, Any]]:

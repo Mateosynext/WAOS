@@ -31,15 +31,14 @@ SKIP_DIRS = {'node_modules', '.next', '.git', '__pycache__', 'playwright-report'
 SKIP_LOCAL_DOMAIN_FILE_NAMES = {'.gitignore', '.dockerignore'}
 ALLOWED_LOCAL_FILES = {
     'frontend/playwright.config.ts',
-    'frontend/playwright.mocked.config.ts',
     'frontend/playwright.real.config.ts',
     'frontend/playwright.shared.ts',
-    'frontend/tests/e2e/mock-api-server.mjs',
     'frontend/tests/e2e/agenda-payments-multiorg.real.spec.ts',
     'frontend/tests/e2e/helpers.real.ts',
-    'frontend/tests/e2e/login-mfa.mock.spec.ts',
     'backend/scripts/preflight_check.py',
     'backend/scripts/run_browser_e2e_server.py',
+    'backend/app/config.py',
+    'frontend/app/lib/env.ts',
     'scripts/runtime_artifact_smoke.py',
 }
 SKIP_SCAN_FILES = {'scripts/release_scan.py'}

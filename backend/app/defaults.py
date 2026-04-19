@@ -6,6 +6,7 @@ from typing import Any
 from .config import settings
 from .verticals import build_vertical_bot_setup
 from .talent_runtime import default_talent_config
+from .growth_os_runtime import default_growth_os_config
 
 
 def _merge_dict(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -34,6 +35,7 @@ def default_bot_config(*, business_name: str, vertical: str, bot_name: str, prim
         "integrations": {"whatsapp": {"provider": "meta_cloud_api", "phone_number": whatsapp_number}, "calendar": {"mode": "google_oauth", "sync_strategy": "bidirectional"}, "instagram_dm": {"enabled": True}, "webchat": {"enabled": True}, "webhooks": []},
         "v7_modules": {"commerce": {"payments_in_chat": True, "auto_payment_reminders": True, "auto_payment_confirmation": True, "lead_close_on_payment": True, "receipt_via_whatsapp": True, "abandoned_quote_recovery": True}, "whatsapp_flows": ["precalificacion", "agendar_cita", "cotizacion_guiada", "actualizacion_datos", "encuesta_postventa", "onboarding_cliente"], "seller_mode": {"intent_scoring": True, "close_probability": True, "next_best_action": True, "objection_assist": True, "cooling_alert": True, "advisor_summary": True}, "multilingual": {"bot_language": language, "supported_languages": ["es", "en"], "detect_contact_language": True, "reply_in_detected_language": True, "template_languages": ["es", "en"], "fallback_by_language": True, "fallback_language": "en" if language == "es" else "es", "human_handoff_respects_language": True, "analytics_by_language": True, "tone_matrix_by_language": True, "native_voice_by_language": True}, "voice": {"transcription": True, "intent_from_audio": True, "text_or_audio_response": True, "operator_summary": True, "urgency_and_emotion": True, "tone_of_voice_detection": True, "context_from_vox": True, "use_voice_context_in_replies": True, "voice_memory_window": 3, "vox_context_priority": ["summary", "detected_language", "intent", "urgency_level", "emotion"]}},
         "talent": default_talent_config(),
+        "growth_os": default_growth_os_config(),
     }
     vertical_overlay = {"personality": vertical_setup["personality"], "objective": vertical_setup["objective"], "business_knowledge": {**vertical_setup["business_knowledge"], "services": vertical_setup["services"], "faqs": vertical_setup["faqs"]}, "rules": vertical_setup["rules"], "agenda": vertical_setup["agenda"], "followups": vertical_setup["followups"], "handoff": vertical_setup["handoff"], "integrations": vertical_setup["integrations"], "v7_modules": vertical_setup["v7_modules"], "vertical_context": vertical_setup["vertical_context"], "production_readiness": {"default_behavior_seeded": True, "default_templates_seeded": True, "recommended_integrations": profile.get("recommended_integrations", [])}}
     return _merge_dict(base_config, vertical_overlay)

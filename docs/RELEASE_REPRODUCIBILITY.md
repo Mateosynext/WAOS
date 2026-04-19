@@ -28,7 +28,7 @@ python scripts/release_build.py --output-dir dist
 - `dist/RELEASE_MANIFEST.json`
 - `dist/RELEASE_MANIFEST.sha256`
 - `dist/RELEASE_CHECKSUMS.sha256`
-- `dist/reports/*.json`
+- `dist/ARTIFACT_SIZES.json`
 
 ## Validación reproducible
 Ejecutar:
@@ -47,3 +47,12 @@ Esto fuerza:
 
 ## Nota de naming
 Si la carpeta raíz extraída tiene una versión vieja, `scripts/release_build.py` falla. Esto evita publicar artefactos con nombres visibles inconsistentes.
+
+## Qué sanea el build
+Antes de empaquetar, el build excluye o limpia:
+- SQLite locales (`*.db`, `*.sqlite*`)
+- `*.tsbuildinfo`
+- PDFs generados bajo `backend/app/artifacts/reports/`
+- residuos típicos de build y pruebas
+
+El runtime y el source artifact preservan el directorio `backend/app/artifacts/reports/` vacío con `.gitkeep` para evitar drift entre documentación y contenido real entregado.

@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { createBotAction, updateOrganizationVerticalAction } from "../actions";
+import { createBotAction, setTenantModeAction, updateOrganizationVerticalAction } from "../actions";
 import { ContextTip, EmptyActionState, ModuleCard, Section, Shell, StageRail, StatCard, SuccessState, TimelineList } from "../components";
 import { getCurrentBotId, getSession } from "../lib/session";
 import { formatNumber, safeText } from "../lib/ui";
-import { getBotBehavior, getBotTemplates, getBots, getBusinessHubOverview, getIntegrations, getVerticalCatalog, getVerticalProfile } from "../lib/waos";
+import { getActivationSummary, getBotBehavior, getBotTemplates, getBots, getBusinessHubOverview, getIntegrations, getVerticalCatalog, getVerticalProfile } from "../lib/waos";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }
@@ -22,11 +22,12 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
   const currentOrg = session?.user.organizations.find((item) => item.id === session?.organizationId) || null;
   const currentBotId = await getCurrentBotId();
 
-  const [bots, integrations, hub, verticals] = await Promise.all([
+  const [bots, integrations, hub, verticals, activation] = await Promise.all([
     getBots(),
     getIntegrations(),
     getBusinessHubOverview(),
     getVerticalCatalog(),
+    getActivationSummary(),
   ]);
 
   const selectedBot = bots.find((item) => item.id === currentBotId) || bots[0] || null;
@@ -71,17 +72,75 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
     >
       <ContextTip title="Cómo avanzar aquí">No necesitas entender palabras internas antes de tiempo. Primero cierras la intención del negocio; después conectas el sistema técnico.</ContextTip>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Oferta visible" value={formatNumber(totalOffer)} hint="Productos, servicios y promociones" icon="catalog" tone="green" />
         <StatCard label="Canales conectados" value={formatNumber(connectedIntegrations.length)} hint="Dónde te pueden escribir ya" icon="plug" tone="blue" />
         <StatCard label="Bots" value={formatNumber(bots.length)} hint="Bots visibles en este tenant" icon="bot" tone="gold" />
         <StatCard label="Templates" value={formatNumber(templates.length)} hint="Mensajes listos para operar" icon="stack" tone="slate" />
+        <StatCard label="Readiness" value={`${formatNumber(Number(activation.readiness_score || 0))}%`} hint={`Modo ${safeText(activation.tenant_mode || "sandbox")}`} icon="target" tone={String(activation.tenant_mode || "sandbox") === "go_live" ? "green" : "gold"} />
       </div>
+
+      <Section title="Control tower de activación vertical" subtitle="Ahora el onboarding ya lee el estado real del tenant, recomienda el siguiente paso y separa sandbox de go live." icon="target">
+        <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5">
+            <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Siguiente paso recomendado</div>
+            <div className="mt-2 text-2xl font-semibold text-white">{safeText(String(activation.next_step?.label || "Continuar setup"))}</div>
+            <p className="mt-3 text-sm leading-7 text-slate-300">{safeText(String(activation.next_step?.reason || "Cierra los bloqueadores principales antes de publicar."))}</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link href={safeText(String(activation.next_step?.href || "/onboarding"), "/onboarding")} className="primary-btn">Ir al siguiente paso</Link>
+              <Link href="/releases" className="secondary-btn">Ver release</Link>
+            </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {Object.entries(activation.progress || {}).map(([key, value]) => (
+                <div key={key} className="surface-row">
+                  <div className="text-xs uppercase tracking-[0.16em] text-slate-500">{safeText(key)}</div>
+                  <div className="mt-1 text-lg font-semibold text-white">{formatNumber(Number(value || 0))}%</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5">
+            <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Modo actual</div>
+            <div className="mt-2 text-2xl font-semibold text-white">{String(activation.tenant_mode || "sandbox") === "go_live" ? "Go live" : "Sandbox"}</div>
+            <p className="mt-3 text-sm leading-7 text-slate-300">{String(activation.tenant_mode || "sandbox") === "go_live" ? "La cuenta ya está marcada para operar en vivo." : "La cuenta sigue en modo controlado para prueba y validación."}</p>
+            {currentOrg ? (
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <form action={setTenantModeAction}>
+                  <input type="hidden" name="organization_id" value={currentOrg.id} />
+                  <input type="hidden" name="tenant_mode" value="sandbox" />
+                  <input type="hidden" name="redirect_to" value="/onboarding" />
+                  <button className="secondary-btn w-full" type="submit">Poner en sandbox</button>
+                </form>
+                <form action={setTenantModeAction}>
+                  <input type="hidden" name="organization_id" value={currentOrg.id} />
+                  <input type="hidden" name="tenant_mode" value="go_live" />
+                  <input type="hidden" name="redirect_to" value="/onboarding" />
+                  <button className="primary-btn w-full" type="submit">Marcar go live</button>
+                </form>
+              </div>
+            ) : null}
+            <div className="mt-5">
+              <TimelineList items={(activation.blockers || []).length ? (activation.blockers || []).map((item) => ({ title: safeText(String(item.message || item.key || "Bloqueador")), detail: safeText(String(item.severity || "info")), tone: String(item.severity || "medium") === "high" ? "red" : "gold" })) : [{ title: "Sin bloqueadores mayores", detail: "La cuenta ya tiene base para seguir avanzando.", tone: "green" as const }]} />
+            </div>
+          </div>
+        </div>
+      </Section>
 
       <Section title="Progreso visible y siguiente paso" subtitle="Qué ya quedó, qué sigue y qué está bloqueando de verdad." icon="route">
         <StageRail steps={steps} activeStep={step} />
         <div className="mt-5">
           <TimelineList items={readiness} />
+        </div>
+        <div className="mt-5 grid gap-3 xl:grid-cols-2">
+          {(activation.checklist || []).map((item, index) => (
+            <ModuleCard
+              key={`${String(item.key || index)}`}
+              title={safeText(String(item.label || item.key || "Checklist"))}
+              description={Boolean(item.completed) ? "Listo para salir." : "Todavía pendiente antes de publicar."}
+              icon={Boolean(item.completed) ? "check" : "alert"}
+              tone={Boolean(item.completed) ? "green" : "gold"}
+            />
+          ))}
         </div>
         <div className="mt-5 flex flex-wrap gap-2">
           <Link href="/business-hub" className="secondary-btn">Ver oferta</Link>
@@ -177,7 +236,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
         <Section title="4. Pruébalo antes de publicar" subtitle="No publiques a ciegas. Simula un flujo real desde el mensaje de entrada hasta la intervención humana si aplica." icon="play">
           <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
             <div>
-              <TimelineList items={demoFlow.map((item: any, index: number) => ({ title: safeText(item.title, `Paso ${index + 1}`), detail: safeText(item.detail || item.description, "Flujo de demostración"), tone: index === 0 ? "green" : "slate" }))} />
+              <TimelineList items={demoFlow.map((item: any, index: number) => ({ title: safeText(item.title, `Paso ${index + 1}`), detail: safeText(item.detail || item.description, "Ruta de lanzamiento"), tone: index === 0 ? "green" : "slate" }))} />
               <div className="mt-4 flex flex-wrap gap-2">
                 <Link href="/inbox" className="primary-btn">Abrir inbox</Link>
                 <Link href="/releases" className="secondary-btn">Revisar release</Link>

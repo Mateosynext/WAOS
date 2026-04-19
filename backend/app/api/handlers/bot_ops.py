@@ -169,6 +169,181 @@ def bot_traceability(bot_id: str, user: dict = Depends(get_current_user)) -> dic
             "runs": [run_row(row) for row in runs],
         }
 
+
+def _simulation_predict(config: dict, scenario_text: str) -> dict:
+    scenario = str(scenario_text or '').lower()
+    objective = str((((config or {}).get('identity') or {}).get('primary_objective') or '')).lower()
+    forbidden_topics = [str(item).lower() for item in (((config or {}).get('behavior') or {}).get('forbidden_topics') or [])]
+    tone = str((((config or {}).get('behavior') or {}).get('tone') or '')).lower() or str((((config or {}).get('identity') or {}).get('tone') or '')).lower()
+    action = 'reply'
+    queue = 'soporte'
+    must_escalate = False
+    confidence = 55
+    why = []
+    if any(keyword in scenario for keyword in ['humano', 'asesor', 'persona', 'queja', 'reclamo', 'demanda']):
+        action = 'handoff'
+        queue = 'soporte'
+        must_escalate = True
+        confidence = 88
+        why.append('Se detectó solicitud de humano o queja explícita.')
+    elif any(keyword in scenario for keyword in ['cita', 'agenda', 'agendar', 'reprogram', 'consulta']):
+        action = 'schedule'
+        queue = 'agenda'
+        confidence = 84
+        why.append('El escenario contiene intención de agenda o cita.')
+    elif any(keyword in scenario for keyword in ['pagar', 'pago', 'anticipo', 'factura', 'cobro']):
+        action = 'payment'
+        queue = 'cobranza'
+        confidence = 82
+        why.append('El escenario toca cobro o pago.')
+    elif any(keyword in scenario for keyword in ['precio', 'promocion', 'promo', 'cotizacion', 'comprar', 'plan']):
+        action = 'sell'
+        queue = 'ventas'
+        confidence = 78
+        why.append('El escenario contiene señal comercial.')
+    elif objective in {'vender', 'calificar', 'reactivar'}:
+        action = 'sell'
+        queue = 'ventas'
+        confidence = 66
+        why.append('Se usó el objetivo principal del bot para inclinar la acción.')
+    if any(topic and topic in scenario for topic in forbidden_topics):
+        must_escalate = True
+        action = 'handoff'
+        queue = 'soporte'
+        confidence = min(confidence, 72)
+        why.append('El escenario toca un tema prohibido del bot.')
+    return {
+        'predicted_action': action,
+        'predicted_queue': queue,
+        'must_escalate': must_escalate,
+        'confidence_score': confidence,
+        'tone': tone or 'neutral',
+        'why': why,
+    }
+
+
+def create_draft_snapshot(bot_id: str, payload: BotDraftSnapshotRequest, user: dict = Depends(get_current_user)) -> dict:
+    with get_connection() as conn:
+        bot = get_bot(conn, bot_id)
+        if not bot:
+            raise HTTPException(status_code=404, detail='Bot not found')
+        ensure_bot_access(user, bot)
+        _require_permission(user, bot['organization_id'], 'release.request')
+        versions = list_bot_versions(conn, bot_id)
+        next_number = 1 if not versions else max(int(item.get('version_number') or 0) for item in versions) + 1
+        snapshot_id = new_id('bver')
+        execute(conn, 'INSERT INTO bot_versions (id, organization_id, bot_id, version_number, status, config_json, created_by, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', (snapshot_id, bot['organization_id'], bot_id, next_number, 'draft_snapshot', bot['config_draft_json'], user['id'], payload.notes or 'Draft snapshot', utcnow_iso()))
+        create_audit_log(conn, organization_id=bot['organization_id'], actor_user_id=user['id'], actor_type='user', entity_type='bot', entity_id=bot_id, action='bot.draft_snapshot_created', metadata={'version_id': snapshot_id, 'version_number': next_number})
+        return fetch_one(conn, 'SELECT * FROM bot_versions WHERE id = ?', (snapshot_id,)) or {}
+
+
+def list_bot_simulation_cases(bot_id: str, user: dict = Depends(get_current_user)) -> list[dict]:
+    with get_connection() as conn:
+        bot = get_bot(conn, bot_id)
+        if not bot:
+            raise HTTPException(status_code=404, detail='Bot not found')
+        ensure_bot_access(user, bot)
+        rows = fetch_all(conn, 'SELECT * FROM bot_simulation_cases WHERE bot_id = ? ORDER BY updated_at DESC, created_at DESC', (bot_id,))
+        return [{**row, 'expected_outcome': from_json(row.get('expected_outcome_json'), {}), 'tags': from_json(row.get('tags_json'), [])} for row in rows]
+
+
+def create_bot_simulation_case(bot_id: str, payload: BotSimulationCaseRequest, user: dict = Depends(get_current_user)) -> dict:
+    with get_connection() as conn:
+        bot = get_bot(conn, bot_id)
+        if not bot:
+            raise HTTPException(status_code=404, detail='Bot not found')
+        ensure_bot_access(user, bot)
+        _require_permission(user, bot['organization_id'], 'release.request')
+        if payload.organization_id != bot['organization_id']:
+            raise HTTPException(status_code=400, detail='organization_mismatch')
+        row_id = new_id('bsc')
+        now = utcnow_iso()
+        execute(conn, 'INSERT INTO bot_simulation_cases (id, organization_id, bot_id, title, scenario_text, expected_outcome_json, tags_json, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', (row_id, payload.organization_id, bot_id, payload.title, payload.scenario_text, to_json({'expected_action': payload.expected_action, 'expected_queue': payload.expected_queue, 'expected_must_escalate': payload.expected_must_escalate}), to_json(payload.tags), user['id'], now, now))
+        create_audit_log(conn, organization_id=bot['organization_id'], actor_user_id=user['id'], actor_type='user', entity_type='bot_simulation_case', entity_id=row_id, action='bot.simulation_case_created', metadata={'bot_id': bot_id})
+        row = fetch_one(conn, 'SELECT * FROM bot_simulation_cases WHERE id = ?', (row_id,)) or {}
+        return {**row, 'expected_outcome': from_json(row.get('expected_outcome_json'), {}), 'tags': from_json(row.get('tags_json'), [])}
+
+
+def list_bot_simulation_runs(bot_id: str, user: dict = Depends(get_current_user)) -> list[dict]:
+    with get_connection() as conn:
+        bot = get_bot(conn, bot_id)
+        if not bot:
+            raise HTTPException(status_code=404, detail='Bot not found')
+        ensure_bot_access(user, bot)
+        runs = fetch_all(conn, 'SELECT * FROM bot_simulation_runs WHERE bot_id = ? ORDER BY created_at DESC LIMIT 20', (bot_id,))
+        payload = []
+        for row in runs:
+            results = fetch_all(conn, 'SELECT * FROM bot_simulation_run_results WHERE simulation_run_id = ? ORDER BY created_at ASC', (row['id'],))
+            payload.append({**row, 'summary': from_json(row.get('summary_json'), {}), 'results': [{**item, 'result': from_json(item.get('result_json'), {})} for item in results]})
+        return payload
+
+
+def run_bot_simulation(bot_id: str, payload: BotSimulationRunRequest, user: dict = Depends(get_current_user)) -> dict:
+    with get_connection() as conn:
+        bot = get_bot(conn, bot_id)
+        if not bot:
+            raise HTTPException(status_code=404, detail='Bot not found')
+        ensure_bot_access(user, bot)
+        _require_permission(user, bot['organization_id'], 'release.request')
+        draft_config = from_json(bot.get('config_draft_json'), {})
+        published_version = fetch_one(conn, 'SELECT * FROM bot_versions WHERE id = ?', (bot.get('published_version_id'),)) if bot.get('published_version_id') else None
+        if payload.compare_target == 'version' and not payload.right_version_id:
+            raise HTTPException(status_code=400, detail='right_version_id is required when compare_target=version')
+        baseline_version = None
+        if payload.compare_target == 'version':
+            baseline_version = fetch_one(conn, 'SELECT * FROM bot_versions WHERE id = ? AND bot_id = ?', (payload.right_version_id, bot_id))
+            if not baseline_version:
+                raise HTTPException(status_code=404, detail='comparison version not found')
+        elif payload.compare_target == 'published':
+            baseline_version = published_version
+        baseline_config = from_json((baseline_version or {}).get('config_json'), {}) if baseline_version else {}
+        cases = fetch_all(conn, 'SELECT * FROM bot_simulation_cases WHERE bot_id = ? ORDER BY updated_at DESC', (bot_id,))
+        if payload.case_ids:
+            selected = set(payload.case_ids)
+            cases = [row for row in cases if row['id'] in selected]
+        if not cases:
+            raise HTTPException(status_code=400, detail='No simulation cases available')
+        run_id = new_id('bsr')
+        now = utcnow_iso()
+        execute(conn, 'INSERT INTO bot_simulation_runs (id, organization_id, bot_id, compare_target, left_version_id, right_version_id, status, summary_json, cases_total, passed_count, failed_count, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', (run_id, bot['organization_id'], bot_id, payload.compare_target, bot.get('published_version_id'), (baseline_version or {}).get('id'), 'running', '{}', len(cases), 0, 0, user['id'], now))
+        results = []
+        passed = 0
+        for case in cases:
+            expected = from_json(case.get('expected_outcome_json'), {})
+            predicted = _simulation_predict(draft_config, case.get('scenario_text'))
+            baseline_predicted = _simulation_predict(baseline_config, case.get('scenario_text')) if baseline_config else None
+            checks = []
+            if expected.get('expected_action'):
+                checks.append(predicted['predicted_action'] == expected.get('expected_action'))
+            if expected.get('expected_queue'):
+                checks.append(predicted['predicted_queue'] == expected.get('expected_queue'))
+            if expected.get('expected_must_escalate') is not None:
+                checks.append(bool(predicted['must_escalate']) == bool(expected.get('expected_must_escalate')))
+            case_passed = True if not checks else all(checks)
+            if case_passed:
+                passed += 1
+            result = {
+                'case_id': case['id'],
+                'title': case['title'],
+                'scenario_text': case['scenario_text'],
+                'expected': expected,
+                'draft_prediction': predicted,
+                'baseline_prediction': baseline_predicted,
+                'changed_vs_baseline': baseline_predicted != predicted if baseline_predicted else False,
+            }
+            execute(conn, 'INSERT INTO bot_simulation_run_results (id, simulation_run_id, simulation_case_id, passed, result_json, created_at) VALUES (?, ?, ?, ?, ?, ?)', (new_id('bsrr'), run_id, case['id'], 1 if case_passed else 0, to_json(result), now))
+            results.append({**result, 'passed': case_passed})
+        summary = {
+            'pass_rate': round((passed / len(cases)) * 100, 2) if cases else 0,
+            'compare_target': payload.compare_target,
+            'cases_total': len(cases),
+            'changed_vs_baseline': len([item for item in results if item.get('changed_vs_baseline')]),
+        }
+        execute(conn, 'UPDATE bot_simulation_runs SET status = ?, summary_json = ?, passed_count = ?, failed_count = ? WHERE id = ?', ('completed', to_json(summary), passed, len(cases) - passed, run_id))
+        create_audit_log(conn, organization_id=bot['organization_id'], actor_user_id=user['id'], actor_type='user', entity_type='bot_simulation_run', entity_id=run_id, action='bot.simulation_run_completed', metadata=summary)
+        row = fetch_one(conn, 'SELECT * FROM bot_simulation_runs WHERE id = ?', (run_id,)) or {}
+        return {**row, 'summary': from_json(row.get('summary_json'), {}), 'results': results}
+
 def bot_library_templates(vertical: str | None = Query(default=None), user: dict = Depends(get_current_user)) -> list[dict]:
     _ = user
     if vertical:

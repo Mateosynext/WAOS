@@ -17,7 +17,7 @@ export function buildPlaywrightConfig(opts: {
     reporter: [['list'], ['html', { open: 'never' }]],
     outputDir: 'test-results',
     use: {
-      baseURL: `http://127.0.0.1:${opts.frontendPort}`,
+      baseURL: `http://localhost:${opts.frontendPort}`,
       trace: 'retain-on-failure',
       screenshot: 'only-on-failure',
       video: (process.env.PLAYWRIGHT_VIDEO_MODE as 'off' | 'on' | 'retain-on-failure' | 'on-first-retry') || 'off',
