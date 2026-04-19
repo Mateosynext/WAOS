@@ -36,6 +36,7 @@ def ensure_backend_runtime_schema(conn) -> None:
             last_error TEXT,
             report_id TEXT,
             scheduled_for TEXT NOT NULL,
+            priority INTEGER NOT NULL DEFAULT 50,
             started_at TEXT,
             completed_at TEXT,
             locked_at TEXT,
@@ -47,5 +48,6 @@ def ensure_backend_runtime_schema(conn) -> None:
             FOREIGN KEY (report_id) REFERENCES executive_reports(id)
         );
         CREATE INDEX IF NOT EXISTS idx_report_generation_jobs_status ON report_generation_jobs(status, scheduled_for ASC, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_report_generation_jobs_priority ON report_generation_jobs(status, priority DESC, scheduled_for ASC);
         """
     )

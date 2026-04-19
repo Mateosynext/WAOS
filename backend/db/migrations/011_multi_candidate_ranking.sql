@@ -1,8 +1,8 @@
 -- phase 21: response multi-candidate ranking
-ALTER TABLE message_ai_runs ADD COLUMN selected_variant TEXT;
-ALTER TABLE message_ai_runs ADD COLUMN candidate_count INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE message_ai_runs ADD COLUMN ranking_version TEXT;
-ALTER TABLE message_ai_runs ADD COLUMN ranking_summary_json TEXT NOT NULL DEFAULT '{}';
+ALTER TABLE message_ai_runs ADD COLUMN IF NOT EXISTS selected_variant TEXT;
+ALTER TABLE message_ai_runs ADD COLUMN IF NOT EXISTS candidate_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE message_ai_runs ADD COLUMN IF NOT EXISTS ranking_version TEXT;
+ALTER TABLE message_ai_runs ADD COLUMN IF NOT EXISTS ranking_summary_json TEXT NOT NULL DEFAULT '{}';
 
 CREATE TABLE IF NOT EXISTS response_candidate_rankings (
     id TEXT PRIMARY KEY,

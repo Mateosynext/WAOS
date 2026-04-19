@@ -46,6 +46,7 @@ class Settings:
     new_relic_otlp_endpoint: str = os.getenv("NEW_RELIC_OTLP_ENDPOINT", "")
     new_relic_license_key_present: bool = bool(os.getenv("NEW_RELIC_LICENSE_KEY", "").strip())
     cors_allowed_origins_raw: str = os.getenv("CORS_ALLOWED_ORIGINS", DEFAULT_CORS_ALLOWED_ORIGINS)
+    cors_allowed_origin_regex_raw: str = os.getenv("CORS_ALLOWED_ORIGIN_REGEX", "")
     allowed_hosts_raw: str = os.getenv("ALLOWED_HOSTS", DEFAULT_ALLOWED_HOSTS)
     public_app_url: str = os.getenv("PUBLIC_APP_URL", DEFAULT_PUBLIC_APP_URL)
     api_base_url: str = os.getenv("API_BASE_URL", DEFAULT_API_BASE_URL)
@@ -123,6 +124,11 @@ class Settings:
     def cors_allowed_origins(self) -> list[str]:
         values = [item.strip() for item in self.cors_allowed_origins_raw.split(",") if item.strip()]
         return values or [DEFAULT_PUBLIC_APP_URL]
+
+    @property
+    def cors_allowed_origin_regex(self) -> str | None:
+        value = self.cors_allowed_origin_regex_raw.strip()
+        return value or None
 
     @property
     def allowed_hosts(self) -> list[str]:

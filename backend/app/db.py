@@ -396,7 +396,11 @@ def init_db() -> None:
         _ensure_column(conn, "executive_reports", "pdf_filename", "TEXT")
         _ensure_column(conn, "executive_reports", "pdf_generated_at", "TEXT")
         _ensure_column(conn, "executive_reports", "updated_at", "TEXT")
+        _ensure_column(conn, "report_generation_jobs", "priority", "INTEGER NOT NULL DEFAULT 50")
         _ensure_column(conn, "report_generation_jobs", "locked_at", "TEXT")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_report_generation_jobs_priority ON report_generation_jobs(status, priority DESC, scheduled_for ASC)"
+        )
         _ensure_column(conn, "voice_notes", "processing_status", "TEXT NOT NULL DEFAULT 'completed'")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_voice_notes_processing ON voice_notes(organization_id, processing_status, created_at)"

@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.db import execute, fetch_all, fetch_one, get_connection, init_db  # noqa: E402
+from app.db import close_connection_pool, execute, fetch_all, fetch_one, get_connection, has_column, init_db  # noqa: E402
 from app.job_idempotency import begin_job_execution, mark_job_completed, mark_job_failed  # noqa: E402
 from app.platform import append_technical_log, create_integration_sync_run, create_runtime_callback, finish_execution_run, finish_integration_sync_run, start_execution_run  # noqa: E402
 from app.repositories import create_audit_log, create_message, get_bot, get_conversation, publish_version  # noqa: E402
@@ -52,12 +52,14 @@ def _claim_due_records(conn, *, table: str, statuses: tuple[str, ...], batch_siz
     now = utcnow_iso()
     stale_lock = add_minutes(now, -lock_minutes)
     placeholders = ",".join("?" for _ in statuses)
+    has_priority = has_column(conn, table, "priority")
+    order_by = "priority DESC, scheduled_for ASC" if has_priority else "scheduled_for ASC"
     rows = fetch_all(
         conn,
         f"""
         SELECT id FROM {table}
         WHERE status IN ({placeholders}) AND scheduled_for <= ? AND (locked_at IS NULL OR locked_at <= ?) {extra_where}
-        ORDER BY priority DESC, scheduled_for ASC
+        ORDER BY {order_by}
         LIMIT ?
         """,
         [*statuses, now, stale_lock, batch_size],
@@ -883,24 +885,27 @@ def run_once() -> dict:
 
 
 def main() -> None:
-    init_db()
-    mode = os.getenv("WORKER_MODE", "loop")
-    if mode == "once":
-        print(run_once())
-        return
-    while True:
-        result = run_once()
-        processed_total = sum(len(result[key]) for key in ["growth_os", "jobs", "integrations", "reports", "report_jobs", "publishes", "alerts", "outbox"])
-        if processed_total:
-            print(result)
-        backpressure = result.get("backpressure") or {}
-        sleep_seconds = adaptive_poll_seconds(
-            processed_total=processed_total,
-            queue_pressure=int(backpressure.get("queue_pressure") or 0),
-            oldest_age_seconds=int(backpressure.get("oldest_age_seconds") or 0),
-            base_seconds=POLL_SECONDS,
-        )
-        time.sleep(sleep_seconds)
+    try:
+        init_db()
+        mode = os.getenv("WORKER_MODE", "loop")
+        if mode == "once":
+            print(run_once())
+            return
+        while True:
+            result = run_once()
+            processed_total = sum(len(result[key]) for key in ["growth_os", "jobs", "integrations", "reports", "report_jobs", "publishes", "alerts", "outbox"])
+            if processed_total:
+                print(result)
+            backpressure = result.get("backpressure") or {}
+            sleep_seconds = adaptive_poll_seconds(
+                processed_total=processed_total,
+                queue_pressure=int(backpressure.get("queue_pressure") or 0),
+                oldest_age_seconds=int(backpressure.get("oldest_age_seconds") or 0),
+                base_seconds=POLL_SECONDS,
+            )
+            time.sleep(sleep_seconds)
+    finally:
+        close_connection_pool()
 
 
 if __name__ == "__main__":
