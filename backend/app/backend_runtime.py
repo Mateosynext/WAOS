@@ -1,6 +1,27 @@
 from __future__ import annotations
 
 
+def _column_exists(conn, table: str, column: str) -> bool:
+    if getattr(conn, "backend", "sqlite") == "sqlite":
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        return any((row[1] if not isinstance(row, dict) else row.get("name")) == column for row in rows)
+    row = conn.execute(
+        """
+        SELECT 1 AS present
+        FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?
+        LIMIT 1
+        """,
+        (table, column),
+    ).fetchone()
+    return bool(row)
+
+
+def _ensure_column(conn, table: str, column: str, definition: str) -> None:
+    if not _column_exists(conn, table, column):
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 def ensure_backend_runtime_schema(conn) -> None:
     conn.executescript(
         """
@@ -47,6 +68,16 @@ def ensure_backend_runtime_schema(conn) -> None:
             FOREIGN KEY (requested_by_user_id) REFERENCES users(id),
             FOREIGN KEY (report_id) REFERENCES executive_reports(id)
         );
+        """
+    )
+
+    # Existing installations may have report_generation_jobs without priority because
+    # CREATE TABLE IF NOT EXISTS does not retrofit new columns onto an existing table.
+    # Add it explicitly before creating indexes or issuing ORDER BY priority queries.
+    _ensure_column(conn, "report_generation_jobs", "priority", "INTEGER NOT NULL DEFAULT 50")
+
+    conn.executescript(
+        """
         CREATE INDEX IF NOT EXISTS idx_report_generation_jobs_status ON report_generation_jobs(status, scheduled_for ASC, updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_report_generation_jobs_priority ON report_generation_jobs(status, priority DESC, scheduled_for ASC);
         """
