@@ -1,18 +1,6 @@
 "use server";
-
 import { redirect } from "next/navigation";
-import {
-  ACCESS_COOKIE,
-  API_BASE,
-  BOT_COOKIE,
-  ORG_COOKIE,
-  REFRESH_COOKIE,
-  type ActionState,
-  cookies,
-  normalizeActionError,
-  readString,
-  sessionCookieOptions,
-} from "./shared";
+import { ACCESS_COOKIE, API_BASE, BOT_COOKIE, ORG_COOKIE, REFRESH_COOKIE, ActionState, cookies, normalizeActionError, readString, sessionCookieOptions } from "./shared";
 
 export async function loginAction(_: ActionState, formData: FormData): Promise<ActionState> {
   const email = readString(formData, "email");
@@ -22,13 +10,13 @@ export async function loginAction(_: ActionState, formData: FormData): Promise<A
   const mfaSetupCode = readString(formData, "mfa_setup_code");
 
   if (!API_BASE) {
-    return { ok: false, error: "Configura API_INTERNAL_URL o API_BASE_URL para iniciar sesi贸n." };
+    return { ok: false, error: "Configura API_INTERNAL_URL o API_BASE_URL para iniciar sesi髇." };
   }
 
   let redirectTo = "/";
 
   try {
-    const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
+    const response = await fetch(${API_BASE}/api/v1/auth/login, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -36,13 +24,13 @@ export async function loginAction(_: ActionState, formData: FormData): Promise<A
         password,
         otp_code: otpCode || null,
         challenge_id: challengeId || null,
-        mfa_setup_code: mfaSetupCode || null,
+        mfa_setup_code: mfaSetupCode || null
       }),
       cache: "no-store",
     });
 
     if (!response.ok) {
-      let detail = "No se pudo iniciar sesi贸n";
+      let detail = "No se pudo iniciar sesi髇";
       try {
         const data = await response.json();
         detail =
@@ -52,7 +40,7 @@ export async function loginAction(_: ActionState, formData: FormData): Promise<A
       } catch {
         detail = await response.text();
       }
-      return { ok: false, error: detail || "No se pudo iniciar sesi贸n" };
+      return { ok: false, error: detail || "No se pudo iniciar sesi髇" };
     }
 
     const data = await response.json();
@@ -93,10 +81,7 @@ export async function loginAction(_: ActionState, formData: FormData): Promise<A
           ? "/client"
           : "/";
   } catch (error) {
-    return {
-      ok: false,
-      error: normalizeActionError(error, "No se pudo iniciar sesi贸n en este momento."),
-    };
+    return { ok: false, error: normalizeActionError(error, "No se pudo iniciar sesi髇 en este momento.") };
   }
 
   redirect(redirectTo);
@@ -108,12 +93,9 @@ export async function logoutAction() {
   const refresh = store.get(REFRESH_COOKIE)?.value;
 
   if (access && refresh && API_BASE) {
-    await fetch(`${API_BASE}/api/v1/auth/logout`, {
+    await fetch(${API_BASE}/api/v1/auth/logout, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${access}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: Bearer  },
       body: JSON.stringify({ refresh_token: refresh }),
       cache: "no-store",
     }).catch(() => null);
