@@ -7,7 +7,6 @@ from typing import Any
 
 from .domains.bot_behavior import get_bot_behavior_settings, list_bot_response_templates, upsert_bot_behavior_settings, upsert_bot_response_template
 from .domains.catalog import create_catalog_service, list_catalog_services
-from .repositories.bots import create_bot
 from .knowledge_runtime import ingest_knowledge_document
 from .utils import from_json, new_id, slugify, to_json, utcnow_iso
 from .vertical_10x import apply_subvertical_pack, get_subvertical_profile
@@ -1852,6 +1851,8 @@ def apply_guided_onboarding_wizard(conn: Any, *, wizard_id: str, actor_user: dic
     if not bot_row:
         if not actor_user:
             raise ValueError("wizard_requires_bot")
+        from .repositories.bots import create_bot
+
         created = create_bot(
             conn,
             organization_id=wizard["organization_id"],
@@ -2086,3 +2087,4 @@ def apply_guided_onboarding_wizard(conn: Any, *, wizard_id: str, actor_user: dic
         "planned_integrations": [{"id": row.get("id"), "provider": row.get("provider"), "status": row.get("status")} for row in integration_rows],
         "summary": applied_summary,
     }
+
