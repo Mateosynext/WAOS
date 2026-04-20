@@ -1422,11 +1422,49 @@ export default function BotStudioWizardClient({
 
   const canExitToNextModule = nextBestActionModule !== "Wizard";
 
-  const remainingProgressSteps = useMemo(() => ([
-    { key: "connect", label: "Conectar", detail: hasConnectedChannel ? "Canal operativo detectado." : "Falta conectar el canal principal.", status: hasConnectedChannel ? "done" : nextBestAction?.key === "connect_channel" ? "active" : "pending" as const },
-    { key: "test", label: "Probar", detail: hasApprovedSimulationAfterApply ? `Simulación aprobada (${safeText(String(latestSimulationPassRate), "0")}%).` : hasSimulationAfterApply ? "Hay simulación, pero todavía no queda aprobada." : "Falta correr o aprobar la simulación básica.", status: hasApprovedSimulationAfterApply ? "done" : nextBestAction?.key === "run_simulation" ? "active" : "pending" as const },
-    { key: "publish", label: "Publicar", detail: hasPublishedReleaseAfterApply ? "El release ya quedó publicado." : hasReleaseRequestAfterApply ? "Ya existe release en curso." : "Falta publicar el release del cambio.", status: hasPublishedReleaseAfterApply ? "done" : nextBestAction?.key === "publish_release" ? "active" : "pending" as const },
-    { key: "operate", label: "Operar", detail: hasPublishedReleaseAfterApply ? "Ya puedes abrir inbox y operar con tráfico real." : "Inbox queda como último paso después de publicar.", status: nextBestAction?.key === "open_inbox" ? "active" : hasPublishedReleaseAfterApply ? "pending" : "pending" as const },
+  type ProgressStepStatus = "done" | "active" | "pending";
+  type ProgressStep = {
+    key: string;
+    label: string;
+    detail: string;
+    status: ProgressStepStatus;
+  };
+
+  const remainingProgressSteps = useMemo<ProgressStep[]>(() => ([
+    {
+      key: "connect",
+      label: "Conectar",
+      detail: hasConnectedChannel ? "Canal operativo detectado." : "Falta conectar el canal principal.",
+      status: hasConnectedChannel ? "done" : nextBestAction?.key === "connect_channel" ? "active" : "pending",
+    },
+    {
+      key: "test",
+      label: "Probar",
+      detail: hasApprovedSimulationAfterApply
+        ? `Simulación aprobada (${safeText(String(latestSimulationPassRate), "0")}%).`
+        : hasSimulationAfterApply
+          ? "Hay simulación, pero todavía no queda aprobada."
+          : "Falta correr o aprobar la simulación básica.",
+      status: hasApprovedSimulationAfterApply ? "done" : nextBestAction?.key === "run_simulation" ? "active" : "pending",
+    },
+    {
+      key: "publish",
+      label: "Publicar",
+      detail: hasPublishedReleaseAfterApply
+        ? "El release ya quedó publicado."
+        : hasReleaseRequestAfterApply
+          ? "Ya existe release en curso."
+          : "Falta publicar el release del cambio.",
+      status: hasPublishedReleaseAfterApply ? "done" : nextBestAction?.key === "publish_release" ? "active" : "pending",
+    },
+    {
+      key: "operate",
+      label: "Operar",
+      detail: hasPublishedReleaseAfterApply
+        ? "Ya puedes abrir inbox y operar con tráfico real."
+        : "Inbox queda como último paso después de publicar.",
+      status: nextBestAction?.key === "open_inbox" ? "active" : "pending",
+    },
   ]), [hasApprovedSimulationAfterApply, hasConnectedChannel, hasPublishedReleaseAfterApply, hasReleaseRequestAfterApply, hasSimulationAfterApply, latestSimulationPassRate, nextBestAction?.key]);
 
   const remainingProgressCount = useMemo(() => remainingProgressSteps.filter((item) => item.status !== "done").length, [remainingProgressSteps]);
