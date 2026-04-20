@@ -8,26 +8,47 @@ export async function loginAction(_: ActionState, formData: FormData): Promise<A
   const otpCode = readString(formData, "otp_code");
   const challengeId = readString(formData, "challenge_id");
   const mfaSetupCode = readString(formData, "mfa_setup_code");
-  if (!API_BASE) return { ok: false, error: "Configura API_INTERNAL_URL o API_BASE_URL para iniciar sesi贸n." };
+
+  if (!API_BASE) {
+    return { ok: false, error: "Configura API_INTERNAL_URL o API_BASE_URL para iniciar sesi髇." };
+  }
+
+  let redirectTo = "/";
+
   try {
-    const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
+    const response = await fetch(${API_BASE}/api/v1/auth/login, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, otp_code: otpCode || null, challenge_id: challengeId || null, mfa_setup_code: mfaSetupCode || null }),
+      body: JSON.stringify({
+        email,
+        password,
+        otp_code: otpCode || null,
+        challenge_id: challengeId || null,
+        mfa_setup_code: mfaSetupCode || null
+      }),
       cache: "no-store",
     });
+
     if (!response.ok) {
-      let detail = "No se pudo iniciar sesi贸n";
+      let detail = "No se pudo iniciar sesi髇";
       try {
         const data = await response.json();
-        detail = typeof data?.detail === "string" ? data.detail : data?.detail?.message || JSON.stringify(data?.detail || data);
+        detail =
+          typeof data?.detail === "string"
+            ? data.detail
+            : data?.detail?.message || JSON.stringify(data?.detail || data);
       } catch {
         detail = await response.text();
       }
-      return { ok: false, error: detail || "No se pudo iniciar sesi贸n" };
+      return { ok: false, error: detail || "No se pudo iniciar sesi髇" };
     }
+
     const data = await response.json();
-    if (data.mfa_required) return { ok: false, mfaRequired: true, challengeId: data.challenge_id };
+
+    if (data.mfa_required) {
+      return { ok: false, mfaRequired: true, challengeId: data.challenge_id };
+    }
+
     if (data.mfa_setup_required) {
       return {
         ok: false,
@@ -39,34 +60,51 @@ export async function loginAction(_: ActionState, formData: FormData): Promise<A
         },
       };
     }
+
     const store = await cookies();
     const organizations = data.user?.organizations || [];
     const orgId = organizations.length === 1 ? organizations[0]?.id || "" : "";
+
     store.set(ACCESS_COOKIE, data.access_token, sessionCookieOptions.access());
     store.set(REFRESH_COOKIE, data.refresh_token, sessionCookieOptions.refresh());
-    if (orgId) store.set(ORG_COOKIE, orgId, sessionCookieOptions.scope()); else store.delete(ORG_COOKIE);
-    if (organizations.length > 1 && data.user?.global_role !== "client") redirect("/organizations?source=login");
-    redirect(data.user?.global_role === "client" ? "/client" : "/");
+
+    if (orgId) {
+      store.set(ORG_COOKIE, orgId, sessionCookieOptions.scope());
+    } else {
+      store.delete(ORG_COOKIE);
+    }
+
+    redirectTo =
+      organizations.length > 1 && data.user?.global_role !== "client"
+        ? "/organizations?source=login"
+        : data.user?.global_role === "client"
+          ? "/client"
+          : "/";
   } catch (error) {
-    return { ok: false, error: normalizeActionError(error, "No se pudo iniciar sesi贸n en este momento.") };
+    return { ok: false, error: normalizeActionError(error, "No se pudo iniciar sesi髇 en este momento.") };
   }
+
+  redirect(redirectTo);
 }
 
 export async function logoutAction() {
   const store = await cookies();
   const access = store.get(ACCESS_COOKIE)?.value;
   const refresh = store.get(REFRESH_COOKIE)?.value;
+
   if (access && refresh && API_BASE) {
-    await fetch(`${API_BASE}/api/v1/auth/logout`, {
+    await fetch(${API_BASE}/api/v1/auth/logout, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${access}` },
+      headers: { "Content-Type": "application/json", Authorization: Bearer  },
       body: JSON.stringify({ refresh_token: refresh }),
       cache: "no-store",
     }).catch(() => null);
   }
+
   store.delete(ACCESS_COOKIE);
   store.delete(REFRESH_COOKIE);
   store.delete(ORG_COOKIE);
   store.delete(BOT_COOKIE);
+
   redirect("/login");
 }
