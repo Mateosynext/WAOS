@@ -263,6 +263,8 @@ def table_exists(conn: DBConnection, table: str) -> bool:
 
 
 def migration_status(conn: DBConnection) -> dict[str, object]:
+    from .migrations import migration_status as _migration_status
+
     return _migration_status(conn)
 
 
@@ -405,6 +407,8 @@ def init_db() -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_voice_notes_processing ON voice_notes(organization_id, processing_status, created_at)"
         )
+
+        from .migrations import apply_migrations
 
         apply_migrations(conn)
 

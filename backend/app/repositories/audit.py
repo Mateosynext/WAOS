@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import os
 import sqlite3
 from typing import Any
 
-from ..db import execute, fetch_all, fetch_one
-from ..defaults import default_bot_config
-from ..utils import from_json, hash_password, new_id, slugify, to_json, utcnow_iso
-from ..verticals import build_organization_settings
+from ..db import execute
+from ..utils import new_id, to_json, utcnow_iso
 
 def create_audit_log(
     conn: sqlite3.Connection,

@@ -35,9 +35,9 @@ async function getInitialBlueprint(args: {
 export default async function BotStudioPage({
   searchParams,
 }: {
-  searchParams?: Promise<SearchParams> | SearchParams;
+  searchParams?: Promise<SearchParams>;
 }) {
-  const resolvedParams = await searchParams;
+  const resolvedParams = (await searchParams) ?? {};
   const routeBotId = firstParam(resolvedParams?.bot);
   const routeMode = firstParam(resolvedParams?.mode);
   const routeWizardId = firstParam(resolvedParams?.wizard_id);
