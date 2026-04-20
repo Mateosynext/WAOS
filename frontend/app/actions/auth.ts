@@ -1,6 +1,18 @@
 "use server";
+
 import { redirect } from "next/navigation";
-import { ACCESS_COOKIE, API_BASE, BOT_COOKIE, ORG_COOKIE, REFRESH_COOKIE, ActionState, cookies, normalizeActionError, readString, sessionCookieOptions } from "./shared";
+import {
+  ACCESS_COOKIE,
+  API_BASE,
+  BOT_COOKIE,
+  ORG_COOKIE,
+  REFRESH_COOKIE,
+  type ActionState,
+  cookies,
+  normalizeActionError,
+  readString,
+  sessionCookieOptions,
+} from "./shared";
 
 export async function loginAction(_: ActionState, formData: FormData): Promise<ActionState> {
   const email = readString(formData, "email");
@@ -16,7 +28,7 @@ export async function loginAction(_: ActionState, formData: FormData): Promise<A
   let redirectTo = "/";
 
   try {
-    const response = await fetch(${API_BASE}/api/v1/auth/login, {
+    const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -24,7 +36,7 @@ export async function loginAction(_: ActionState, formData: FormData): Promise<A
         password,
         otp_code: otpCode || null,
         challenge_id: challengeId || null,
-        mfa_setup_code: mfaSetupCode || null
+        mfa_setup_code: mfaSetupCode || null,
       }),
       cache: "no-store",
     });
@@ -81,7 +93,10 @@ export async function loginAction(_: ActionState, formData: FormData): Promise<A
           ? "/client"
           : "/";
   } catch (error) {
-    return { ok: false, error: normalizeActionError(error, "No se pudo iniciar sesión en este momento.") };
+    return {
+      ok: false,
+      error: normalizeActionError(error, "No se pudo iniciar sesión en este momento."),
+    };
   }
 
   redirect(redirectTo);
@@ -93,9 +108,12 @@ export async function logoutAction() {
   const refresh = store.get(REFRESH_COOKIE)?.value;
 
   if (access && refresh && API_BASE) {
-    await fetch(${API_BASE}/api/v1/auth/logout, {
+    await fetch(`${API_BASE}/api/v1/auth/logout`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: Bearer  },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${access}`,
+      },
       body: JSON.stringify({ refresh_token: refresh }),
       cache: "no-store",
     }).catch(() => null);
