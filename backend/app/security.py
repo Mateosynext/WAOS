@@ -79,6 +79,15 @@ def get_current_user(
 
 
 
+def get_optional_current_user(
+    request: Request,
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict | None:
+    if not creds:
+        return None
+    return get_current_user(request, creds)
+
+
 def require_global_roles(*allowed_roles: str):
     def _dependency(user: dict = Depends(get_current_user)) -> dict:
         if user["global_role"] not in allowed_roles:

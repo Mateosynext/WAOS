@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .common import *
+from ...security import get_optional_current_user
 from ...verticals import get_vertical_profile, list_vertical_profiles
 from ...vertical_10x import apply_subvertical_pack, build_strongest_verticals, enrich_vertical_profile_for_runtime, get_subvertical_profile
 from ...schemas.commerce import VerticalSubverticalPackApplyRequest
@@ -108,16 +109,27 @@ def promotion_rules_create(payload: PromotionRuleRequest, user: dict = Depends(g
     with get_connection() as conn:
         return create_promotion_rule(conn, actor_user=user, **payload.model_dump())
 
-def verticals_catalog(top_only: bool = Query(default=False), user: dict = Depends(get_current_user)) -> list[dict]:
+def verticals_catalog(top_only: bool = Query(default=False), user: dict | None = Depends(get_optional_current_user)) -> list[dict]:
     _ = user
     profiles = list_vertical_profiles()
     return build_strongest_verticals(profiles) if top_only else profiles
 
 
-def vertical_profile_get(vertical: str | None = Query(default=None), subvertical: str | None = Query(default=None), organization_id: str | None = Query(default=None), bot_id: str | None = Query(default=None), user: dict = Depends(get_current_user)) -> dict:
+def vertical_profile_get(vertical: str | None = Query(default=None), subvertical: str | None = Query(default=None), organization_id: str | None = Query(default=None), bot_id: str | None = Query(default=None), user: dict | None = Depends(get_optional_current_user)) -> dict:
     resolved_vertical = vertical
     bot: dict | None = None
     org: dict | None = None
+    needs_database_context = bool(bot_id or organization_id)
+    if not needs_database_context:
+        profile = get_vertical_profile(resolved_vertical)
+        if subvertical:
+            selected = get_subvertical_profile(profile, subvertical)
+            if not selected:
+                raise HTTPException(status_code=404, detail="Subvertical not found")
+            profile = {**profile, "selected_subvertical": selected}
+        return profile
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required for organization or bot scoped vertical profile")
     with get_connection() as conn:
         if bot_id:
             bot = get_bot(conn, bot_id)
@@ -136,7 +148,7 @@ def vertical_profile_get(vertical: str | None = Query(default=None), subvertical
         return enrich_vertical_profile_for_runtime(conn, profile=profile, organization_id=organization_id, bot=bot, org=org, subvertical=subvertical)
 
 
-def vertical_subvertical_profile_get(vertical: str, subvertical: str | None = Query(default=None), user: dict = Depends(get_current_user)) -> dict:
+def vertical_subvertical_profile_get(vertical: str, subvertical: str | None = Query(default=None), user: dict | None = Depends(get_optional_current_user)) -> dict:
     _ = user
     profile = get_vertical_profile(vertical)
     selected = get_subvertical_profile(profile, subvertical)

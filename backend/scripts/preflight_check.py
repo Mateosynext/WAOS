@@ -57,7 +57,11 @@ def main() -> int:
         with get_connection() as conn:
             conn.execute('SELECT 1')
     except Exception as exc:  # pragma: no cover
-        errors.append(f'No se pudo abrir conexión a la base de datos: {exc}')
+        message = f'No se pudo abrir conexión a la base de datos: {exc}'
+        if settings.startup_db_required:
+            errors.append(message)
+        else:
+            warnings.append(message)
 
     if warnings:
         for item in warnings:

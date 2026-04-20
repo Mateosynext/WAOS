@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from .common import *
+from ...verticals import get_vertical_profile, list_vertical_profiles
+from ...vertical_10x import build_strongest_verticals, get_subvertical_profile
 from ...world_class_ext import authenticate_public_api_credential, public_sdk_manifest, register_channel_event
 from ...rate_limiter import public_ingest_rate_limit
 from ...world_class_plus import append_immutable_audit_event, module_health_checks
@@ -12,10 +14,13 @@ def app_console() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 def health() -> dict:
-    with get_connection() as conn:
-        db_ok = fetch_one(conn, "SELECT 1 as ok") is not None
-        queue = queue_overview(conn)
-        scheduler = scheduler_overview(conn)
+    try:
+        with get_connection() as conn:
+            db_ok = fetch_one(conn, "SELECT 1 as ok") is not None
+            queue = queue_overview(conn)
+            scheduler = scheduler_overview(conn)
+    except Exception as exc:
+        return {"status": "degraded", "app": settings.app_name, "database": False, "queue": {}, "scheduler": {}, "error": str(exc)}
     degraded = not db_ok or any(item.get("status") == "dead_letter" and int(item.get("count") or 0) > 0 for item in queue.get("automation_jobs", []) + queue.get("outbox", []))
     return {"status": "degraded" if degraded else "ok", "app": settings.app_name, "database": db_ok, "queue": queue, "scheduler": scheduler}
 
@@ -23,12 +28,15 @@ def health_live() -> dict:
     return {"status": "alive", "app": settings.app_name, "time": utcnow_iso()}
 
 def health_ready() -> dict:
-    with get_connection() as conn:
-        db_ok = fetch_one(conn, "SELECT 1 as ok") is not None
-        queue = queue_overview(conn)
-        scheduler = scheduler_overview(conn)
-        dead_letters = sum(int(item.get("count") or 0) for item in queue.get("automation_jobs", []) if item.get("status") == "dead_letter") + sum(int(item.get("count") or 0) for item in queue.get("outbox", []) if item.get("status") == "dead_letter")
-        modules = module_health_checks(conn)
+    try:
+        with get_connection() as conn:
+            db_ok = fetch_one(conn, "SELECT 1 as ok") is not None
+            queue = queue_overview(conn)
+            scheduler = scheduler_overview(conn)
+            dead_letters = sum(int(item.get("count") or 0) for item in queue.get("automation_jobs", []) if item.get("status") == "dead_letter") + sum(int(item.get("count") or 0) for item in queue.get("outbox", []) if item.get("status") == "dead_letter")
+            modules = module_health_checks(conn)
+    except Exception as exc:
+        return {"status": "not_ready", "database": False, "app": settings.app_name, "queue": {}, "scheduler": {}, "dead_letters": None, "modules": {"status": "error"}, "error": str(exc)}
     ready = db_ok and dead_letters < 25 and modules.get("status") != "error"
     return {"status": "ready" if ready else "not_ready", "database": db_ok, "app": settings.app_name, "queue": queue, "scheduler": scheduler, "dead_letters": dead_letters, "modules": modules}
 
@@ -116,3 +124,26 @@ def public_channel_event_ingest(payload: dict[str, Any], request: Request) -> di
         )
         conn.commit()
         return {'ok': True, 'data': {**row, 'metadata': from_json(row.get('metadata_json'), {}), 'rate_limit': {'remaining': rate_limit.get('remaining')}}, 'request_id': getattr(request.state, 'request_id', None)}
+
+def public_verticals_catalog(top_only: bool = Query(default=False)) -> list[dict]:
+    profiles = list_vertical_profiles()
+    return build_strongest_verticals(profiles) if top_only else profiles
+
+
+def public_vertical_profile(vertical: str | None = Query(default=None), subvertical: str | None = Query(default=None)) -> dict:
+    profile = get_vertical_profile(vertical)
+    if subvertical:
+        selected = get_subvertical_profile(profile, subvertical)
+        if not selected:
+            raise HTTPException(status_code=404, detail='Subvertical not found')
+        return {**profile, 'selected_subvertical': selected}
+    return profile
+
+
+def public_subvertical_profile(vertical: str, subvertical: str | None = Query(default=None)) -> dict:
+    profile = get_vertical_profile(vertical)
+    selected = get_subvertical_profile(profile, subvertical)
+    if not selected:
+        raise HTTPException(status_code=404, detail='Subvertical not found')
+    return {'vertical': profile.get('id'), 'vertical_name': profile.get('name'), 'subvertical_profile': selected}
+

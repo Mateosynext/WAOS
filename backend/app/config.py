@@ -71,6 +71,9 @@ class Settings:
     login_rate_limit_max_attempts: int = int(os.getenv("LOGIN_RATE_LIMIT_MAX_ATTEMPTS", "5"))
     trusted_proxy_ips_raw: str = os.getenv("TRUSTED_PROXY_IPS", "")
     strict_security_startup: bool = _env_bool("STRICT_SECURITY_STARTUP", True)
+    startup_init_db: bool = _env_bool("STARTUP_INIT_DB", True)
+    startup_db_required: bool = _env_bool("STARTUP_DB_REQUIRED", False if os.getenv("APP_ENV", "development").strip().lower() == "production" else True)
+    request_tracing_enabled: bool = _env_bool("REQUEST_TRACING_ENABLED", True)
     allow_sqlite_for_tests: bool = _env_bool("ALLOW_SQLITE_FOR_TESTS", False)
     voice_media_storage_dir: str = os.getenv("VOICE_MEDIA_STORAGE_DIR", "./.waos-voice-media")
     voice_media_ttl_minutes: int = int(os.getenv("VOICE_MEDIA_TTL_MINUTES", "1440"))
@@ -258,6 +261,9 @@ class Settings:
             "db_pool_max_size": self.db_pool_max_size,
             "db_pool_timeout_seconds": self.db_pool_timeout_seconds,
             "default_page_size": self.default_page_size,
+            "startup_init_db": self.startup_init_db,
+            "startup_db_required": self.startup_db_required,
+            "request_tracing_enabled": self.request_tracing_enabled,
             "max_page_size": self.max_page_size,
             "runtime_cache_ttl_seconds": self.runtime_cache_ttl_seconds,
             "web_concurrency": self.web_concurrency,

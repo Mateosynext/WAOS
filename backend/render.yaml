@@ -57,13 +57,17 @@ services:
       - key: RUNTIME_CACHE_TTL_SECONDS
         value: 10
       - key: WEB_CONCURRENCY
-        value: 2
+        value: 1
       - key: DB_POOL_TIMEOUT_SECONDS
-        value: 15
+        value: 8
       - key: DB_POOL_MAX_SIZE
-        value: 20
+        value: 8
       - key: DB_POOL_MIN_SIZE
-        value: 4
+        value: 1
+      - key: STARTUP_INIT_DB
+        value: false
+      - key: STARTUP_DB_REQUIRED
+        value: false
       - key: META_GRAPH_API_BASE
         value: https://graph.facebook.com/v23.0
       - key: INBOUND_SPAM_WINDOW_SECONDS
