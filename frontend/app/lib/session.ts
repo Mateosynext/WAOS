@@ -1,3 +1,4 @@
+import "server-only";
 import { cookies } from "next/headers";
 import { normalizeSessionUser, type SessionUser } from "./contracts";
 import { getServerApiBase } from "./env";

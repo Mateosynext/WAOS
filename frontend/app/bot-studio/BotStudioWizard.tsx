@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useState, type ReactNode } from "react";
 import { applyBotVerticalAction, createBotAction } from "../actions";
 import type { BotStudioActionState } from "../actions/bots";
-import { SuccessState } from "../components";
+import SuccessState from "../components/SuccessState";
 import { UiMessage } from "../components/UiMessage";
 import type { BotContract, SessionOrganization, VerticalProfileContract } from "../lib/contracts";
 import { safeText } from "../lib/ui";

@@ -1,3 +1,4 @@
+import "server-only";
 import Link from "next/link";
 import { ReactNode } from "react";
 import { logoutAction, switchOrganizationAction } from "./actions";

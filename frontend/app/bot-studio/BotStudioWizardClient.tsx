@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { SuccessState } from "../components";
+import SuccessState from "../components/SuccessState";
 import { UiMessage } from "../components/UiMessage";
 import { normalizeBot, normalizeReleaseRequest, type BotContract, type ReleaseRequestContract, type SessionOrganization, type VerticalProfileContract } from "../lib/contracts";
 import { safeText } from "../lib/ui";

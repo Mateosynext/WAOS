@@ -1,3 +1,4 @@
+import "server-only";
 import { ApiRequestError, apiFetch, apiFetchOrDefault, apiFetchResult } from "./api";
 import {
   type AgendaOverviewContract,
