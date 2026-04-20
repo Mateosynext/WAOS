@@ -5,13 +5,15 @@ import { getI18nAnalytics, getI18nConfig, getPlaybooks, getWhatsappFlows } from 
 
 export default async function FlowsPage() {
   const [playbooks, whatsappFlows, i18nConfig, i18nAnalytics] = await Promise.all([getPlaybooks(), getWhatsappFlows(), getI18nConfig(), getI18nAnalytics()]);
+  const analyticsSummary = i18nAnalytics && typeof i18nAnalytics === "object" && i18nAnalytics.summary && typeof i18nAnalytics.summary === "object" ? i18nAnalytics.summary : null;
+  const coverageValue = analyticsSummary?.coverage != null ? `${analyticsSummary.coverage}%` : null;
   return (
     <Shell title="Respuestas y flujos" subtitle="Todo lo que define cómo conversa el bot: guías, flujos, variantes y cobertura por idioma." action={<Link href="/bot-studio" className="secondary-btn">Volver a crear bot</Link>}>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Playbooks" value={formatNumber(playbooks.length)} hint="Guías de respuesta" icon="flow" tone="green" />
         <StatCard label="Flows de WhatsApp" value={formatNumber(whatsappFlows.length)} hint="Formularios o pasos guiados" icon="channel" tone="blue" />
         <StatCard label="Idiomas" value={formatNumber(Object.keys(i18nConfig || {}).length)} hint="Cobertura configurada" icon="channel" tone="gold" />
-        <StatCard label="Cobertura i18n" value={safeText(i18nAnalytics.summary?.coverage ? `${i18nAnalytics.summary.coverage}%` : null, '-')} hint="Traducción o variantes listas" icon="stats" tone="slate" />
+        <StatCard label="Cobertura i18n" value={safeText(coverageValue, "-")} hint="Traducción o variantes listas" icon="stats" tone="slate" />
       </div>
       <Section title="Playbooks" subtitle="La base de respuestas y comportamiento para distintos escenarios." icon="flow">
         <DataTable columns={["Playbook", "Objetivo", "Estado"]} rows={playbooks.map((item) => [safeText(item.name), safeText(item.objective), safeText(item.status)])} />

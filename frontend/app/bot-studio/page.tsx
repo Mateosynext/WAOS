@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ContextTip, EmptyActionState, Section, Shell } from "../components";
 import { apiFetchOrDefault } from "../lib/api";
-import { getSession } from "../lib/session";
+import { requireSession } from "../lib/session";
 import { getBots, getStrongestVerticals, getVerticalCatalog, getVerticalProfile } from "../lib/waos";
 import BotStudioWizardClient from "./BotStudioWizardClient";
 import type { WizardBlueprint, WizardInstance, WizardMode } from "./wizard-types";
@@ -47,8 +47,8 @@ export default async function BotStudioPage({
   const routeSubvertical = firstParam(resolvedParams?.subvertical);
   const routePrimaryObjective = firstParam(resolvedParams?.primary_objective);
 
-  const [session, verticals, strongestVerticals, bots, initialWizard] = await Promise.all([
-    getSession(),
+  const session = await requireSession();
+  const [verticals, strongestVerticals, bots, initialWizard] = await Promise.all([
     getVerticalCatalog(),
     getStrongestVerticals(),
     getBots(),

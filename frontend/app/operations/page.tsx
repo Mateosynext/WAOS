@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Badge, ContextTip, DataTable, PermissionGate, Section, Shell, StatCard } from "../components";
 import { canUseSupportMode, canViewObservability, roleLabel } from "../lib/permissions";
-import { getSession } from "../lib/session";
+import { requireSession } from "../lib/session";
 import { formatNumber, safeText } from "../lib/ui";
 import { getBots, getConversations, getDeadLetters, getIntegrationSyncRuns, getIntegrations, getObservability, getQueue, getRuntimeCallbacks } from "../lib/waos";
 
@@ -11,7 +11,7 @@ function first(value: string | string[] | undefined) { return Array.isArray(valu
 export default async function OperationsPage({ searchParams }: { searchParams?: Promise<SearchParams> }) {
   const params = (await searchParams) || {};
   const view = first(params.view) || "overview";
-  const session = await getSession();
+  const session = await requireSession();
   const role = session?.user.global_role;
 
   const [deadLetters, callbacks, syncRuns, bots, conversations, integrations, observability, queue] = await Promise.all([

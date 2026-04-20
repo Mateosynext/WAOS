@@ -2102,6 +2102,7 @@ const proposedHandoffPreview = useMemo(() => {
       const scoped = await syncScopeStep();
       let synced = await syncBasicsStep();
       if (scoped.id && scoped.id !== synced.id) synced = scoped;
+      if (!synced?.id) throw new Error("No se pudo preparar el wizard para la prevalidación.");
       await syncIntegrationsStep();
       const result = await requestJson<WizardDryRunResult>(`/api/onboarding/wizard/${encodeURIComponent(synced.id)}/dry-run`, {
         method: "POST",

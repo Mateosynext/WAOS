@@ -13,10 +13,11 @@
     "test:critical": "npm run smoke && npm run test:node && npm run test:e2e:real:critical",
     "e2e": "npm run test:e2e:real",
     "test:all": "npm run smoke && npm run typecheck && npm run test:node && npm run test:e2e:real",
-    "test:node": "node --test --experimental-strip-types tests/**/*.test.ts",
+    "test:node": "node --no-warnings --experimental-default-type=module --test --experimental-strip-types tests/**/*.test.ts",
     "test:e2e:real": "playwright test --config=playwright.real.config.ts",
     "test:e2e:real:critical": "playwright test --config=playwright.real.config.ts --grep @critical",
-    "validate:delivery": "node ./scripts/validate-static-delivery.mjs"
+    "validate:delivery": "node ./scripts/validate-static-delivery.mjs",
+    "clean": "rm -rf .next node_modules tsconfig.tsbuildinfo playwright-report test-results coverage"
   },
   "dependencies": {
     "next": "^15.0.0",

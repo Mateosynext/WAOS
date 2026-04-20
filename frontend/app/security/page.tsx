@@ -1,6 +1,6 @@
 import { ContextTip, DataTable, PermissionGate, SecondaryNav, Section, Shell, StatCard } from "../components";
 import { canAccessSecurity, canManageRateLimits, canManageSecurityPolicy, canManageSSOProviders, roleLabel, screenPermissionReview, sensitiveEvents } from "../lib/permissions";
-import { getSession } from "../lib/session";
+import { requireSession } from "../lib/session";
 import { formatNumber, listOrFallback, safeText, yesNo } from "../lib/ui";
 import { getAccessMatrix, getRateLimits, getSSOProviders, getSecurityPolicy } from "../lib/waos";
 
@@ -9,7 +9,7 @@ function first(value: string | string[] | undefined) { return Array.isArray(valu
 export default async function SecurityPage({ searchParams }: { searchParams?: Promise<SearchParams> }) {
   const params = (await searchParams) || {};
   const view = first(params.view) || "policy";
-  const session = await getSession();
+  const session = await requireSession();
   const role = session?.user.global_role;
   const [policy, providers, matrix, rateLimits] = await Promise.all([getSecurityPolicy(), getSSOProviders(), getAccessMatrix(), getRateLimits()]);
   const providerRows = providers.map((item) => [safeText(item.name || item.provider || "Proveedor"), safeText(item.status || item.health_status || "sin estado"), safeText(item.expires_at || item.updated_at || "-")]);

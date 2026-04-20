@@ -1,0 +1,1 @@
+export default function Loading() { return <main className="mx-auto flex min-h-[40vh] max-w-3xl items-center justify-center px-6 py-16"><div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] px-6 py-5 text-center text-sm text-slate-300">Redirigiendo a <span className="font-medium text-white">Promociones</span> dentro de Centro comercial…</div></main>; }

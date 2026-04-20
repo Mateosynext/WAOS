@@ -586,7 +586,7 @@ export async function getBotTemplates(botId?: string): Promise<BotTemplateContra
 }
 
 export async function getVerticalCatalog(topOnly = false): Promise<VerticalProfileContract[]> {
-  const raw = await apiFetch<unknown>(`/api/v1/verticals${topOnly ? "?top_only=1" : ""}`);
+  const raw = await apiFetchOrDefault<unknown[]>(`/api/v1/verticals${topOnly ? "?top_only=1" : ""}`, []);
   return normalizeCollection(raw, normalizeVerticalProfile);
 }
 
@@ -602,7 +602,7 @@ export async function getVerticalProfile(vertical?: string, botId?: string, subv
   if (subvertical) params.push(`subvertical=${encodeURIComponent(subvertical)}`);
   if (currentBotId) params.push(`bot_id=${encodeURIComponent(currentBotId)}`);
   const qs = params.filter(Boolean).join("&");
-  const raw = await apiFetch<unknown>(`/api/v1/verticals/profile?${qs}`);
+  const raw = await apiFetchOrDefault<unknown>(`/api/v1/verticals/profile?${qs}`, {});
   return normalizeVerticalProfile(raw);
 }
 

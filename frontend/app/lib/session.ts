@@ -1,4 +1,5 @@
 import "server-only";
+import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { normalizeSessionUser, type SessionUser } from "./contracts";
 import { getServerApiBase } from "./env";
@@ -146,6 +147,12 @@ export async function getSession(): Promise<{ user: SessionUser; organizationId:
   } catch {
     return null;
   }
+}
+
+export async function requireSession(redirectTo = "/login") {
+  const session = await getSession();
+  if (!session) redirect(redirectTo);
+  return session;
 }
 
 export const sessionCookieOptions = {

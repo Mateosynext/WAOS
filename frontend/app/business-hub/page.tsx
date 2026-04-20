@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DataTable, ModuleCard, Section, Shell, StatCard } from "../components";
-import { getCurrentBotId, getSession } from "../lib/session";
+import { getCurrentBotId, requireSession } from "../lib/session";
 import { formatMoney, formatNumber, safeText } from "../lib/ui";
 import { getBusinessHubOverview, getCRMPipelineSummary, getCatalogProducts, getCatalogServices, getCommerceInsights, getCRMLeads, getPayments, getPromotionRules, getPromotions, getReactivationRecommendations, getVerticalProfile } from "../lib/waos";
 
@@ -10,7 +10,7 @@ function first(value: string | string[] | undefined) { return Array.isArray(valu
 export default async function BusinessHubPage({ searchParams }: { searchParams?: Promise<SearchParams> }) {
   const params = (await searchParams) || {};
   const tab = first(params.tab) || "resumen";
-  const session = await getSession();
+  const session = await requireSession();
   const currentBotId = await getCurrentBotId();
   const [hub, products, services, promotions, rules, insights, payments, leads, recommendations, pipeline] = await Promise.all([
     getBusinessHubOverview(),

@@ -96,13 +96,15 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
     sort,
   );
 
-  const selected = filtered.find((item) => item.id === selectedId) || filtered[0] || null;
-  const decisionSupport = selected ? await getConversationDecisionSupport(selected.id) : null;
+  const selected = selectedId ? filtered.find((item) => item.id === selectedId) || null : null;
+  const decisionSupport = selected?.id ? await getConversationDecisionSupport(selected.id) : null;
   const selectedIndex = Math.max(filtered.findIndex((item) => item.id === selected?.id), 0);
   const listUrls = filtered.map((item) => `/inbox${buildQuery({ filter, sort, q, relation, mode, urgency, selected: item.id })}`);
   const owners = Array.isArray((ownership as Record<string, unknown>).owners)
     ? ((ownership as Record<string, unknown>).owners as Array<Record<string, unknown>>)
     : [];
+  const activeOrganizationId = String(session?.organizationId || conversations[0]?.organization_id || "").trim();
+  const hasOrganizationContext = Boolean(activeOrganizationId);
 
   const human = conversations.filter((item) => String(item.status).toLowerCase() === "human_takeover").length;
   const pending = conversations.filter((item) => !item.last_outbound_at).length;
@@ -148,11 +150,12 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
       <Section title="Colas y SLA" subtitle="La inbox ya separa ventas, soporte, agenda y cobranza con riesgo visible de incumplimiento." icon="stats">
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <form action={autoAssignInboxAction}>
-            <input type="hidden" name="organization_id" value={conversations[0]?.organization_id || ""} />
+            <input type="hidden" name="organization_id" value={activeOrganizationId} />
             <input type="hidden" name="redirect_to" value="/inbox" />
-            <button className="secondary-btn" type="submit">Auto-asignar no dueñas</button>
+            <button className="secondary-btn disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={!hasOrganizationContext}>Auto-asignar no dueñas</button>
           </form>
           <span className="mono-pill">Sin owner {formatNumber(Number((ownership as Record<string, unknown>).unassigned_open || 0))}</span>
+          {!hasOrganizationContext ? <span className="text-xs text-amber-300">Selecciona una organización antes de ejecutar acciones masivas o guardar vistas.</span> : null}
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {(queueSummary.queues || []).length ? queueSummary.queues.map((queue) => (
@@ -189,7 +192,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
       <Section title="Bandeja priorizada" subtitle="Toda la fila es clickeable y el panel derecho te deja decidir antes de entrar al hilo." icon="chat">
         {savedViews.length ? <div className="mb-4 flex flex-wrap gap-2">{savedViews.map((view) => { const filters = view.filters || {}; const query = buildQuery({ filter: String(filters.filter || "all"), sort: String(filters.sort || "priority"), q: String(filters.q || ""), relation: String(filters.relation || "all"), mode: String(filters.mode || "all"), urgency: String(filters.urgency || "all") }); return <Link key={view.id} href={`/inbox${query}`} className="secondary-btn">{safeText(view.name)}{view.is_default ? " · default" : ""}</Link>; })}</div> : null}
         <form action={saveInboxViewAction} className="mb-4 flex flex-wrap gap-3 rounded-3xl border border-white/[0.08] bg-white/[0.03] p-4">
-          <input type="hidden" name="organization_id" value={conversations[0]?.organization_id || ""} />
+          <input type="hidden" name="organization_id" value={activeOrganizationId} />
           <input type="hidden" name="filters" value={JSON.stringify({ filter, sort, q, relation, mode, urgency })} />
           <input type="hidden" name="redirect_to" value={`/inbox${buildQuery({ filter, sort, q, relation, mode, urgency, selected: selected?.id || undefined })}`} />
           <label className="field-label min-w-[220px]">Guardar vista
@@ -198,7 +201,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
           <label className="field-label">Default
             <select className="field-input" name="is_default" defaultValue="0"><option value="0">No</option><option value="1">Sí</option></select>
           </label>
-          <div className="flex items-end"><button className="secondary-btn" type="submit">Guardar filtros</button></div>
+          <div className="flex items-end"><button className="secondary-btn disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={!hasOrganizationContext}>Guardar filtros</button></div>
         </form>
         <form className="mb-4 grid gap-3 rounded-3xl border border-white/[0.08] bg-white/[0.03] p-4 xl:sticky xl:top-4 xl:z-10 xl:grid-cols-[minmax(0,1.4fr)_repeat(4,180px)_auto]">
           <label className="field-label">

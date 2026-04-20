@@ -1,11 +1,24 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
 # Python
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
 
 # Node / Next
-frontend/.next/
-frontend/node_modules/
+node_modules/
+.next/
+.turbo/
+.cache/
+.eslintcache
 *.tsbuildinfo
 playwright-report/
 test-results/
@@ -19,13 +32,14 @@ backend/.env
 frontend/.env.local
 frontend/.env.production.local
 
-# Local sqlite
+# Local sqlite / runtime state
 *.db
 *.sqlite
 *.sqlite3
 backend/test_suite.sqlite3
+backend/.waos-local.db
+
 # Runtime-generated artifacts
 backend/app/artifacts/reports/*.pdf
 dist/
-
-tsconfig.tsbuildinfo
+build/
