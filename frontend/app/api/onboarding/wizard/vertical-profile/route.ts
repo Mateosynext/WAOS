@@ -1,23 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiFetch } from "../../../../lib/api";
-import { normalizeVerticalProfile } from "../../../../lib/contracts";
-
-function buildVerticalProfilePath(request: NextRequest) {
-  const params = new URLSearchParams();
-  for (const key of ["organization_id", "bot_id", "vertical", "subvertical"]) {
-    const value = request.nextUrl.searchParams.get(key);
-    if (value) params.set(key, value);
-  }
-  const query = params.toString();
-  return `/api/v1/verticals/profile${query ? `?${query}` : ""}`;
-}
+import { getVerticalProfile } from "../../../../lib/waos";
 
 export async function GET(request: NextRequest) {
-  try {
-    const payload = await apiFetch<unknown>(buildVerticalProfilePath(request));
-    return NextResponse.json(normalizeVerticalProfile(payload), { headers: { "Cache-Control": "no-store" } });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "No se pudo cargar el perfil vertical.";
-    return NextResponse.json({ detail: message }, { status: 500, headers: { "Cache-Control": "no-store" } });
-  }
+  const organizationId = request.nextUrl.searchParams.get("organization_id") || undefined;
+  const botId = request.nextUrl.searchParams.get("bot_id") || undefined;
+  const vertical = request.nextUrl.searchParams.get("vertical") || undefined;
+  const subvertical = request.nextUrl.searchParams.get("subvertical") || undefined;
+  const profile = await getVerticalProfile(vertical, botId, subvertical, organizationId);
+  return NextResponse.json(profile, { headers: { "Cache-Control": "no-store" } });
 }
