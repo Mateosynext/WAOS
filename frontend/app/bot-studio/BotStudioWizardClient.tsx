@@ -9,13 +9,19 @@ import { normalizeBot, normalizeReleaseRequest, type BotContract, type ReleaseRe
 import { safeText } from "../lib/ui";
 import SubverticalPicker from "./SubverticalPicker";
 import VerticalPicker from "./VerticalPicker";
+import { useBotStudioWizardState } from "./useBotStudioWizardState";
+import { buildWizardPayloads } from "./wizardPayloadBuilders";
+import { createLatestWizardReactiveSelectionLoader } from "./wizardReactiveData";
+import { applyWizardRequest, dryRunWizardRequest, getWizardRequest, saveWizardStepRequest, startWizardRequest } from "./wizardApi";
+import { DiffCard, HandoffPreviewCard, OperationalDiffDomainCard, PackPreviewBlock, StickySummaryRail, ValidationSnapshotPanel, VerticalScorecardPanel } from "./wizardReviewSections";
+import WizardDiagnosticsPanel from "./wizardDiagnosticsPanel";
+import { getCreateAutosaveStepKeys, resolveWizardInitialStep, type WizardUiActiveStep as ActiveStep } from "./wizardStepFlow";
+import { deriveWizardConsistencyRecovery, fingerprintWizardValue, readWizardAutosaveMetrics, readWizardTimelineEvents, recordWizardAutosaveMetric, recordWizardTimelineEvent, WIZARD_ENTERPRISE_FLAGS } from "./wizardEnterpriseGuards";
 import type {
   WizardApplyResult,
   WizardBlueprint,
   WizardInstance,
   WizardMode,
-  WizardDryRunDomain,
-  WizardDryRunDomainItem,
   WizardDryRunResult,
   WizardHandoffPreview,
   WizardRecommendedCta,
@@ -45,7 +51,6 @@ type Props = {
 };
 
 type ObjectiveValue = "agendar" | "vender" | "calificar" | "responder" | "reactivar";
-type ActiveStep = "scope" | "basics" | "offer" | "knowledge" | "integrations" | "review" | "dry_run" | "confirm" | "simulate" | "publish";
 type NextBestActionKey = "connect_channel" | "run_simulation" | "publish_release" | "open_inbox";
 
 type NextBestAction = {
@@ -277,7 +282,7 @@ function buildSubverticalProfiles(verticalProfile: VerticalProfileContract | nul
   ]).map((name) => ({ id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name } as WizardSubverticalProfile));
 }
 
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+async function requestApiJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: "no-store", credentials: "same-origin", ...init });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -286,26 +291,6 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
-function normalizeActiveStep(value: unknown): ActiveStep | null {
-  const normalized = String(value || "").trim();
-  return ["scope", "basics", "offer", "knowledge", "integrations", "review", "dry_run", "confirm", "simulate", "publish"].includes(normalized)
-    ? (normalized as ActiveStep)
-    : null;
-}
-
-function resolveInitialStep(mode: WizardMode, wizard?: WizardInstance | null, stepOverride?: string): ActiveStep {
-  const explicit = normalizeActiveStep(stepOverride);
-  if (explicit) return explicit;
-  if (wizard?.status === "applied") return "publish";
-  if (mode === "reconfigure") return "review";
-  const current = String(wizard?.current_step || "").trim();
-  if (current === "business_basics") return "basics";
-  if (current === "catalog_offer") return "offer";
-  if (current === "knowledge_seed") return "knowledge";
-  if (current === "integrations_rules") return "integrations";
-  if (current === "launch_review" || current === "applied") return "review";
-  return "scope";
-}
 
 function parseTimestamp(value: unknown) {
   const rendered = String(value || "").trim();
@@ -503,111 +488,6 @@ function StepBadge({ active, done, label }: { active?: boolean; done?: boolean; 
   );
 }
 
-function diffStatusMeta(status: "replace" | "keep" | "suggest" | "add" | "remove" | undefined) {
-  switch (status) {
-    case "replace":
-      return { pill: "se reemplaza", tone: "border-[color:var(--warning-border)] bg-[color:var(--warning-soft)] text-[color:var(--warning-text)]" };
-    case "keep":
-      return { pill: "se conserva", tone: "border-[color:var(--success-border)] bg-[color:var(--success-soft)] text-[color:var(--success-text)]" };
-    case "add":
-      return { pill: "se agrega", tone: "border-[color:var(--accent-border)] bg-[color:var(--accent-soft)] text-[color:var(--text-primary)]" };
-    case "remove":
-      return { pill: "se elimina", tone: "border-[color:var(--danger-border)] bg-[color:var(--danger-soft)] text-[color:var(--danger-text)]" };
-    default:
-      return { pill: "se sugiere", tone: "border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] text-[color:var(--text-secondary)]" };
-  }
-}
-
-function validationStatusMeta(status: "green" | "yellow" | "red" | string | undefined) {
-  switch (status) {
-    case "green":
-      return { pill: "verde", tone: "border-[color:var(--success-border)] bg-[color:var(--success-soft)] text-[color:var(--success-text)]" };
-    case "yellow":
-      return { pill: "amarillo", tone: "border-[color:var(--warning-border)] bg-[color:var(--warning-soft)] text-[color:var(--warning-text)]" };
-    default:
-      return { pill: "rojo", tone: "border-[color:var(--danger-border)] bg-[color:var(--danger-soft)] text-[color:var(--danger-text)]" };
-  }
-}
-
-function ValidationSnapshotPanel({
-  title,
-  description,
-  snapshot,
-}: {
-  title: string;
-  description: string;
-  snapshot: WizardValidationSnapshot | null;
-}) {
-  if (!snapshot) return null;
-  const gate = snapshot.gate || {};
-  const gateMeta = validationStatusMeta(gate.status);
-  const counts = snapshot.counts || {};
-  const simulation = snapshot.simulation_result || {};
-  return (
-    <div className="mt-5 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Checklist formal de salida</div>
-          <h4 className="mt-2 text-lg font-semibold text-[color:var(--text-primary)]">{title}</h4>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">{description}</p>
-        </div>
-        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${gateMeta.tone}`}>{gateMeta.pill}</span>
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-4">
-        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-3">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Puerta de salida</div>
-          <div className="mt-2 text-base font-semibold text-[color:var(--text-primary)]">{safeText(gate.label, "Sin estado")}</div>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">{safeText(gate.detail, "Sin detalle adicional.")}</p>
-        </div>
-        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-3">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Verde</div>
-          <div className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{safeText(String(counts.green || 0), "0")}</div>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">Checks listos para operar.</p>
-        </div>
-        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-3">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Amarillo</div>
-          <div className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{safeText(String(counts.yellow || 0), "0")}</div>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">Todavía requieren atención.</p>
-        </div>
-        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-3">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Rojo</div>
-          <div className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{safeText(String(counts.red || 0), "0")}</div>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">Bloquean o frenan la salida.</p>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {(snapshot.checklist || []).map((item, index) => {
-          const meta = validationStatusMeta(item.status);
-          return (
-            <div key={safeText(item.key || item.label, `validation-${index}`)} className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="text-sm font-semibold text-[color:var(--text-primary)]">{safeText(item.label, "Checkpoint")}</div>
-                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${meta.tone}`}>{meta.pill}</span>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[color:var(--text-secondary)]">{safeText(item.detail, "Sin detalle adicional.")}</p>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-3">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Simulación</div>
-          <div className="mt-2 text-base font-semibold text-[color:var(--text-primary)]">{simulation.approved ? "Aprobada" : safeText(String(simulation.status || "pendiente"), "pendiente")}</div>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">Pass rate: {safeText(String(simulation.pass_rate ?? 0), "0")}% · casos: {safeText(String(simulation.cases_total ?? 0), "0")}</p>
-        </div>
-        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-3">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Siguiente mejor acción</div>
-          <div className="mt-2 text-base font-semibold text-[color:var(--text-primary)]">{safeText(snapshot.next_cta?.title, "Sin CTA disponible")}</div>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">{safeText(snapshot.next_cta?.description, "Sin recomendación operativa visible.")}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function progressStatusMeta(status: "done" | "active" | "pending") {
   switch (status) {
     case "done":
@@ -619,178 +499,24 @@ function progressStatusMeta(status: "done" | "active" | "pending") {
   }
 }
 
-function VerticalScorecardPanel({
-  title,
-  description,
-  snapshot,
-}: {
-  title: string;
-  description: string;
-  snapshot: WizardValidationSnapshot | null;
-}) {
-  const scorecard = snapshot?.scorecard;
-  if (!scorecard) return null;
-  const meta = validationStatusMeta(scorecard.status);
-  const counts = scorecard.counts || {};
-  return (
-    <div className="mt-5 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">{title}</div>
-          <div className="mt-2 text-base font-semibold text-[color:var(--text-primary)]">{safeText(scorecard.label, "Vertical")}</div>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">{description}</p>
-        </div>
-        <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${meta.tone}`}>{meta.pill}</span>
-      </div>
-      <p className="mt-3 text-sm leading-6 text-[color:var(--text-secondary)]">{safeText(scorecard.summary, "Sin scorecard visible.")}</p>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-3">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Verde</div>
-          <div className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{safeText(String(counts.green || 0), "0")}</div>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">Señales de negocio cubiertas.</p>
-        </div>
-        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-3">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Amarillo</div>
-          <div className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{safeText(String(counts.yellow || 0), "0")}</div>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">Requieren refuerzo antes de publish.</p>
-        </div>
-        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-3">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Rojo</div>
-          <div className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{safeText(String(counts.red || 0), "0")}</div>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">Bloquean o debilitan el go-live.</p>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {(scorecard.items || []).map((item, index) => {
-          const itemMeta = validationStatusMeta(item.status);
-          const covered = Array.isArray(item.covered_signals) ? item.covered_signals.filter(Boolean) : [];
-          const missing = Array.isArray(item.missing_signals) ? item.missing_signals.filter(Boolean) : [];
-          return (
-            <div key={safeText(item.key || item.label, `scorecard-${index}`)} className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="text-sm font-semibold text-[color:var(--text-primary)]">{safeText(item.label, "Señal")}</div>
-                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${itemMeta.tone}`}>{itemMeta.pill}</span>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[color:var(--text-secondary)]">{safeText(item.detail, "Sin detalle adicional.")}</p>
-              {covered.length ? <p className="mt-3 text-xs leading-5 text-[color:var(--success-text)]">Cubre: {covered.join(" · ")}</p> : null}
-              {missing.length ? <p className="mt-2 text-xs leading-5 text-[color:var(--warning-text)]">Falta: {missing.join(" · ")}</p> : null}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function DiffCard({ title, before, after, status, detail }: { title: string; before: string; after: string; status: "replace" | "keep" | "suggest" | "add" | "remove"; detail: string }) {
-  const meta = diffStatusMeta(status);
-  return (
-    <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="text-base font-semibold text-[color:var(--text-primary)]">{title}</div>
-        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${meta.tone}`}>{meta.pill}</span>
-      </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Antes</div>
-          <p className="mt-1 text-sm leading-6 text-[color:var(--text-secondary)]">{before}</p>
-        </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Después</div>
-          <p className="mt-1 text-sm leading-6 text-[color:var(--text-secondary)]">{after}</p>
-        </div>
-      </div>
-      <p className="mt-3 text-sm leading-6 text-[color:var(--text-secondary)]">{detail}</p>
-    </div>
-  );
-}
-
-function OperationalDiffDomainCard({ block }: { block: WizardDryRunDomain }) {
-  const meta = diffStatusMeta(block.status);
-  const counters = block.counters || {};
-  const items = block.items || [];
-  return (
-    <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-base font-semibold text-[color:var(--text-primary)]">{safeText(block.label, "Dominio")}</div>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">{safeText(block.detail, "Sin detalle adicional.")}</p>
-        </div>
-        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${meta.tone}`}>{meta.pill}</span>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {(block.badges?.length
-          ? block.badges
-          : [
-            counters.added ? `+${counters.added} cambios` : "",
-            counters.removed ? `-${counters.removed} cambios` : "",
-            counters.replaced ? `reemplaza ${counters.replaced}` : "",
-          ].filter(Boolean)
-        ).slice(0, 6).map((badge) => (
-          <span key={badge} className="mono-pill">{badge}</span>
-        ))}
-        {!block.badges?.length && !counters.added && !counters.removed && !counters.replaced ? <span className="mono-pill">Sin cambio material visible</span> : null}
-      </div>
-
-      <div className="mt-4 grid gap-2 sm:grid-cols-4">
-        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] px-3 py-2 text-sm text-[color:var(--text-secondary)]">Se conserva <strong className="text-[color:var(--text-primary)]">{safeText(String(counters.kept || 0), "0")}</strong></div>
-        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] px-3 py-2 text-sm text-[color:var(--text-secondary)]">Se reemplaza <strong className="text-[color:var(--text-primary)]">{safeText(String(counters.replaced || 0), "0")}</strong></div>
-        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] px-3 py-2 text-sm text-[color:var(--text-secondary)]">Se agrega <strong className="text-[color:var(--text-primary)]">{safeText(String(counters.added || 0), "0")}</strong></div>
-        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] px-3 py-2 text-sm text-[color:var(--text-secondary)]">Se elimina <strong className="text-[color:var(--text-primary)]">{safeText(String(counters.removed || 0), "0")}</strong></div>
-      </div>
-
-      <div className="mt-4 grid gap-3">
-        {items.map((item, index) => {
-          const itemMeta = diffStatusMeta(item.status);
-          return (
-            <div key={safeText(item.key || item.label, `domain-item-${index}`)} className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="text-sm font-semibold text-[color:var(--text-primary)]">{safeText(item.label, "Cambio")}</div>
-                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${itemMeta.tone}`}>{itemMeta.pill}</span>
-              </div>
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <div>
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Antes</div>
-                  <p className="mt-1 text-sm leading-6 text-[color:var(--text-secondary)]">{safeText(item.before, "Sin valor previo")}</p>
-                </div>
-                <div>
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Después</div>
-                  <p className="mt-1 text-sm leading-6 text-[color:var(--text-secondary)]">{safeText(item.after, "Sin valor nuevo")}</p>
-                </div>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[color:var(--text-secondary)]">{safeText(item.detail, "Sin detalle adicional.")}</p>
-              {item.badges?.length ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {item.badges.map((badge) => <span key={badge} className="mono-pill">{badge}</span>)}
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function CheckboxPill({
   checked,
   label,
   secondary,
+  onClick,
   onChange,
 }: {
   checked: boolean;
   label: string;
   secondary?: string;
-  onChange: () => void;
+  onClick?: () => void;
+  onChange?: () => void;
 }) {
   return (
     <button
       type="button"
-      onClick={onChange}
-      className={`rounded-2xl border px-4 py-3 text-left transition ${checked
+      onClick={onClick || onChange}
+      className={`rounded-[20px] border p-4 text-left transition ${checked
         ? "border-[color:var(--accent-border)] bg-[color:var(--accent-soft)]"
         : "border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] hover:border-[color:var(--accent-border)] hover:bg-[color:var(--surface-elevated)]"}`}
     >
@@ -802,280 +528,6 @@ function CheckboxPill({
         <input type="checkbox" checked={checked} readOnly />
       </div>
     </button>
-  );
-}
-
-function SummaryList({ items, fallback }: { items: string[]; fallback: string }) {
-  const visible = unique(items).slice(0, 5);
-  return (
-    <div className="mt-2 flex flex-wrap gap-2">
-      {visible.length
-        ? visible.map((item) => <span key={item} className="mono-pill">{item}</span>)
-        : <span className="text-sm leading-6 text-[color:var(--text-secondary)]">{fallback}</span>}
-    </div>
-  );
-}
-
-
-function HandoffPreviewField({
-  label,
-  currentValue,
-  proposedValue,
-  compare,
-}: {
-  label: string;
-  currentValue: string;
-  proposedValue: string;
-  compare?: boolean;
-}) {
-  return (
-    <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-4">
-      <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">{label}</div>
-      {compare ? (
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Actual</div>
-            <p className="mt-1 text-sm leading-6 text-[color:var(--text-secondary)] whitespace-pre-wrap">{currentValue}</p>
-          </div>
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Propuesto</div>
-            <p className="mt-1 text-sm leading-6 text-[color:var(--text-secondary)] whitespace-pre-wrap">{proposedValue}</p>
-          </div>
-        </div>
-      ) : (
-        <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)] whitespace-pre-wrap">{proposedValue}</p>
-      )}
-    </div>
-  );
-}
-
-function HandoffPreviewCard({
-  mode,
-  compare,
-  current,
-  proposed,
-  escalateWhenText,
-  onEscalateWhenChange,
-  handoffKeywordsText,
-  onHandoffKeywordsChange,
-  handoffSlaText,
-  onHandoffSlaChange,
-  humanDestinationChannelText,
-  onHumanDestinationChannelChange,
-  ruleOverridesText,
-  onRuleOverridesChange,
-  onGoToDryRun,
-}: {
-  mode: WizardMode;
-  compare?: boolean;
-  current: {
-    escalateWhen: string;
-    handoffKeywords: string;
-    expectedHandoffSla: string;
-    humanDestinationChannel: string;
-    ruleOverridesSummary: string;
-  };
-  proposed: {
-    escalateWhen: string;
-    handoffKeywords: string;
-    expectedHandoffSla: string;
-    humanDestinationChannel: string;
-    ruleOverridesSummary: string;
-  };
-  escalateWhenText: string;
-  onEscalateWhenChange: (value: string) => void;
-  handoffKeywordsText: string;
-  onHandoffKeywordsChange: (value: string) => void;
-  handoffSlaText: string;
-  onHandoffSlaChange: (value: string) => void;
-  humanDestinationChannelText: string;
-  onHumanDestinationChannelChange: (value: string) => void;
-  ruleOverridesText: string;
-  onRuleOverridesChange: (value: string) => void;
-  onGoToDryRun?: () => void;
-}) {
-  return (
-    <div className="mt-5 rounded-[24px] border border-[color:var(--accent-border)] bg-[color:var(--accent-soft)] p-4" data-testid="handoff-preview-card">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Pack preview fijo · handoff</div>
-          <h4 className="mt-2 text-lg font-semibold text-[color:var(--text-primary)]">Reglas de handoff explícitas antes del apply</h4>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">El pack preview ya no deja estas reglas escondidas. Aquí comparas actual vs propuesto y todavía puedes editar antes del apply real.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <span className="mono-pill">Escalar cuando</span>
-          <span className="mono-pill">Palabras de handoff</span>
-          <span className="mono-pill">SLA esperado</span>
-          <span className="mono-pill">Canal humano destino</span>
-          <span className="mono-pill">Reglas override</span>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <HandoffPreviewField label="Escalar cuando" currentValue={current.escalateWhen} proposedValue={proposed.escalateWhen} compare={compare} />
-        <HandoffPreviewField label="Palabras de handoff" currentValue={current.handoffKeywords} proposedValue={proposed.handoffKeywords} compare={compare} />
-        <HandoffPreviewField label="SLA esperado" currentValue={current.expectedHandoffSla} proposedValue={proposed.expectedHandoffSla} compare={compare} />
-        <HandoffPreviewField label="Canal humano destino" currentValue={current.humanDestinationChannel} proposedValue={proposed.humanDestinationChannel} compare={compare} />
-        <div className="xl:col-span-2">
-          <HandoffPreviewField label="Reglas override" currentValue={current.ruleOverridesSummary} proposedValue={proposed.ruleOverridesSummary} compare={compare} />
-        </div>
-      </div>
-
-      <div className="mt-5 grid gap-4 md:grid-cols-2">
-        <label className="field-label">Escalar cuando
-          <textarea className="field-input min-h-[132px]" value={escalateWhenText} onChange={(event) => onEscalateWhenChange(event.target.value)} placeholder="cliente pide humano
-caso urgente
-requiere excepción" />
-        </label>
-        <label className="field-label">Palabras de handoff
-          <textarea className="field-input min-h-[132px]" value={handoffKeywordsText} onChange={(event) => onHandoffKeywordsChange(event.target.value)} placeholder="asesor
-humano
-urgente" />
-        </label>
-        <label className="field-label">SLA esperado
-          <input className="field-input" value={handoffSlaText} onChange={(event) => onHandoffSlaChange(event.target.value)} placeholder="15 minutos" />
-        </label>
-        <label className="field-label">Canal humano destino
-          <input className="field-input" value={humanDestinationChannelText} onChange={(event) => onHumanDestinationChannelChange(event.target.value)} placeholder="Equipo humano / CRM" />
-        </label>
-        <label className="field-label md:col-span-2">Reglas override
-          <textarea className="field-input min-h-[176px] font-mono" value={ruleOverridesText} onChange={(event) => onRuleOverridesChange(event.target.value)} placeholder='{"after_hours": "escalar", "vip": "handoff_inmediato"}' />
-        </label>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-3">
-        <span className="mono-pill">Se puede editar antes del apply</span>
-        {compare && mode === "reconfigure" ? <span className="mono-pill">Comparación actual vs propuesto activa</span> : null}
-        {onGoToDryRun ? <button type="button" className="secondary-btn" onClick={onGoToDryRun}>Guardar cambios y volver al dry run</button> : null}
-      </div>
-    </div>
-  );
-}
-
-function PackPreviewBlock({
-  eyebrow,
-  title,
-  description,
-  createItems,
-  reuseItems,
-  pendingItems,
-  createLabel = "Qué se crea",
-  reuseLabel = "Qué se reusa",
-  pendingLabel = "Qué queda pendiente",
-  pendingFallback = "Nada pendiente por cerrar en este bloque.",
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-  createItems: string[];
-  reuseItems: string[];
-  pendingItems: string[];
-  createLabel?: string;
-  reuseLabel?: string;
-  pendingLabel?: string;
-  pendingFallback?: string;
-}) {
-  return (
-    <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-4">
-      <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">{eyebrow}</div>
-      <h4 className="mt-2 text-lg font-semibold text-[color:var(--text-primary)]">{title}</h4>
-      <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">{description}</p>
-
-      <div className="mt-4 grid gap-3">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">{createLabel} ({createItems.length})</div>
-          <SummaryList items={createItems} fallback="No hay creación nueva visible en este bloque." />
-        </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">{reuseLabel} ({reuseItems.length})</div>
-          <SummaryList items={reuseItems} fallback="No se reusa nada visible del estado actual." />
-        </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">{pendingLabel} ({pendingItems.length})</div>
-          <SummaryList items={pendingItems} fallback={pendingFallback} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StickySummaryRail({
-  mode,
-  organizationName,
-  industry,
-  operationType,
-  objective,
-  businessName,
-  assistantName,
-  recommendedChannels,
-  seededServices,
-  createdTemplates,
-  readinessScore,
-  readinessLabel,
-  readinessTone,
-  risks,
-}: {
-  mode: WizardMode;
-  organizationName: string;
-  industry: string;
-  operationType: string;
-  objective: string;
-  businessName: string;
-  assistantName: string;
-  recommendedChannels: string[];
-  seededServices: string[];
-  createdTemplates: string[];
-  readinessScore: number;
-  readinessLabel: string;
-  readinessTone: "success" | "warning" | "danger";
-  risks: string[];
-}) {
-  const readinessClasses = readinessTone === "success"
-    ? "border-[color:var(--success-border)] bg-[color:var(--success-soft)] text-[color:var(--success-text)]"
-    : readinessTone === "warning"
-      ? "border-[color:var(--warning-border)] bg-[color:var(--warning-soft)] text-[color:var(--warning-text)]"
-      : "border-[color:var(--danger-border)] bg-[color:var(--danger-soft)] text-[color:var(--danger-text)]";
-
-  return (
-    <div className="sticky top-6 grid gap-6 self-start" data-testid="sticky-summary-rail">
-      <div className="rounded-[28px] border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-5 shadow-[var(--shadow-sm)]">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Resumen vivo del draft</div>
-            <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-[color:var(--text-primary)]">Sticky summary rail</h3>
-            <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">La configuración generada ya se siente real porque el resumen se actualiza mientras avanzas por el wizard.</p>
-          </div>
-          <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${readinessClasses}`}>{readinessLabel}</span>
-        </div>
-
-        <div className="mt-5 grid gap-3">
-          <div className="surface-row" data-testid="summary-organization"><span>Organización</span><strong>{safeText(organizationName, "Pendiente")}</strong></div>
-          <div className="surface-row" data-testid="summary-industry"><span>Industria</span><strong>{safeText(industry, "Pendiente")}</strong></div>
-          <div className="surface-row" data-testid="summary-operation"><span>Tipo de operación</span><strong>{safeText(operationType, "Pendiente")}</strong></div>
-          <div className="surface-row" data-testid="summary-objective"><span>Objetivo</span><strong>{safeText(objective, "Pendiente")}</strong></div>
-          <div className="surface-row" data-testid="summary-business-name"><span>Nombre del negocio</span><strong>{safeText(businessName, mode === "create" ? "Pendiente" : "Se conserva el actual")}</strong></div>
-          <div className="surface-row" data-testid="summary-assistant-name"><span>Asistente operativo</span><strong>{safeText(assistantName, mode === "create" ? "Pendiente" : "Pendiente de elegir")}</strong></div>
-          <div className="surface-row"><span>Readiness del draft</span><strong>{readinessScore}%</strong></div>
-        </div>
-
-        <div className="mt-5 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Canales recomendados</div>
-          <SummaryList items={recommendedChannels} fallback="Aún no hay canales sugeridos visibles." />
-        </div>
-        <div className="mt-4 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Servicios semilla</div>
-          <SummaryList items={seededServices} fallback="Todavía no hay servicios semilla visibles." />
-        </div>
-        <div className="mt-4 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Templates que se van a crear</div>
-          <SummaryList items={createdTemplates} fallback="Todavía no hay templates visibles." />
-        </div>
-        <div className="mt-4 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">Riesgos y faltantes</div>
-          <SummaryList items={risks} fallback="No hay riesgos bloqueantes visibles." />
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -1100,93 +552,151 @@ export default function BotStudioWizardClient({
   const organizationsById = useMemo(() => Object.fromEntries(organizations.map((item) => [item.id, item])), [organizations]);
   const botsById = useMemo(() => Object.fromEntries(bots.map((item) => [item.id, item])), [bots]);
 
-  const wizardAnswers = initialWizard?.answers || {};
-  const initialWizardBasics = asRecord(wizardAnswers.business_basics);
-  const initialWizardFit = asRecord(wizardAnswers.vertical_fit);
-  const initialCatalog = asRecord(wizardAnswers.catalog_offer);
-  const initialKnowledge = asRecord(wizardAnswers.knowledge_seed);
-  const initialIntegrations = asRecord(wizardAnswers.integrations_rules);
-  const initialLaunch = asRecord(wizardAnswers.launch_review);
-
-  const initialConfirmedVerticalId = String(initialWizardFit.vertical_id || initialWizard?.vertical_id || "");
-  const initialConfirmedSubvertical = String(initialWizardFit.subvertical || initialWizard?.subvertical || "");
-  const initialCandidateVerticalId = String(initialConfirmedVerticalId || initialVerticalId || "");
-  const initialCandidateSubvertical = String(initialConfirmedSubvertical || initialSubvertical || "");
-
-  const [mode, setMode] = useState<WizardMode>(initialMode);
-  const [selectedBotId, setSelectedBotId] = useState(initialSelectedBotId || String(initialWizard?.bot_id || ""));
-  const [selectedOrganizationId, setSelectedOrganizationId] = useState(String(initialWizard?.organization_id || initialOrganizationId || ""));
-  const [selectedVerticalId, setSelectedVerticalId] = useState(initialConfirmedVerticalId);
-  const [selectedSubvertical, setSelectedSubvertical] = useState(initialConfirmedSubvertical);
-  const [candidateVerticalId, setCandidateVerticalId] = useState(initialCandidateVerticalId);
-  const [candidateSubvertical, setCandidateSubvertical] = useState(initialCandidateSubvertical);
-  const [selectedPrimaryObjective, setSelectedPrimaryObjective] = useState<ObjectiveValue>(normalizeObjective(initialWizardFit.primary_objective || initialPrimaryObjective));
-  const [businessName, setBusinessName] = useState(String(initialWizardBasics.business_name || initialWizard?.business_name || ""));
-  const [botName, setBotName] = useState(String(initialWizardBasics.bot_name || initialWizard?.bot_name || ""));
-  const [tone, setTone] = useState(String(initialWizardBasics.tone || initialWizard?.tone || "amable"));
-  const [language, setLanguage] = useState(String(initialWizardBasics.language || initialWizard?.language || "es"));
-  const [timezone, setTimezone] = useState(String(initialWizardBasics.timezone || initialWizard?.timezone || "America/Mexico_City"));
-  const [hours, setHours] = useState(String(initialWizardBasics.hours || ""));
-  const [whatsappNumber, setWhatsappNumber] = useState(String(initialWizardBasics.whatsapp_number || ""));
-  const [servicesText, setServicesText] = useState(textBlockFromList(Array.isArray(initialCatalog.services) ? initialCatalog.services.map((item) => String(item || "")) : initialBlueprint?.setup?.services || []));
-  const [featuredOffersText, setFeaturedOffersText] = useState(textBlockFromList(Array.isArray(initialCatalog.featured_offers) ? initialCatalog.featured_offers.map((item) => String(item || "")) : initialBlueprint?.setup?.wizard?.featured_offers || []));
-  const [primaryCtasText, setPrimaryCtasText] = useState(textBlockFromList(Array.isArray(initialCatalog.primary_ctas)
-    ? initialCatalog.primary_ctas.map((item) => safeText(asRecord(item).label, String(item || "")))
-    : (initialBlueprint?.setup?.wizard?.recommended_ctas || []).map((item) => item.label || item.key || item.goal || "")));
-  const [pricingNotesText, setPricingNotesText] = useState(textBlockFromList(Array.isArray(initialCatalog.pricing_notes) ? initialCatalog.pricing_notes.map((item) => String(item || "")) : initialBlueprint?.setup?.wizard?.pricing_notes || []));
-  const [faqText, setFaqText] = useState(textBlockFromFaqs(readFaqItems(initialKnowledge.faqs || initialBlueprint?.setup?.faqs || [])));
-  const [policiesText, setPoliciesText] = useState(textBlockFromList(Array.isArray(initialKnowledge.policies) ? initialKnowledge.policies.map((item) => String(item || "")) : initialBlueprint?.setup?.wizard?.policies || []));
-  const [knowledgeSourcesText, setKnowledgeSourcesText] = useState(textBlockFromList(Array.isArray(initialKnowledge.knowledge_sources)
-    ? initialKnowledge.knowledge_sources.map((item) => safeText(asRecord(item).label, safeText(asRecord(item).connector_key, String(item || ""))))
-    : (initialBlueprint?.setup?.wizard?.knowledge_sources || []).map((item) => safeText(item.label, safeText(item.connector_key, safeText(item.provider))))));
-  const [selectedIntegrationKeys, setSelectedIntegrationKeys] = useState<string[]>(unique(Array.isArray(initialIntegrations.selected_integrations)
-    ? initialIntegrations.selected_integrations.map((item) => integrationIdentity(item as Partial<WizardRecommendedIntegration>))
-    : (initialBlueprint?.setup?.wizard?.recommended_integrations || []).map(integrationIdentity)));
-  const [escalateWhenText, setEscalateWhenText] = useState(textBlockFromList(Array.isArray(initialIntegrations.escalate_when) ? initialIntegrations.escalate_when.map((item) => String(item || "")) : readNestedStrings(initialBlueprint?.setup, ["rules", "escalate_when"])));
-  const [handoffKeywordsText, setHandoffKeywordsText] = useState(textBlockFromList(Array.isArray(initialIntegrations.handoff_keywords) ? initialIntegrations.handoff_keywords.map((item) => String(item || "")) : []));
-  const [handoffSlaText, setHandoffSlaText] = useState(String(initialIntegrations.expected_handoff_sla || safeText(initialBlueprint?.setup?.handoff?.expected_sla, "20 minutos")));
-  const [humanDestinationChannelText, setHumanDestinationChannelText] = useState(String(initialIntegrations.human_destination_channel || safeText(initialBlueprint?.setup?.handoff?.destination_channel, "Equipo humano / operaciones")));
-  const [canSayText, setCanSayText] = useState(textBlockFromList(readNestedStrings(initialIntegrations, ["rule_overrides", "can_say"])));
-  const [cannotSayText, setCannotSayText] = useState(textBlockFromList(readNestedStrings(initialIntegrations, ["rule_overrides", "cannot_say"])));
-  const [launchNotesText, setLaunchNotesText] = useState(textBlockFromList(Array.isArray(initialLaunch.launch_notes)
-    ? initialLaunch.launch_notes.map((item) => String(item || ""))
-    : initialBlueprint?.setup?.wizard?.launch_notes || []));
-  const [selectedPlaybookKeys, setSelectedPlaybookKeys] = useState<string[]>(unique(
-    Array.isArray(initialLaunch.recommended_playbooks)
-      ? initialLaunch.recommended_playbooks.map((item) => safeText(asRecord(item).key, safeText(asRecord(item).label, String(item || ""))))
-      : (initialBlueprint?.setup?.wizard?.recommended_playbooks || []).map((item) => item.key || item.label || ""),
-  ));
-  const [autopublishKnowledge, setAutopublishKnowledge] = useState(Boolean(initialLaunch.autopublish_knowledge ?? initialBlueprint?.setup?.wizard?.autopublish_knowledge ?? true));
-  const [ruleOverridesText, setRuleOverridesText] = useState(JSON.stringify(parseJsonObject(String(initialIntegrations.rule_overrides ? JSON.stringify(initialIntegrations.rule_overrides) : "")), null, 2));
-  const [simulationTitle, setSimulationTitle] = useState("Validación guiada del wizard");
-  const [simulationScenario, setSimulationScenario] = useState("Hola, quiero precio y también saber si pueden agendarme esta semana.");
-  const [simulationExpectedAction, setSimulationExpectedAction] = useState("");
-  const [simulationResult, setSimulationResult] = useState<Record<string, unknown> | null>(null);
-  const [simulationRunning, setSimulationRunning] = useState(false);
-  const [simulationError, setSimulationError] = useState("");
-  const [blueprint, setBlueprint] = useState<WizardBlueprint | null>(initialBlueprint);
-  const [verticalProfile, setVerticalProfile] = useState<VerticalProfileContract | null>(initialVerticalProfile);
-  const [wizardId, setWizardId] = useState(initialWizardId || initialWizard?.id || "");
-  const [wizard, setWizard] = useState<WizardInstance | null>(initialWizard || null);
-  const [activeStep, setActiveStep] = useState<ActiveStep>(resolveInitialStep(initialMode, initialWizard || null, initialStepOverride));
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState("");
-  const [working, setWorking] = useState(false);
-  const [wizardError, setWizardError] = useState("");
-  const [applyResult, setApplyResult] = useState<WizardApplyResult | null>(null);
-  const [dryRunResult, setDryRunResult] = useState<WizardDryRunResult | null>(null);
-  const [postApplyBot, setPostApplyBot] = useState<BotContract | null>(null);
-  const [postApplyReleases, setPostApplyReleases] = useState<ReleaseRequestContract[]>([]);
-  const [postApplySimulationRuns, setPostApplySimulationRuns] = useState<Array<Record<string, unknown>>>([]);
-  const [postApplyLoading, setPostApplyLoading] = useState(false);
-  const [postApplyError, setPostApplyError] = useState("");
-  const [reviewConfirmed, setReviewConfirmed] = useState(false);
-  const [postApplyPath, setPostApplyPath] = useState<CompletionPath>("wizard");
-  const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved" | "error">(initialWizardId || initialWizard?.id ? "saved" : "idle");
-  const [autosaveError, setAutosaveError] = useState("");
-  const [lastSavedAt, setLastSavedAt] = useState(String(initialWizard?.updated_at || ""));
+  const {
+    mode,
+    setMode,
+    selectedBotId,
+    setSelectedBotId,
+    selectedOrganizationId,
+    setSelectedOrganizationId,
+    selectedVerticalId,
+    setSelectedVerticalId,
+    selectedSubvertical,
+    setSelectedSubvertical,
+    candidateVerticalId,
+    setCandidateVerticalId,
+    candidateSubvertical,
+    setCandidateSubvertical,
+    selectedPrimaryObjective,
+    setSelectedPrimaryObjective,
+    activeStep,
+    setActiveStep,
+    businessName,
+    setBusinessName,
+    botName,
+    setBotName,
+    tone,
+    setTone,
+    language,
+    setLanguage,
+    timezone,
+    setTimezone,
+    hours,
+    setHours,
+    whatsappNumber,
+    setWhatsappNumber,
+    servicesText,
+    setServicesText,
+    featuredOffersText,
+    setFeaturedOffersText,
+    primaryCtasText,
+    setPrimaryCtasText,
+    pricingNotesText,
+    setPricingNotesText,
+    faqText,
+    setFaqText,
+    policiesText,
+    setPoliciesText,
+    knowledgeSourcesText,
+    setKnowledgeSourcesText,
+    selectedIntegrationKeys,
+    setSelectedIntegrationKeys,
+    escalateWhenText,
+    setEscalateWhenText,
+    handoffKeywordsText,
+    setHandoffKeywordsText,
+    handoffSlaText,
+    setHandoffSlaText,
+    humanDestinationChannelText,
+    setHumanDestinationChannelText,
+    canSayText,
+    setCanSayText,
+    cannotSayText,
+    setCannotSayText,
+    ruleOverridesText,
+    setRuleOverridesText,
+    launchNotesText,
+    setLaunchNotesText,
+    selectedPlaybookKeys,
+    setSelectedPlaybookKeys,
+    autopublishKnowledge,
+    setAutopublishKnowledge,
+    simulationTitle,
+    setSimulationTitle,
+    simulationScenario,
+    setSimulationScenario,
+    simulationExpectedAction,
+    setSimulationExpectedAction,
+    simulationResult,
+    setSimulationResult,
+    simulationRunning,
+    setSimulationRunning,
+    simulationError,
+    setSimulationError,
+    blueprint,
+    setBlueprint,
+    verticalProfile,
+    setVerticalProfile,
+    previewLoading,
+    setPreviewLoading,
+    previewError,
+    setPreviewError,
+    wizardId,
+    setWizardId,
+    wizard,
+    setWizard,
+    working,
+    setWorking,
+    wizardError,
+    setWizardError,
+    applyResult,
+    setApplyResult,
+    dryRunResult,
+    setDryRunResult,
+    reviewConfirmed,
+    setReviewConfirmed,
+    postApplyBot,
+    setPostApplyBot,
+    postApplyReleases,
+    setPostApplyReleases,
+    postApplySimulationRuns,
+    setPostApplySimulationRuns,
+    postApplyLoading,
+    setPostApplyLoading,
+    postApplyError,
+    setPostApplyError,
+    postApplyPath,
+    setPostApplyPath,
+    autosaveState,
+    setAutosaveState,
+    autosaveError,
+    setAutosaveError,
+    lastSavedAt,
+    setLastSavedAt,
+    patchState,
+  } = useBotStudioWizardState({
+    initialSelectedBotId,
+    initialMode,
+    initialOrganizationId,
+    initialVerticalId,
+    initialSubvertical,
+    initialPrimaryObjective,
+    initialBlueprint,
+    initialVerticalProfile,
+    initialWizardId,
+    initialWizard,
+    initialStepOverride,
+  });
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reactiveSelectionLoader = useMemo(() => createLatestWizardReactiveSelectionLoader(), []);
   const lastAutosavedPayloadsRef = useRef<Record<string, string>>({});
+  const wizardRef = useRef<WizardInstance | null>(initialWizard || null);
+  const saveQueueRef = useRef<Promise<WizardInstance | null>>(Promise.resolve(initialWizard || null));
+  const autosaveRunRef = useRef(0);
+  const lastRecoverySignatureRef = useRef("");
+  const lastIntegrityRefreshSignatureRef = useRef("");
+  const [diagnosticsVersion, setDiagnosticsVersion] = useState(0);
+  const [diagnosticCopyFeedback, setDiagnosticCopyFeedback] = useState("");
 
   const postApplyBotId = String(applyResult?.wizard?.bot_id || (wizard?.status === "applied" ? wizard?.bot_id || "" : ""));
   const postApplyAppliedAt = String(applyResult?.wizard?.applied_at || wizard?.applied_at || "");
@@ -1219,6 +729,150 @@ export default function BotStudioWizardClient({
   const integrationOptionLabels = new Map(integrationOptions.map((item) => [integrationIdentity(item), safeText(item.name, safeText(item.provider || item.integration_key || item.name, integrationIdentity(item)))]));
   const recommendedPlaybooks = blueprint?.setup?.wizard?.recommended_playbooks || [];
   const recommendedCtas = blueprint?.setup?.wizard?.recommended_ctas || [];
+  const wizardTelemetryContext = useMemo(() => ({
+    mode,
+    organizationId: selectedOrganizationId,
+    botId: selectedBotId,
+    wizardId,
+    verticalId: selectedVerticalId,
+    subvertical: selectedSubvertical,
+  }), [mode, selectedOrganizationId, selectedBotId, wizardId, selectedVerticalId, selectedSubvertical]);
+
+  function getWizardTelemetryStorage() {
+    return typeof window !== "undefined" ? window.sessionStorage : null;
+  }
+
+  function recordTimeline(type: string, payload: Record<string, unknown> = {}) {
+    if (!WIZARD_ENTERPRISE_FLAGS.enabled || !WIZARD_ENTERPRISE_FLAGS.telemetryEnabled) return;
+    recordWizardTimelineEvent(getWizardTelemetryStorage(), wizardTelemetryContext, { type, payload });
+    setDiagnosticsVersion((value) => value + 1);
+  }
+
+  function recordAutosaveBatchMetric(result: "success" | "error" | "ignored" | "skipped", durationMs: number, stepCount: number) {
+    if (!WIZARD_ENTERPRISE_FLAGS.enabled || !WIZARD_ENTERPRISE_FLAGS.telemetryEnabled) return;
+    recordWizardAutosaveMetric(getWizardTelemetryStorage(), wizardTelemetryContext, { result, durationMs, stepCount });
+    setDiagnosticsVersion((value) => value + 1);
+  }
+
+  function getStepPayloadFingerprint(payload: Record<string, unknown> | null | undefined) {
+    return fingerprintWizardValue(payload || {});
+  }
+
+  function getWizardStepRunPayloadFingerprint(instance: WizardInstance | null | undefined, stepKey: string) {
+    const stepRun = (instance?.step_runs || []).find((item) => item.step_key === stepKey);
+    return stepRun?.payload ? getStepPayloadFingerprint(stepRun.payload) : null;
+  }
+
+  function refreshVisibleDiagnostics() {
+    setDiagnosticsVersion((value) => value + 1);
+  }
+
+  const wizardPayloads = useMemo(() => buildWizardPayloads({
+    mode,
+    selectedOrganizationId,
+    selectedBotId,
+    selectedVerticalId,
+    selectedSubvertical,
+    selectedPrimaryObjective,
+    selectedOrganization,
+    businessName,
+    botName,
+    tone,
+    language,
+    timezone,
+    hours,
+    whatsappNumber,
+    servicesText,
+    featuredOffersText,
+    pricingNotesText,
+    primaryCtasText,
+    faqText,
+    policiesText,
+    knowledgeSourcesText,
+    selectedIntegrationKeys,
+    integrationOptions,
+    escalateWhenText,
+    handoffKeywordsText,
+    handoffSlaText,
+    humanDestinationChannelText,
+    canSayText,
+    cannotSayText,
+    ruleOverridesText,
+    selectedPlaybookKeys,
+    recommendedPlaybooks,
+    launchNotesText,
+    autopublishKnowledge,
+  }), [
+    mode,
+    selectedOrganizationId,
+    selectedBotId,
+    selectedVerticalId,
+    selectedSubvertical,
+    selectedPrimaryObjective,
+    selectedOrganization,
+    businessName,
+    botName,
+    tone,
+    language,
+    timezone,
+    hours,
+    whatsappNumber,
+    servicesText,
+    featuredOffersText,
+    pricingNotesText,
+    primaryCtasText,
+    faqText,
+    policiesText,
+    knowledgeSourcesText,
+    selectedIntegrationKeys,
+    integrationOptions,
+    escalateWhenText,
+    handoffKeywordsText,
+    handoffSlaText,
+    humanDestinationChannelText,
+    canSayText,
+    cannotSayText,
+    ruleOverridesText,
+    selectedPlaybookKeys,
+    recommendedPlaybooks,
+    launchNotesText,
+    autopublishKnowledge,
+  ]);
+
+  const requiredWizardStepPayloads = useMemo(() => ([
+    ["vertical_fit", wizardPayloads.scope],
+    ["business_basics", wizardPayloads.basics],
+  ] as const), [wizardPayloads.basics, wizardPayloads.scope]);
+
+  const fullWizardStepPayloads = useMemo(() => ([
+    ...requiredWizardStepPayloads,
+    ["catalog_offer", wizardPayloads.catalog],
+    ["knowledge_seed", wizardPayloads.knowledge],
+    ["integrations_rules", wizardPayloads.integrations],
+    ["launch_review", wizardPayloads.launchReview],
+  ] as const), [requiredWizardStepPayloads, wizardPayloads.catalog, wizardPayloads.integrations, wizardPayloads.knowledge, wizardPayloads.launchReview]);
+  const clientTimelineEvents = useMemo(
+    () => readWizardTimelineEvents(getWizardTelemetryStorage(), wizardTelemetryContext),
+    [diagnosticsVersion, wizardTelemetryContext],
+  );
+  const clientAutosaveMetrics = useMemo(
+    () => readWizardAutosaveMetrics(getWizardTelemetryStorage(), wizardTelemetryContext),
+    [diagnosticsVersion, wizardTelemetryContext],
+  );
+  const wizardPayloadFingerprints = useMemo(
+    () => Object.fromEntries(fullWizardStepPayloads.map(([stepKey, payload]) => [stepKey, getStepPayloadFingerprint(payload as Record<string, unknown>)])),
+    [fullWizardStepPayloads],
+  );
+  const dirtyWizardSteps = useMemo(
+    () => fullWizardStepPayloads
+      .map(([stepKey]) => {
+        const clientFingerprint = wizardPayloadFingerprints[stepKey];
+        const serverFingerprint = getWizardStepRunPayloadFingerprint(wizard, stepKey);
+        return { stepKey, clientFingerprint, serverFingerprint };
+      })
+      .filter((item) => item.serverFingerprint !== null && item.serverFingerprint !== item.clientFingerprint),
+    [fullWizardStepPayloads, wizard, wizardPayloadFingerprints],
+  );
   const nextTemplates = useMemo(() => unique([
     ...((blueprint?.setup?.response_templates || []) as Array<Record<string, unknown>>).map((item) => String(item.title || item.template_key || item.key || item.name || "").trim()),
     ...((selectedSubverticalProfile?.templates || []).map((item: WizardSubverticalTemplate) => String(item.title || item.template_key || item.key || item.name || "").trim())),
@@ -1302,9 +956,9 @@ export default function BotStudioWizardClient({
       setPostApplyError("");
       try {
         const [botPayload, releasePayload, simulationPayload] = await Promise.all([
-          requestJson<unknown>(`/api/v1/bots/${encodeURIComponent(postApplyBotId)}`),
-          requestJson<unknown[]>(`/api/v1/bots/${encodeURIComponent(postApplyBotId)}/release-requests`),
-          requestJson<Array<Record<string, unknown>>>(`/api/v1/bots/${encodeURIComponent(postApplyBotId)}/simulation-runs`),
+          requestApiJson<unknown>(`/api/v1/bots/${encodeURIComponent(postApplyBotId)}`),
+          requestApiJson<unknown[]>(`/api/v1/bots/${encodeURIComponent(postApplyBotId)}/release-requests`),
+          requestApiJson<Array<Record<string, unknown>>>(`/api/v1/bots/${encodeURIComponent(postApplyBotId)}/simulation-runs`),
         ]);
         if (cancelled) return;
         setPostApplyBot(normalizeBot(botPayload));
@@ -1474,11 +1128,11 @@ export default function BotStudioWizardClient({
     const inboxReadyActions = [
       { key: "versions", label: "Revisar versiones", href: botId ? `/bots/${botId}/versions` : "/bots" },
       { key: "connect_channel", label: "Abrir integraciones", href: "/integrations?section=configuracion" },
-      { key: "run_simulation", label: "Ir a simulación", action: () => setActiveStep("simulate") },
+      { key: "run_simulation", label: "Ir a simulación", action: () => goToStep("simulate") },
     ];
     const defaultActions = [
       { key: "connect_channel", label: "Conectar canal", href: "/integrations?section=configuracion" },
-      { key: "run_simulation", label: "Ir a simulación", action: () => setActiveStep("simulate") },
+      { key: "run_simulation", label: "Ir a simulación", action: () => goToStep("simulate") },
       { key: "publish_release", label: "Abrir publish", href: botId ? `/releases?stage=draft&bot_id=${botId}` : "/releases?stage=draft" },
       { key: "open_inbox", label: "Abrir inbox", href: "/inbox" },
       { key: "versions", label: "Revisar versiones", href: botId ? `/bots/${botId}/versions` : "/bots" },
@@ -1546,7 +1200,94 @@ const proposedHandoffPreview = useMemo(() => {
 
   const hasBusinessIdentity = Boolean(businessName.trim() && botName.trim());
   const canStartCreate = Boolean(selectedOrganizationId && selectedVerticalId && selectedSubvertical && hasBusinessIdentity);
-  const canSaveBasics = Boolean(selectedOrganizationId && selectedVerticalId && selectedSubvertical && hasBusinessIdentity);
+  const canSaveBasics = Boolean(selectedOrganizationId && selectedVerticalId && selectedSubvertical && hasBusinessIdentity && tone.trim() && language.trim() && timezone.trim());
+  const canSaveOffer = Boolean(parseTextBlock(servicesText).length && parseTextBlock(primaryCtasText).length);
+  const canSaveKnowledge = Boolean(parseFaqBlock(faqText).length && parseTextBlock(policiesText).length && parseTextBlock(knowledgeSourcesText).length);
+  const canSaveIntegrations = Boolean(selectedIntegrationKeys.length && parseTextBlock(escalateWhenText).length);
+
+  function clampCreateStepNavigation(target: ActiveStep): { step: ActiveStep; blockedReason: string } {
+    const checks: Array<{ step: ActiveStep; ready: boolean; blockedReason: string }> = [
+      { step: "scope", ready: true, blockedReason: "" },
+      { step: "basics", ready: canStartCreate, blockedReason: "Completa organización, industria, tipo de operación y la identidad base antes de seguir." },
+      { step: "offer", ready: canSaveBasics, blockedReason: "Completa y guarda Fundamentos antes de abrir Oferta." },
+      { step: "knowledge", ready: canSaveOffer, blockedReason: "Completa Oferta antes de abrir Knowledge." },
+      { step: "integrations", ready: canSaveKnowledge, blockedReason: "Completa Knowledge antes de abrir Reglas e integraciones." },
+      { step: "review", ready: canSaveIntegrations, blockedReason: "Completa Integraciones y reglas antes de abrir Review." },
+      { step: "publish", ready: Boolean(applyResult?.wizard?.id || wizard?.status === "applied"), blockedReason: "Aplica el wizard antes de abrir Publish." },
+    ];
+    let lastAllowed: ActiveStep = "scope";
+    for (const item of checks) {
+      if (item.ready) lastAllowed = item.step;
+      if (item.step === target) return item.ready ? { step: target, blockedReason: "" } : { step: lastAllowed, blockedReason: item.blockedReason };
+    }
+    if (target === "simulate") {
+      return Boolean(applyResult?.wizard?.id || wizard?.status === "applied")
+        ? { step: target, blockedReason: "" }
+        : { step: lastAllowed, blockedReason: "Aplica el wizard antes de abrir Simulación." };
+    }
+    return { step: lastAllowed, blockedReason: "" };
+  }
+
+  function goToStep(nextStep: ActiveStep, options: { silent?: boolean } = {}) {
+    if (mode === "create") {
+      const navigation = clampCreateStepNavigation(nextStep);
+      if (navigation.blockedReason && !options.silent) {
+        setWizardError(navigation.blockedReason);
+        recordTimeline("wizard.navigation_blocked", { requestedStep: nextStep, recoveredStep: navigation.step, reason: navigation.blockedReason });
+      }
+      setActiveStep(navigation.step);
+      return;
+    }
+    if ((nextStep === "publish" || nextStep === "simulate") && !applyResult?.wizard?.id && wizard?.status !== "applied") {
+      if (!options.silent) {
+        const reason = `Aplica el wizard antes de abrir ${nextStep === "publish" ? "Publish" : "Simulación"}.`;
+        setWizardError(reason);
+        recordTimeline("wizard.navigation_blocked", { requestedStep: nextStep, recoveredStep: activeStep, reason });
+      }
+      return;
+    }
+    setActiveStep(nextStep);
+  }
+
+  const diagnosticAllowedStep = mode === "create" ? clampCreateStepNavigation("publish").step : activeStep;
+
+  async function handleCopyDiagnostics() {
+    const backendEvents = Array.isArray(wizard?.event_log) ? wizard.event_log.slice(-8) : [];
+    const report = {
+      mode,
+      activeStep,
+      diagnosticAllowedStep,
+      autosaveState,
+      autosaveError,
+      wizardError,
+      wizard: wizard ? {
+        id: wizard.id,
+        status: wizard.status,
+        current_step: wizard.current_step,
+        progress_percent: wizard.progress_percent,
+        wizard_revision: wizard.wizard_revision,
+        updated_at: wizard.updated_at,
+        diagnostics: wizard.diagnostics || null,
+      } : null,
+      dirtyWizardSteps,
+      autosaveMetrics: clientAutosaveMetrics,
+      clientTimelineEvents: clientTimelineEvents.slice(-12),
+      backendEvents,
+    };
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(JSON.stringify(report, null, 2));
+        setDiagnosticCopyFeedback("Diagnóstico copiado");
+        setTimeout(() => setDiagnosticCopyFeedback(""), 1600);
+        return;
+      }
+      setDiagnosticCopyFeedback("Copia manualmente desde pantalla");
+      setTimeout(() => setDiagnosticCopyFeedback(""), 1600);
+    } catch {
+      setDiagnosticCopyFeedback("No se pudo copiar");
+      setTimeout(() => setDiagnosticCopyFeedback(""), 1600);
+    }
+  }
 
   function seedStepDrafts(nextBlueprint: WizardBlueprint | null) {
     const answers = nextBlueprint?.answers || {};
@@ -1630,8 +1371,8 @@ const proposedHandoffPreview = useMemo(() => {
   }, [mode, selectedOrganization, businessName, botName, timezone]);
 
   useEffect(() => {
-    let cancelled = false;
     if (!selectedOrganizationId || !previewVerticalId) {
+      reactiveSelectionLoader.cancel();
       setBlueprint(null);
       setVerticalProfile(null);
       setPreviewLoading(false);
@@ -1640,20 +1381,21 @@ const proposedHandoffPreview = useMemo(() => {
     }
     setPreviewLoading(true);
     setPreviewError("");
-    const params = new URLSearchParams();
-    params.set("organization_id", selectedOrganizationId);
-    params.set("vertical_id", previewVerticalId);
-    if (previewSubvertical) params.set("subvertical", previewSubvertical);
-    params.set("primary_objective", selectedPrimaryObjective);
-    if (mode === "reconfigure" && selectedBotId) params.set("bot_id", selectedBotId);
 
-    Promise.all([
-      requestJson<WizardBlueprint>(`/api/onboarding/wizard/blueprint?${params.toString()}`),
-      requestJson<VerticalProfileContract>(`/api/onboarding/wizard/vertical-profile?organization_id=${encodeURIComponent(selectedOrganizationId)}&vertical=${encodeURIComponent(previewVerticalId)}${previewSubvertical ? `&subvertical=${encodeURIComponent(previewSubvertical)}` : ""}${mode === "reconfigure" && selectedBotId ? `&bot_id=${encodeURIComponent(selectedBotId)}` : ""}`),
-    ]).then(([nextBlueprint, nextProfile]) => {
-      if (cancelled) return;
+    reactiveSelectionLoader.load({
+      organizationId: selectedOrganizationId,
+      verticalId: previewVerticalId,
+      subvertical: previewSubvertical,
+      primaryObjective: selectedPrimaryObjective,
+      mode,
+      botId: selectedBotId,
+    }).then((result) => {
+      if (!result) return;
+      const { blueprint: nextBlueprint, verticalProfile: nextProfile, errors } = result;
       setBlueprint(nextBlueprint);
       setVerticalProfile(nextProfile);
+      setPreviewError(errors.join(" "));
+      if (!nextBlueprint || !nextProfile) return;
       const validNames = buildSubverticalProfiles(nextProfile, nextBlueprint, verticals.find((item) => item.id === previewVerticalId) || null).map((item) => safeText(item.name));
       if (previewSubvertical && validNames.length && !validNames.some((item) => normalizeName(item) === normalizeName(previewSubvertical))) {
         setCandidateSubvertical("");
@@ -1663,14 +1405,11 @@ const proposedHandoffPreview = useMemo(() => {
       if (mode === "create" && selectedVerticalId && selectedSubvertical && selectedVerticalId === previewVerticalId && normalizeName(selectedSubvertical) === normalizeName(previewSubvertical)) {
         seedStepDrafts(nextBlueprint);
       }
-    }).catch((error) => {
-      if (cancelled) return;
-      setPreviewError(error instanceof Error ? error.message : "No se pudo refrescar el wizard.");
     }).finally(() => {
-      if (!cancelled) setPreviewLoading(false);
+      setPreviewLoading(false);
     });
-    return () => { cancelled = true; };
-  }, [mode, selectedOrganizationId, previewVerticalId, previewSubvertical, selectedPrimaryObjective, selectedBotId, verticals, selectedVerticalId, selectedSubvertical]);
+    return () => { reactiveSelectionLoader.cancel(); };
+  }, [mode, reactiveSelectionLoader, selectedOrganizationId, previewVerticalId, previewSubvertical, selectedPrimaryObjective, selectedBotId, verticals, selectedVerticalId, selectedSubvertical]);
 
 
   function handlePreviewVertical(nextVerticalId: string) {
@@ -1716,183 +1455,214 @@ const proposedHandoffPreview = useMemo(() => {
   }
 
   function resetTransientState(nextMode: WizardMode) {
-    setApplyResult(null);
-    setDryRunResult(null);
-    setWizardError("");
-    setReviewConfirmed(false);
-    setWizard(null);
-    setWizardId("");
-    setAutosaveState("idle");
-    setAutosaveError("");
-    setLastSavedAt("");
-    setSimulationResult(null);
-    setSimulationError("");
-    setSimulationTitle("Validación guiada del wizard");
-    setSimulationScenario("Hola, quiero precio y también saber si pueden agendarme esta semana.");
-    setSimulationExpectedAction("");
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
-    setActiveStep(resolveInitialStep(nextMode, null));
+    patchState({
+      scope: {
+        activeStep: resolveWizardInitialStep(nextMode, null),
+      },
+      wizardRuntime: {
+        applyResult: null,
+        dryRunResult: null,
+        wizardError: "",
+        reviewConfirmed: false,
+        wizard: null,
+        wizardId: "",
+      },
+      autosave: {
+        autosaveState: "idle",
+        autosaveError: "",
+        lastSavedAt: "",
+      },
+      simulation: {
+        simulationResult: null,
+        simulationError: "",
+        simulationTitle: "Validación guiada del wizard",
+        simulationScenario: "Hola, quiero precio y también saber si pueden agendarme esta semana.",
+        simulationExpectedAction: "",
+      },
+    });
   }
 
   function handleSwitchMode(nextMode: WizardMode) {
+    recordTimeline("wizard.mode_switched", { fromMode: mode, toMode: nextMode, botId: selectedBotId || null });
     setMode(nextMode);
     resetTransientState(nextMode);
     updateUrl({ mode: nextMode, botId: nextMode === "reconfigure" ? selectedBotId : "", clearWizard: true });
   }
 
-  function buildStartPayload() {
-    return {
-      organization_id: selectedOrganizationId,
-      bot_id: mode === "reconfigure" ? selectedBotId || undefined : undefined,
-      vertical_id: selectedVerticalId,
-      subvertical: selectedSubvertical,
-      business_name: businessName || selectedOrganization?.name || "Negocio WAOS",
-      bot_name: botName || (selectedOrganization?.name ? `Asistente operativo ${selectedOrganization.name}` : "Asistente operativo WAOS"),
-      tone: tone || "amable",
-      language: language || "es",
-      timezone: timezone || selectedOrganization?.timezone || "America/Mexico_City",
-      primary_objective: selectedPrimaryObjective,
-      hours,
-      whatsapp_number: whatsappNumber,
-    };
-  }
-
-  function buildScopePayload() {
-    return {
-      vertical_id: selectedVerticalId,
-      subvertical: selectedSubvertical,
-      primary_objective: selectedPrimaryObjective,
-    };
-  }
-
-  function buildBasicsPayload() {
-    return {
-      business_name: businessName || selectedOrganization?.name || "Negocio WAOS",
-      bot_name: botName || (selectedOrganization?.name ? `Asistente operativo ${selectedOrganization.name}` : "Asistente operativo WAOS"),
-      tone: tone || "amable",
-      language: language || "es",
-      timezone: timezone || selectedOrganization?.timezone || "America/Mexico_City",
-      hours,
-      whatsapp_number: whatsappNumber,
-    };
-  }
-
-  function buildCatalogPayload() {
-    const ctaItems = parseTextBlock(primaryCtasText).map((label, index) => ({
-      key: `cta_${index + 1}`,
-      label,
-      goal: index === 0 ? selectedPrimaryObjective : "support",
-    }));
-    return {
-      services: parseTextBlock(servicesText),
-      featured_offers: parseTextBlock(featuredOffersText),
-      primary_ctas: ctaItems,
-      pricing_notes: parseTextBlock(pricingNotesText),
-    };
-  }
-
-  function buildKnowledgePayload() {
-    const sourceItems = parseTextBlock(knowledgeSourcesText).map((label) => ({
-      connector_key: normalizeName(label).replace(/[^a-z0-9]+/g, "_"),
-      label,
-      publish_policy: "manual_review",
-      required: false,
-    }));
-    return {
-      faqs: parseFaqBlock(faqText),
-      policies: parseTextBlock(policiesText),
-      knowledge_sources: sourceItems,
-    };
-  }
-
-  function buildIntegrationsPayload() {
-    const mergedOverrides = {
-      can_say: parseTextBlock(canSayText),
-      cannot_say: parseTextBlock(cannotSayText),
-      ...parseJsonObject(ruleOverridesText),
-    };
-    return {
-      selected_integrations: selectedIntegrationKeys.map((item) => {
-        const matched = integrationOptions.find((option) => integrationIdentity(option) === item);
-        return matched || { provider: item, name: item, integration_key: item, status: "planned" };
-      }),
-      escalate_when: parseTextBlock(escalateWhenText),
-      handoff_keywords: parseTextBlock(handoffKeywordsText),
-      expected_handoff_sla: handoffSlaText.trim() || "20 minutos",
-      human_destination_channel: humanDestinationChannelText.trim() || "Equipo humano / operaciones",
-      rule_overrides: mergedOverrides,
-    };
-  }
-
-  function buildLaunchReviewPayload() {
-    return {
-      recommended_playbooks: selectedPlaybookKeys.map((key) => {
-        const matched = recommendedPlaybooks.find((item) => (item.key || item.label) === key);
-        return matched || { key, label: key, priority: 99, goal: "launch" };
-      }),
-      launch_notes: parseTextBlock(launchNotesText),
-      autopublish_knowledge: autopublishKnowledge,
-    };
-  }
-
   async function ensureWizardExists() {
-    const payload = buildStartPayload();
-    const sameScope = wizard
-      && wizard.organization_id === payload.organization_id
-      && String(wizard.bot_id || "") === String(payload.bot_id || "")
-      && String(wizard.vertical_id || "") === payload.vertical_id
-      && normalizeName(String(wizard.subvertical || "")) === normalizeName(payload.subvertical || "");
+    const payload = wizardPayloads.start;
+    const currentWizard = wizardRef.current;
+    const sameScope = currentWizard
+      && currentWizard.organization_id === payload.organization_id
+      && String(currentWizard.bot_id || "") === String(payload.bot_id || "")
+      && String(currentWizard.vertical_id || "") === payload.vertical_id
+      && normalizeName(String(currentWizard.subvertical || "")) === normalizeName(payload.subvertical || "");
 
-    const activeWizard = sameScope && wizard?.id
-      ? wizard
-      : await requestJson<WizardInstance>("/api/onboarding/wizard/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+    const reusedWizard = sameScope && currentWizard?.id ? currentWizard : null;
+    const activeWizard = reusedWizard || await startWizardRequest(payload);
 
+    wizardRef.current = activeWizard;
     setWizard(activeWizard);
     setWizardId(activeWizard.id);
     updateUrl({ mode, wizardId: activeWizard.id, botId: payload.bot_id || "" });
+    if (!reusedWizard?.id) {
+      recordTimeline("wizard.started", {
+        wizardId: activeWizard.id,
+        verticalId: payload.vertical_id,
+        subvertical: payload.subvertical || null,
+        botId: payload.bot_id || null,
+      });
+    }
     return activeWizard;
   }
 
-  async function persistWizardStep(stepKey: string, payload: Record<string, unknown>, existingWizard?: WizardInstance | null) {
-    const activeWizard = existingWizard?.id ? existingWizard : await ensureWizardExists();
-    const updated = await requestJson<WizardInstance>(`/api/onboarding/wizard/${encodeURIComponent(activeWizard.id)}/steps/${stepKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ payload }),
+  function isWizardRevisionConflict(error: unknown) {
+    return error instanceof Error && /wizard_revision_conflict/i.test(error.message);
+  }
+
+  function isWizardStepOutOfSequence(error: unknown) {
+    return error instanceof Error && /wizard_step_out_of_sequence/i.test(error.message);
+  }
+
+  async function refreshWizardState(wizardIdToLoad: string) {
+    const latest = await getWizardRequest(wizardIdToLoad);
+    wizardRef.current = latest;
+    setWizard(latest);
+    setWizardId(latest.id);
+    setLastSavedAt(String(latest.updated_at || ""));
+    recordTimeline("wizard.refreshed", { wizardId: latest.id, revision: latest.wizard_revision ?? null, currentStep: latest.current_step || null });
+    return latest;
+  }
+
+  async function persistWizardStepRaw(
+    stepKey: string,
+    payload: Record<string, unknown>,
+    options: { existingWizard?: WizardInstance | null; source?: "manual" | "autosave" } = {},
+  ) {
+    const { existingWizard, source = "manual" } = options;
+    const startedAt = Date.now();
+    const payloadFingerprint = getStepPayloadFingerprint(payload);
+    const queuedWizard = wizardRef.current?.id ? wizardRef.current : existingWizard;
+    let activeWizard = queuedWizard?.id ? queuedWizard : await ensureWizardExists();
+    const serverFingerprint = getWizardStepRunPayloadFingerprint(activeWizard, stepKey);
+    if (serverFingerprint && serverFingerprint === payloadFingerprint) {
+      lastAutosavedPayloadsRef.current[stepKey] = payloadFingerprint;
+      recordTimeline(source === "autosave" ? "wizard.autosave_step_skipped_duplicate" : "wizard.step_save_skipped_duplicate", {
+        stepKey,
+        wizardId: activeWizard.id,
+        revision: activeWizard.wizard_revision ?? null,
+      });
+      return activeWizard;
+    }
+    recordTimeline(source === "autosave" ? "wizard.autosave_step_started" : "wizard.step_save_started", {
+      stepKey,
+      wizardId: activeWizard.id,
+      revision: activeWizard.wizard_revision ?? null,
+      payloadFingerprint,
     });
-    setWizard(updated);
-    setWizardId(updated.id);
-    setLastSavedAt(String(updated.updated_at || ""));
-    lastAutosavedPayloadsRef.current[stepKey] = JSON.stringify(payload);
-    return updated;
+    try {
+      const updated = await saveWizardStepRequest(activeWizard.id, stepKey, payload, { expectedRevision: activeWizard.wizard_revision ?? null });
+      wizardRef.current = updated;
+      setWizard(updated);
+      setWizardId(updated.id);
+      setLastSavedAt(String(updated.updated_at || ""));
+      lastAutosavedPayloadsRef.current[stepKey] = payloadFingerprint;
+      refreshVisibleDiagnostics();
+      recordTimeline(source === "autosave" ? "wizard.autosave_step_succeeded" : "wizard.step_save_succeeded", {
+        stepKey,
+        wizardId: updated.id,
+        revision: updated.wizard_revision ?? null,
+        currentStep: updated.current_step || null,
+        durationMs: Date.now() - startedAt,
+        payloadFingerprint,
+      });
+      return updated;
+    } catch (error) {
+      if (isWizardStepOutOfSequence(error) && activeWizard?.id) {
+        const refreshed = await refreshWizardState(activeWizard.id);
+        const recoveredStep = resolveWizardInitialStep(mode, refreshed, activeStep);
+        setActiveStep(recoveredStep);
+        setWizardError("Se bloqueó un guardado fuera de secuencia y el wizard volvió al último paso seguro.");
+        recordTimeline("wizard.out_of_sequence_recovered", {
+          source,
+          stepKey,
+          wizardId: refreshed.id,
+          revision: refreshed.wizard_revision ?? null,
+          recoveredStep,
+        });
+        return refreshed;
+      }
+      if (!isWizardRevisionConflict(error) || !activeWizard?.id) {
+        recordTimeline(source === "autosave" ? "wizard.autosave_step_failed" : "wizard.step_save_failed", {
+          stepKey,
+          wizardId: activeWizard?.id || null,
+          durationMs: Date.now() - startedAt,
+          error: error instanceof Error ? error.message : "save_failed",
+        });
+        throw error;
+      }
+      activeWizard = await refreshWizardState(activeWizard.id);
+      recordTimeline("wizard.revision_conflict_recovered", {
+        source,
+        stepKey,
+        wizardId: activeWizard.id,
+        revision: activeWizard.wizard_revision ?? null,
+      });
+      const updated = await saveWizardStepRequest(activeWizard.id, stepKey, payload, { expectedRevision: activeWizard.wizard_revision ?? null });
+      wizardRef.current = updated;
+      setWizard(updated);
+      setWizardId(updated.id);
+      setLastSavedAt(String(updated.updated_at || ""));
+      lastAutosavedPayloadsRef.current[stepKey] = payloadFingerprint;
+      refreshVisibleDiagnostics();
+      recordTimeline(source === "autosave" ? "wizard.autosave_step_succeeded" : "wizard.step_save_succeeded", {
+        stepKey,
+        wizardId: updated.id,
+        revision: updated.wizard_revision ?? null,
+        currentStep: updated.current_step || null,
+        durationMs: Date.now() - startedAt,
+        recoveredFromConflict: true,
+        payloadFingerprint,
+      });
+      return updated;
+    }
   }
 
-  async function syncScopeStep() {
-    return persistWizardStep("vertical_fit", buildScopePayload());
+  async function persistWizardStep(
+    stepKey: string,
+    payload: Record<string, unknown>,
+    options: { existingWizard?: WizardInstance | null; source?: "manual" | "autosave" } = {},
+  ) {
+    const queued = saveQueueRef.current
+      .catch(() => wizardRef.current)
+      .then(() => persistWizardStepRaw(stepKey, payload, options));
+    saveQueueRef.current = queued.catch(() => wizardRef.current);
+    return queued;
   }
 
-  async function syncBasicsStep() {
-    return persistWizardStep("business_basics", buildBasicsPayload());
+  async function syncScopeStep(source: "manual" | "autosave" = "manual", existingWizard?: WizardInstance | null) {
+    return persistWizardStep("vertical_fit", wizardPayloads.scope, { existingWizard, source });
   }
 
-  async function syncCatalogStep() {
-    return persistWizardStep("catalog_offer", buildCatalogPayload());
+  async function syncBasicsStep(source: "manual" | "autosave" = "manual", existingWizard?: WizardInstance | null) {
+    return persistWizardStep("business_basics", wizardPayloads.basics, { existingWizard, source });
   }
 
-  async function syncKnowledgeStep() {
-    return persistWizardStep("knowledge_seed", buildKnowledgePayload());
+  async function syncCatalogStep(source: "manual" | "autosave" = "manual", existingWizard?: WizardInstance | null) {
+    return persistWizardStep("catalog_offer", wizardPayloads.catalog, { existingWizard, source });
   }
 
-  async function syncIntegrationsStep() {
-    return persistWizardStep("integrations_rules", buildIntegrationsPayload());
+  async function syncKnowledgeStep(source: "manual" | "autosave" = "manual", existingWizard?: WizardInstance | null) {
+    return persistWizardStep("knowledge_seed", wizardPayloads.knowledge, { existingWizard, source });
   }
 
-  async function syncLaunchReviewStep() {
-    return persistWizardStep("launch_review", buildLaunchReviewPayload());
+  async function syncIntegrationsStep(source: "manual" | "autosave" = "manual", existingWizard?: WizardInstance | null) {
+    return persistWizardStep("integrations_rules", wizardPayloads.integrations, { existingWizard, source });
+  }
+
+  async function syncLaunchReviewStep(source: "manual" | "autosave" = "manual", existingWizard?: WizardInstance | null) {
+    return persistWizardStep("launch_review", wizardPayloads.launchReview, { existingWizard, source });
   }
 
   useEffect(() => {
@@ -1900,15 +1670,40 @@ const proposedHandoffPreview = useMemo(() => {
   }, [activeStep]);
 
   useEffect(() => {
+    wizardRef.current = wizard;
+  }, [wizard]);
+
+  useEffect(() => {
     lastAutosavedPayloadsRef.current = {
-      vertical_fit: JSON.stringify(buildScopePayload()),
-      business_basics: JSON.stringify(buildBasicsPayload()),
-      catalog_offer: JSON.stringify(buildCatalogPayload()),
-      knowledge_seed: JSON.stringify(buildKnowledgePayload()),
-      integrations_rules: JSON.stringify(buildIntegrationsPayload()),
-      launch_review: JSON.stringify(buildLaunchReviewPayload()),
+      ...Object.fromEntries(fullWizardStepPayloads.map(([stepKey, payload]) => [stepKey, getStepPayloadFingerprint(payload as Record<string, unknown>)])),
     };
   }, []);
+
+  useEffect(() => {
+    if (!wizard?.id) return;
+    const nextFingerprints = { ...lastAutosavedPayloadsRef.current };
+    for (const [stepKey] of fullWizardStepPayloads) {
+      const serverFingerprint = getWizardStepRunPayloadFingerprint(wizard, stepKey);
+      if (serverFingerprint) nextFingerprints[stepKey] = serverFingerprint;
+    }
+    lastAutosavedPayloadsRef.current = nextFingerprints;
+    refreshVisibleDiagnostics();
+  }, [wizard?.id, wizard?.updated_at, fullWizardStepPayloads]);
+
+  useEffect(() => {
+    if (!wizard?.id) return;
+    const diagnostics = wizard.diagnostics || null;
+    if (!diagnostics?.integrity_mismatch) return;
+    const signature = [wizard.id, diagnostics.integrity_signature || "no_signature", String(wizard.wizard_revision || 0)].join(":");
+    if (lastIntegrityRefreshSignatureRef.current === signature) return;
+    lastIntegrityRefreshSignatureRef.current = signature;
+    recordTimeline("wizard.integrity_refresh_requested", {
+      wizardId: wizard.id,
+      revision: wizard.wizard_revision ?? null,
+      mismatchFields: diagnostics.integrity_mismatch_fields || [],
+    });
+    void refreshWizardState(wizard.id).catch(() => undefined);
+  }, [wizard?.id, wizard?.wizard_revision, wizard?.diagnostics?.integrity_signature, wizard?.diagnostics?.integrity_mismatch]);
 
   useEffect(() => {
     return () => {
@@ -1929,39 +1724,56 @@ const proposedHandoffPreview = useMemo(() => {
       return;
     }
 
-    const pendingSteps: Array<[string, Record<string, unknown>]> = [
-      ["vertical_fit", buildScopePayload()],
-      ["business_basics", buildBasicsPayload()],
-    ];
+    const allowedCreateStepKeys = new Set(getCreateAutosaveStepKeys(activeStep));
+    const pendingSteps: Array<[string, Record<string, unknown>]> = (mode === "create"
+      ? fullWizardStepPayloads.filter(([stepKey]) => allowedCreateStepKeys.has(stepKey))
+      : requiredWizardStepPayloads)
+      .map(([stepKey, payload]) => [stepKey, payload as Record<string, unknown>]);
 
-    if (mode === "create") {
-      pendingSteps.push(["catalog_offer", buildCatalogPayload()]);
-      pendingSteps.push(["knowledge_seed", buildKnowledgePayload()]);
-      pendingSteps.push(["integrations_rules", buildIntegrationsPayload()]);
-      pendingSteps.push(["launch_review", buildLaunchReviewPayload()]);
-    }
-
-    const changedSteps = pendingSteps.filter(([stepKey, payload]) => JSON.stringify(payload) !== lastAutosavedPayloadsRef.current[stepKey]);
-    if (!changedSteps.length && wizardId) {
-      setAutosaveState("saved");
+    const changedSteps = pendingSteps.filter(([stepKey, payload]) => getStepPayloadFingerprint(payload) !== lastAutosavedPayloadsRef.current[stepKey]);
+    if (!changedSteps.length) {
+      setAutosaveState(wizardId ? "saved" : "idle");
       return;
     }
 
+    const runId = ++autosaveRunRef.current;
+    const startedAt = Date.now();
+    recordTimeline("wizard.autosave_scheduled", { runId, changedSteps: changedSteps.map(([stepKey]) => stepKey), activeStep });
     autosaveTimerRef.current = setTimeout(async () => {
       try {
+        if (runId !== autosaveRunRef.current) {
+          recordTimeline("wizard.autosave_ignored", { runId, reason: "stale_before_start" });
+          recordAutosaveBatchMetric("ignored", 0, changedSteps.length);
+          return;
+        }
         setAutosaveState("saving");
         setAutosaveError("");
         const activeWizard = await ensureWizardExists();
         let currentWizard = activeWizard;
-        for (const [stepKey, payload] of changedSteps.length ? changedSteps : pendingSteps.slice(0, 2)) {
-          currentWizard = await persistWizardStep(stepKey, payload, currentWizard);
-          lastAutosavedPayloadsRef.current[stepKey] = JSON.stringify(payload);
+        recordTimeline("wizard.autosave_started", { runId, wizardId: activeWizard.id, changedSteps: changedSteps.map(([stepKey]) => stepKey) });
+        for (const [stepKey, payload] of changedSteps) {
+          currentWizard = await persistWizardStep(stepKey, payload, { existingWizard: currentWizard, source: "autosave" });
+        }
+        if (runId !== autosaveRunRef.current) {
+          recordTimeline("wizard.autosave_ignored", { runId, reason: "stale_after_save" });
+          recordAutosaveBatchMetric("ignored", Date.now() - startedAt, changedSteps.length);
+          return;
         }
         setAutosaveState("saved");
         setLastSavedAt(String(currentWizard.updated_at || ""));
+        recordTimeline("wizard.autosave_succeeded", { runId, wizardId: currentWizard.id, changedSteps: changedSteps.map(([stepKey]) => stepKey), durationMs: Date.now() - startedAt });
+        recordAutosaveBatchMetric("success", Date.now() - startedAt, changedSteps.length);
       } catch (error) {
+        if (runId !== autosaveRunRef.current) {
+          recordTimeline("wizard.autosave_ignored", { runId, reason: "stale_after_error" });
+          recordAutosaveBatchMetric("ignored", Date.now() - startedAt, changedSteps.length);
+          return;
+        }
         setAutosaveState("error");
-        setAutosaveError(error instanceof Error ? error.message : "No se pudo guardar el progreso.");
+        const message = error instanceof Error ? error.message : "No se pudo guardar el progreso.";
+        setAutosaveError(message);
+        recordTimeline("wizard.autosave_failed", { runId, changedSteps: changedSteps.map(([stepKey]) => stepKey), durationMs: Date.now() - startedAt, error: message });
+        recordAutosaveBatchMetric("error", Date.now() - startedAt, changedSteps.length);
       }
     }, 900);
 
@@ -2003,22 +1815,69 @@ const proposedHandoffPreview = useMemo(() => {
     working,
     wizardId,
     hasBusinessIdentity,
+    activeStep,
   ]);
 
   useEffect(() => {
     if (mode !== "reconfigure") return;
     setDryRunResult(null);
     setReviewConfirmed(false);
-    if (activeStep === "dry_run" || activeStep === "confirm") setActiveStep("review");
+    if (activeStep === "dry_run" || activeStep === "confirm") goToStep("review", { silent: true });
   }, [mode, selectedBotId, selectedVerticalId, selectedSubvertical, selectedPrimaryObjective, servicesText, faqText, policiesText, selectedIntegrationKeys.join("|"), launchNotesText, selectedPlaybookKeys.join("|"), autopublishKnowledge]);
 
+  useEffect(() => {
+    if (!WIZARD_ENTERPRISE_FLAGS.enabled || !WIZARD_ENTERPRISE_FLAGS.autoRecoveryEnabled || working) return;
+    const createNavigation = mode === "create" ? clampCreateStepNavigation(activeStep) : { step: activeStep, blockedReason: "" };
+    const persistedStep = wizard ? resolveWizardInitialStep(mode, wizard) : null;
+    const recovery = deriveWizardConsistencyRecovery({
+      mode,
+      activeStep,
+      persistedStep,
+      clientAllowedStep: mode === "create" ? createNavigation.step : null,
+      wizardStatus: wizard?.status || null,
+      hasDryRunResult: Boolean(dryRunResult?.validation_hash || dryRunResult?.summary?.validated_at),
+      hasAppliedWizard: Boolean(applyResult?.wizard?.id || wizard?.status === "applied"),
+    });
+    if (!recovery || recovery.step === activeStep) return;
+    const signature = [mode, wizardId || "no_wizard", String(wizard?.wizard_revision || 0), activeStep, recovery.step, recovery.reason].join(":");
+    if (lastRecoverySignatureRef.current === signature) return;
+    lastRecoverySignatureRef.current = signature;
+    setActiveStep(recovery.step);
+    recordTimeline("wizard.auto_recovery_applied", {
+      fromStep: activeStep,
+      toStep: recovery.step,
+      reason: recovery.reason,
+      persistedStep: persistedStep || null,
+      clientAllowedStep: mode === "create" ? createNavigation.step : null,
+    });
+  }, [
+    mode,
+    activeStep,
+    wizardId,
+    wizard?.status,
+    wizard?.current_step,
+    wizard?.wizard_revision,
+    applyResult?.wizard?.id,
+    dryRunResult?.validation_hash,
+    dryRunResult?.summary?.validated_at,
+    canStartCreate,
+    canSaveBasics,
+    canSaveOffer,
+    canSaveKnowledge,
+    canSaveIntegrations,
+    working,
+  ]);
+
   async function handleSaveCreateScope() {
-    if (!canStartCreate) return;
+    if (!canStartCreate) {
+      setWizardError("Completa organización, industria, tipo de operación y nombre del negocio antes de iniciar el wizard.");
+      return;
+    }
     setWorking(true);
     setWizardError("");
     try {
-      await syncScopeStep();
-      setActiveStep("basics");
+      const updated = await syncScopeStep();
+      setActiveStep(resolveWizardInitialStep("create", updated));
     } catch (error) {
       setWizardError(error instanceof Error ? error.message : "No se pudo iniciar el wizard.");
     } finally {
@@ -2027,12 +1886,15 @@ const proposedHandoffPreview = useMemo(() => {
   }
 
   async function handleSaveBasics() {
-    if (!canSaveBasics) return;
+    if (!canSaveBasics) {
+      setWizardError("Completa nombre del negocio, nombre del asistente, tono, idioma y zona horaria antes de seguir.");
+      return;
+    }
     setWorking(true);
     setWizardError("");
     try {
-      await syncBasicsStep();
-      setActiveStep("offer");
+      const updated = await syncBasicsStep();
+      setActiveStep(resolveWizardInitialStep("create", updated));
     } catch (error) {
       setWizardError(error instanceof Error ? error.message : "No se pudo guardar el paso.");
     } finally {
@@ -2041,11 +1903,15 @@ const proposedHandoffPreview = useMemo(() => {
   }
 
   async function handleSaveOffer() {
+    if (!canSaveOffer) {
+      setWizardError("Agrega al menos un servicio y una CTA principal antes de seguir.");
+      return;
+    }
     setWorking(true);
     setWizardError("");
     try {
-      await syncCatalogStep();
-      setActiveStep("knowledge");
+      const updated = await syncCatalogStep();
+      setActiveStep(resolveWizardInitialStep("create", updated));
     } catch (error) {
       setWizardError(error instanceof Error ? error.message : "No se pudo guardar la oferta.");
     } finally {
@@ -2054,11 +1920,15 @@ const proposedHandoffPreview = useMemo(() => {
   }
 
   async function handleSaveKnowledge() {
+    if (!canSaveKnowledge) {
+      setWizardError("Necesitas al menos un FAQ, una política y una fuente de conocimiento antes de seguir.");
+      return;
+    }
     setWorking(true);
     setWizardError("");
     try {
-      await syncKnowledgeStep();
-      setActiveStep("integrations");
+      const updated = await syncKnowledgeStep();
+      setActiveStep(resolveWizardInitialStep("create", updated));
     } catch (error) {
       setWizardError(error instanceof Error ? error.message : "No se pudo guardar la knowledge base.");
     } finally {
@@ -2067,11 +1937,15 @@ const proposedHandoffPreview = useMemo(() => {
   }
 
   async function handleSaveIntegrations() {
+    if (!canSaveIntegrations) {
+      setWizardError("Selecciona al menos una integración y define cuándo escalar antes de abrir review.");
+      return;
+    }
     setWorking(true);
     setWizardError("");
     try {
-      await syncIntegrationsStep();
-      setActiveStep("review");
+      const updated = await syncIntegrationsStep();
+      setActiveStep(resolveWizardInitialStep("create", updated));
     } catch (error) {
       setWizardError(error instanceof Error ? error.message : "No se pudo guardar integraciones y reglas.");
     } finally {
@@ -2085,8 +1959,8 @@ const proposedHandoffPreview = useMemo(() => {
     setWizardError("");
     try {
       await syncScopeStep();
-      await syncBasicsStep();
-      setActiveStep("review");
+      const updated = await syncBasicsStep();
+      setActiveStep(resolveWizardInitialStep("reconfigure", updated));
     } catch (error) {
       setWizardError(error instanceof Error ? error.message : "No se pudo preparar la reconfiguracion.");
     } finally {
@@ -2104,14 +1978,12 @@ const proposedHandoffPreview = useMemo(() => {
       if (scoped.id && scoped.id !== synced.id) synced = scoped;
       if (!synced?.id) throw new Error("No se pudo preparar el wizard para la prevalidación.");
       await syncIntegrationsStep();
-      const result = await requestJson<WizardDryRunResult>(`/api/onboarding/wizard/${encodeURIComponent(synced.id)}/dry-run`, {
-        method: "POST",
-      });
+      const result = await dryRunWizardRequest(synced.id);
       setDryRunResult(result);
       setWizard(result.wizard);
       setWizardId(result.wizard.id);
       setReviewConfirmed(false);
-      setActiveStep("dry_run");
+      goToStep("dry_run");
     } catch (error) {
       setWizardError(error instanceof Error ? error.message : "No se pudo correr la prevalidacion.");
     } finally {
@@ -2145,9 +2017,7 @@ const proposedHandoffPreview = useMemo(() => {
       }
       await syncIntegrationsStep();
       const synced = await syncLaunchReviewStep();
-      const result = await requestJson<WizardApplyResult>(`/api/onboarding/wizard/${encodeURIComponent(synced.id)}/apply`, {
-        method: "POST",
-      });
+      const result = await applyWizardRequest(synced.id);
       setApplyResult(result);
       setWizard(result.wizard);
       setWizardId(result.wizard.id);
@@ -2161,7 +2031,7 @@ const proposedHandoffPreview = useMemo(() => {
       setSimulationError("");
       setSimulationResult(null);
       setPostApplyPath("wizard");
-      setActiveStep(nextStep);
+      goToStep(nextStep);
     } catch (error) {
       setWizardError(error instanceof Error ? error.message : "No se pudo aplicar el wizard.");
     } finally {
@@ -2180,7 +2050,7 @@ const proposedHandoffPreview = useMemo(() => {
     setSimulationRunning(true);
     setSimulationError("");
     try {
-      const createdCase = await requestJson<Record<string, unknown>>(`/api/v1/bots/${encodeURIComponent(botId)}/simulation-cases`, {
+      const createdCase = await requestApiJson<Record<string, unknown>>(`/api/v1/bots/${encodeURIComponent(botId)}/simulation-cases`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2192,7 +2062,7 @@ const proposedHandoffPreview = useMemo(() => {
         }),
       });
       const createdCaseId = String(createdCase.id || "");
-      const runResult = await requestJson<Record<string, unknown>>(`/api/v1/bots/${encodeURIComponent(botId)}/simulate`, {
+      const runResult = await requestApiJson<Record<string, unknown>>(`/api/v1/bots/${encodeURIComponent(botId)}/simulate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2258,6 +2128,21 @@ const proposedHandoffPreview = useMemo(() => {
         {wizardError ? <UiMessage title="Wizard con error" tone="error">{wizardError}</UiMessage> : null}
         {previewError ? <UiMessage title="Preview incompleto" tone="warning">{previewError}</UiMessage> : null}
         {applyResult?.summary ? <UiMessage title={mode === "create" ? "Wizard aplicado y asistente operativo creado" : "Wizard aplicado sobre el asistente operativo existente"} tone="success">{mode === "create" ? "El frontend ya persistio todos los pasos clave del wizard antes de aplicar. No se quedó solo en vertical_fit y business_basics." : "El backend aplicó la configuración generada sobre el asistente operativo explícito y creó un snapshot preventivo antes de mutar el draft."}</UiMessage> : null}
+
+        <WizardDiagnosticsPanel
+          mode={mode}
+          activeStep={activeStep}
+          allowedStep={diagnosticAllowedStep}
+          wizard={wizard}
+          autosaveState={autosaveState}
+          wizardError={wizardError}
+          dirtySteps={dirtyWizardSteps}
+          timelineEvents={clientTimelineEvents}
+          autosaveMetrics={clientAutosaveMetrics}
+          onRefresh={wizardId ? () => { void refreshWizardState(wizardId); } : undefined}
+          onCopy={() => { void handleCopyDiagnostics(); }}
+          copyFeedback={diagnosticCopyFeedback}
+        />
 
         {mode === "reconfigure" ? (
           <div className="rounded-[28px] border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-5 shadow-[var(--shadow-sm)]">
@@ -2412,7 +2297,7 @@ const proposedHandoffPreview = useMemo(() => {
             </div>
             <div className="mt-5 flex flex-wrap gap-3">
               <button data-testid="save-basics" className="primary-btn" type="button" onClick={handleSaveBasics} disabled={!canSaveBasics || working}>Guardar ajustes avanzados</button>
-              <button className="secondary-btn" type="button" onClick={() => setActiveStep("offer")}>Seguir con oferta</button>
+              <button className="secondary-btn" type="button" onClick={() => goToStep("offer")}>Seguir con oferta</button>
             </div>
           </div>
         ) : null}
@@ -2429,8 +2314,8 @@ const proposedHandoffPreview = useMemo(() => {
               <label className="field-label">Notas de precio<textarea className="field-input min-h-[120px]" value={pricingNotesText} onChange={(event) => setPricingNotesText(event.target.value)} placeholder="Financiamiento disponible\nPromocion por pronto pago" /></label>
             </div>
             <div className="mt-5 flex flex-wrap gap-3">
-              <button data-testid="save-offer" className="primary-btn" type="button" onClick={handleSaveOffer} disabled={working}>Guardar oferta y seguir</button>
-              <button className="secondary-btn" type="button" onClick={() => setActiveStep("knowledge")}>Seguir con knowledge</button>
+              <button data-testid="save-offer" className="primary-btn" type="button" onClick={handleSaveOffer} disabled={!canSaveOffer || working}>Guardar oferta y seguir</button>
+              <button className="secondary-btn" type="button" onClick={() => goToStep("knowledge")}>Seguir con knowledge</button>
             </div>
           </div>
         ) : null}
@@ -2446,8 +2331,8 @@ const proposedHandoffPreview = useMemo(() => {
               <label className="field-label md:col-span-2">Fuentes de conocimiento<textarea className="field-input min-h-[140px]" value={knowledgeSourcesText} onChange={(event) => setKnowledgeSourcesText(event.target.value)} placeholder="Drive / docs operativos\nSitio y landing pages\nPDF comercial" /></label>
             </div>
             <div className="mt-5 flex flex-wrap gap-3">
-              <button data-testid="save-knowledge" className="primary-btn" type="button" onClick={handleSaveKnowledge} disabled={working}>Guardar knowledge y seguir</button>
-              <button className="secondary-btn" type="button" onClick={() => setActiveStep("integrations")}>Seguir con reglas</button>
+              <button data-testid="save-knowledge" className="primary-btn" type="button" onClick={handleSaveKnowledge} disabled={!canSaveKnowledge || working}>Guardar knowledge y seguir</button>
+              <button className="secondary-btn" type="button" onClick={() => goToStep("integrations")}>Seguir con reglas</button>
             </div>
           </div>
         ) : null}
@@ -2484,8 +2369,8 @@ const proposedHandoffPreview = useMemo(() => {
               </div>
             </div>
             <div className="mt-5 flex flex-wrap gap-3">
-              <button data-testid="save-integrations" className="primary-btn" type="button" onClick={handleSaveIntegrations} disabled={working}>Guardar reglas y abrir review</button>
-              <button className="secondary-btn" type="button" onClick={() => setActiveStep("review")}>Abrir review</button>
+              <button data-testid="save-integrations" className="primary-btn" type="button" onClick={handleSaveIntegrations} disabled={!canSaveIntegrations || working}>Guardar reglas y abrir review</button>
+              <button className="secondary-btn" type="button" onClick={() => goToStep("review")}>Abrir review</button>
             </div>
           </div>
         ) : null}
@@ -2612,7 +2497,7 @@ const proposedHandoffPreview = useMemo(() => {
   onHumanDestinationChannelChange={setHumanDestinationChannelText}
   ruleOverridesText={ruleOverridesText}
   onRuleOverridesChange={setRuleOverridesText}
-  onGoToDryRun={mode === "reconfigure" && activeStep === "confirm" ? () => setActiveStep("dry_run") : undefined}
+  onGoToDryRun={mode === "reconfigure" && activeStep === "confirm" ? () => goToStep("dry_run") : undefined}
 />
 
 <div className="mt-5 grid gap-3">
@@ -2647,7 +2532,7 @@ const proposedHandoffPreview = useMemo(() => {
               ) : (
                 <button data-testid="apply-wizard" className="primary-btn" type="button" onClick={handleApplyWizard} disabled={working || (mode === "create" ? !previewReadyForCreate : !selectedBotId || !hasReconfigurationChanges || !reviewConfirmed || !dryRunResult?.summary?.apply_ready)}>{mode === "create" ? "Aplicar wizard completo" : "Aplicar reconfiguración"}</button>
               )}
-              {mode === "reconfigure" && activeStep === "confirm" ? <button className="secondary-btn" type="button" onClick={() => setActiveStep("dry_run")}>Volver al dry run</button> : null}
+              {mode === "reconfigure" && activeStep === "confirm" ? <button className="secondary-btn" type="button" onClick={() => goToStep("dry_run")}>Volver al dry run</button> : null}
               {followUpBotId ? <Link href={`/bots/${followUpBotId}`} className="secondary-btn">Ver detalle del asistente operativo</Link> : null}
             </div>
           </div>
@@ -2766,8 +2651,8 @@ const proposedHandoffPreview = useMemo(() => {
 
             <div className="mt-5 flex flex-wrap gap-3">
               <button data-testid="rerun-dry-run" className="primary-btn" type="button" onClick={handleRunDryRun} disabled={working || !selectedBotId || !hasReconfigurationChanges}>{working ? "Corriendo dry run..." : "Volver a correr dry run"}</button>
-              <button data-testid="continue-confirmation" className="secondary-btn" type="button" onClick={() => setActiveStep("confirm")} disabled={!dryRunResult?.summary?.apply_ready}>Ir a confirmación final</button>
-              <button className="secondary-btn" type="button" onClick={() => setActiveStep("review")}>Volver al review</button>
+              <button data-testid="continue-confirmation" className="secondary-btn" type="button" onClick={() => goToStep("confirm")} disabled={!dryRunResult?.summary?.apply_ready}>Ir a confirmación final</button>
+              <button className="secondary-btn" type="button" onClick={() => goToStep("review")}>Volver al review</button>
             </div>
           </div>
         ) : null}
@@ -2805,7 +2690,7 @@ const proposedHandoffPreview = useMemo(() => {
 
             <div className="mt-5 flex flex-wrap gap-3">
               <button data-testid="run-simulation" className="primary-btn" type="button" onClick={handleRunSimulation} disabled={simulationRunning}>{simulationRunning ? "Corriendo simulación..." : "Crear caso y correr simulación"}</button>
-              <button data-testid="go-publish" className="secondary-btn" type="button" onClick={() => setActiveStep("publish")}>Seguir a publicar</button>
+              <button data-testid="go-publish" className="secondary-btn" type="button" onClick={() => goToStep("publish")}>Seguir a publicar</button>
               <Link href={`/bots/${postApplyBotId}/versions`} className="secondary-btn">Revisar versiones</Link>
             </div>
           </div>
@@ -2829,7 +2714,7 @@ const proposedHandoffPreview = useMemo(() => {
                 <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">Mantén aquí la checklist formal, la scorecard de negocio y el progreso restante. Este modo evita la sensación de cierre prematuro mientras todavía faltan conectar, probar, publicar u operar.</p>
                 <div className="mt-4 flex flex-wrap gap-3">
                   {nextBestAction?.key === "run_simulation" ? (
-                    <button className="primary-btn" type="button" onClick={() => { setPostApplyPath("wizard"); setActiveStep("simulate"); }}>Ir a simulación dentro del wizard</button>
+                    <button className="primary-btn" type="button" onClick={() => { setPostApplyPath("wizard"); goToStep("simulate"); }}>Ir a simulación dentro del wizard</button>
                   ) : (
                     <button className={postApplyPath === "wizard" ? "primary-btn" : "secondary-btn"} type="button" onClick={() => setPostApplyPath("wizard")}>Quedarme aquí</button>
                   )}
@@ -2918,7 +2803,7 @@ const proposedHandoffPreview = useMemo(() => {
 
               <div className="mt-5 flex flex-wrap gap-3">
                 {nextBestAction?.key === "run_simulation" ? (
-                  <button className="primary-btn" type="button" onClick={() => { setPostApplyPath("wizard"); setActiveStep("simulate"); }}>{nextBestAction.ctaLabel}</button>
+                  <button className="primary-btn" type="button" onClick={() => { setPostApplyPath("wizard"); goToStep("simulate"); }}>{nextBestAction.ctaLabel}</button>
                 ) : nextBestAction?.href ? (
                   <Link href={nextBestAction.href} className="primary-btn" onClick={() => setPostApplyPath(canExitToNextModule ? "module" : "wizard")}>{nextBestAction.ctaLabel}</Link>
                 ) : (

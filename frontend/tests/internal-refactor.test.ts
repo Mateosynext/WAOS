@@ -2,8 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = path.resolve(import.meta.dirname, "..");
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function read(relativePath: string) {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
@@ -49,4 +50,205 @@ test("critical chrome uses tokenized surfaces in refactored screens", () => {
   assert.match(errorBoundary, /var\(--client-shell-bg\)/);
   assert.match(notFound, /var\(--client-shell-bg\)/);
   assert.match(commandPalette, /var\(--surface-subtle\)/);
+});
+
+
+test("wizard reactive loader is centralized in a shared module", () => {
+  const shared = read("app/bot-studio/wizardReactiveData.ts");
+  const wizard = read("app/bot-studio/BotStudioWizard.tsx");
+  const wizardClient = read("app/bot-studio/BotStudioWizardClient.tsx");
+  const reactiveConfigurator = read("app/components/ReactiveVerticalConfigurator.tsx");
+
+  assert.match(shared, /WIZARD_BLUEPRINT_ENDPOINT/);
+  assert.match(shared, /WIZARD_VERTICAL_PROFILE_ENDPOINT/);
+  assert.match(shared, /loadWizardReactiveSelection/);
+
+  assert.match(wizard, /loadWizardReactiveSelection/);
+  assert.match(reactiveConfigurator, /loadWizardReactiveSelection/);
+  assert.match(wizardClient, /(loadWizardReactiveSelection|createLatestWizardReactiveSelectionLoader)/);
+
+  for (const source of [wizard, wizardClient, reactiveConfigurator]) {
+    assert.doesNotMatch(source, /\/api\/onboarding\/wizard\/blueprint\?/);
+    assert.doesNotMatch(source, /\/api\/onboarding\/wizard\/vertical-profile\?/);
+  }
+});
+
+test("wizard payload builders and review sections live outside BotStudioWizardClient", () => {
+  const wizardClient = read("app/bot-studio/BotStudioWizardClient.tsx");
+  const payloadBuilders = read("app/bot-studio/wizardPayloadBuilders.ts");
+  const reviewSections = read("app/bot-studio/wizardReviewSections.tsx");
+
+  assert.match(payloadBuilders, /export function buildWizardPayloads/);
+  assert.match(reviewSections, /export function ValidationSnapshotPanel/);
+  assert.match(reviewSections, /export function StickySummaryRail/);
+
+  assert.match(wizardClient, /from "\.\/wizardPayloadBuilders"/);
+  assert.match(wizardClient, /from "\.\/wizardReviewSections"/);
+  assert.doesNotMatch(wizardClient, /function buildStartPayload\(/);
+  assert.doesNotMatch(wizardClient, /function ValidationSnapshotPanel\(/);
+  assert.doesNotMatch(wizardClient, /function StickySummaryRail\(/);
+});
+
+
+test("components barrel delegates to focused folders instead of staying as a kitchen sink", () => {
+  const componentsBarrel = read("app/components.tsx");
+  const shell = read("app/components/layout/shell.tsx");
+  const shared = read("app/components/primitives/shared.tsx");
+  const cards = read("app/components/primitives/cards.tsx");
+  const navigation = read("app/components/navigation/index.tsx");
+  const feedback = read("app/components/feedback/index.tsx");
+  const domain = read("app/components/domain/WhatsAppPreview.tsx");
+
+  assert.match(componentsBarrel, /from "\.\/components\/layout\/shell"/);
+  assert.match(componentsBarrel, /from "\.\/components\/primitives\/shared"/);
+  assert.match(componentsBarrel, /from "\.\/components\/navigation"/);
+  assert.match(componentsBarrel, /from "\.\/components\/feedback"/);
+  assert.match(componentsBarrel, /from "\.\/components\/domain\/WhatsAppPreview"/);
+  assert.doesNotMatch(componentsBarrel, /export async function Shell\(/);
+  assert.doesNotMatch(componentsBarrel, /export function Icon\(/);
+
+  assert.match(shell, /export async function Shell/);
+  assert.match(shared, /export function Icon/);
+  assert.match(cards, /export function Section/);
+  assert.match(navigation, /export function PortalTabs/);
+  assert.match(feedback, /export function SuccessState/);
+  assert.match(domain, /export function WhatsAppPreview/);
+});
+
+test("waos barrel delegates data access to domain modules", () => {
+  const waosBarrel = read("app/lib/waos.ts");
+  const bots = read("app/lib/data/bots.ts");
+  const verticals = read("app/lib/data/verticals.ts");
+  const inbox = read("app/lib/data/inbox.ts");
+  const onboarding = read("app/lib/data/onboarding.ts");
+  const clientPortal = read("app/lib/data/client-portal.ts");
+
+  assert.match(waosBarrel, /from "\.\/data\/bots"/);
+  assert.match(waosBarrel, /from "\.\/data\/verticals"/);
+  assert.match(waosBarrel, /from "\.\/data\/inbox"/);
+  assert.match(waosBarrel, /from "\.\/data\/onboarding"/);
+  assert.match(waosBarrel, /from "\.\/data\/client-portal"/);
+  assert.doesNotMatch(waosBarrel, /export async function getBots\(/);
+  assert.doesNotMatch(waosBarrel, /\/api\/v1\//);
+
+  assert.match(bots, /export async function getBots/);
+  assert.match(verticals, /export async function getVerticalProfile/);
+  assert.match(inbox, /export async function getConversations/);
+  assert.match(onboarding, /export async function getActivationSummary/);
+  assert.match(clientPortal, /export async function getClientPortalData/);
+});
+
+
+test("contracts barrel delegates to bounded contexts and data modules consume them directly", () => {
+  const contractsBarrel = read("app/lib/contracts.ts");
+  const shared = read("app/lib/contracts/shared.ts");
+  const auth = read("app/lib/contracts/auth.ts");
+  const bots = read("app/lib/contracts/bots.ts");
+  const onboarding = read("app/lib/contracts/onboarding.ts");
+  const inbox = read("app/lib/contracts/inbox.ts");
+  const verticals = read("app/lib/contracts/verticals.ts");
+  const analytics = read("app/lib/contracts/analytics.ts");
+  const integrations = read("app/lib/contracts/integrations.ts");
+  const commerce = read("app/lib/contracts/commerce.ts");
+  const portal = read("app/lib/contracts/portal.ts");
+  const talent = read("app/lib/contracts/talent.ts");
+
+  assert.match(contractsBarrel, /from "\.\/contracts\/shared"/);
+  assert.match(contractsBarrel, /from "\.\/contracts\/auth"/);
+  assert.match(contractsBarrel, /from "\.\/contracts\/bots"/);
+  assert.match(contractsBarrel, /from "\.\/contracts\/onboarding"/);
+  assert.match(contractsBarrel, /from "\.\/contracts\/inbox"/);
+  assert.match(contractsBarrel, /from "\.\/contracts\/verticals"/);
+  assert.match(contractsBarrel, /from "\.\/contracts\/integrations"/);
+  assert.doesNotMatch(contractsBarrel, /export type SessionUser =/);
+  assert.doesNotMatch(contractsBarrel, /export type VerticalProfileContract =/);
+
+  assert.match(shared, /export function unwrapApiEnvelope/);
+  assert.match(auth, /export function normalizeSessionUser/);
+  assert.match(bots, /export function normalizeBot/);
+  assert.match(onboarding, /export function normalizeActivationSummary/);
+  assert.match(inbox, /export function normalizeConversationDetail/);
+  assert.match(verticals, /export function normalizeVerticalProfile/);
+  assert.match(analytics, /export function normalizeDashboard/);
+  assert.match(integrations, /export function normalizeIntegrationCenter/);
+  assert.match(commerce, /export function normalizeCommerceInsights/);
+  assert.match(portal, /export function normalizePortalRequest/);
+  assert.match(talent, /export function normalizeTalentOverview/);
+
+  const botsData = read("app/lib/data/bots.ts");
+  const onboardingData = read("app/lib/data/onboarding.ts");
+  const inboxData = read("app/lib/data/inbox.ts");
+  const analyticsData = read("app/lib/data/analytics.ts");
+  const integrationsData = read("app/lib/data/integrations.ts");
+  const commerceData = read("app/lib/data/commerce.ts");
+  const session = read("app/lib/session.ts");
+
+  assert.match(botsData, /from "\.\.\/contracts\/bots"/);
+  assert.match(botsData, /from "\.\.\/contracts\/talent"/);
+  assert.match(onboardingData, /from "\.\.\/contracts\/onboarding"/);
+  assert.match(inboxData, /from "\.\.\/contracts\/inbox"/);
+  assert.match(inboxData, /from "\.\.\/contracts\/portal"/);
+  assert.match(analyticsData, /from "\.\.\/contracts\/analytics"/);
+  assert.match(integrationsData, /from "\.\.\/contracts\/integrations"/);
+  assert.match(integrationsData, /from "\.\.\/contracts\/auth"/);
+  assert.match(commerceData, /from "\.\.\/contracts\/commerce"/);
+  assert.match(session, /from "\.\/contracts\/auth"/);
+});
+
+test("client portal content consumes shared view models instead of embedding summary selectors inline", () => {
+  const portalContent = read("app/client/ClientPortalContent.tsx");
+  const portalViewModel = read("app/client/clientPortalViewModel.ts");
+  assert.match(portalContent, /from "\.\/clientPortalViewModel"/);
+  assert.match(portalViewModel, /export function buildClientPortalSummaryViewModel/);
+  assert.match(portalViewModel, /export function buildClientPortalTimeline/);
+  assert.match(portalViewModel, /export function buildAgendaViewModel/);
+  assert.doesNotMatch(portalContent, /const sectionMeta:/);
+  assert.doesNotMatch(portalContent, /function buildTimeline\(/);
+  assert.doesNotMatch(portalContent, /function hasPendingRequests\(/);
+});
+
+test("reactive vertical configurator consumes a shared preview view model instead of local selector soup", () => {
+  const configurator = read("app/components/ReactiveVerticalConfigurator.tsx");
+  const viewModel = read("app/components/reactiveVerticalViewModel.ts");
+  assert.match(configurator, /from "\.\/reactiveVerticalViewModel"/);
+  assert.match(viewModel, /export function buildReactiveVerticalPreviewModel/);
+  assert.match(viewModel, /export function buildSubverticalProfiles/);
+  assert.match(viewModel, /export function pickRecommendedIntegrations/);
+  assert.doesNotMatch(configurator, /function buildSubverticalProfiles\(/);
+  assert.doesNotMatch(configurator, /function pickRecommendedIntegrations\(/);
+  assert.doesNotMatch(configurator, /function pickTemplateLabels\(/);
+});
+
+
+test("client portal operations use typed data access instead of inline any-shaped fetch parsing", () => {
+  const portalContent = read("app/client/ClientPortalContent.tsx");
+  const operationsData = read("app/lib/data/client-operations.ts");
+  const portalContracts = read("app/lib/contracts/portal.ts");
+
+  assert.match(portalContent, /from "\.\.\/lib\/data\/client-operations"/);
+  assert.match(operationsData, /export async function getClientOperationsData/);
+  assert.match(portalContracts, /export function normalizeClientOperationsSummary/);
+  assert.match(portalContracts, /export function normalizeClientOperationsAvailability/);
+  assert.doesNotMatch(portalContent, /as any/);
+  assert.equal(portalContent.includes("apiFetchOrDefault(`/api/v1/client/operations/"), false);
+});
+
+test("bot studio routes and client share wizard gateway modules instead of hand-rolled proxy duplication", () => {
+  const page = read("app/bot-studio/page.tsx");
+  const client = read("app/bot-studio/BotStudioWizardClient.tsx");
+  const wizardApi = read("app/bot-studio/wizardApi.ts");
+  const wizardData = read("app/lib/data/wizard.ts");
+  const routeHelpers = read("app/api/onboarding/wizard/route-helpers.ts");
+  const startRoute = read("app/api/onboarding/wizard/start/route.ts");
+  const blueprintRoute = read("app/api/onboarding/wizard/blueprint/route.ts");
+
+  assert.match(page, /from "\.\.\/lib\/data\/wizard"/);
+  assert.match(client, /from "\.\/wizardApi"/);
+  assert.match(wizardApi, /export function startWizardRequest/);
+  assert.match(wizardData, /export async function getWizardBlueprint/);
+  assert.match(routeHelpers, /export async function wizardRouteResponse/);
+  assert.match(startRoute, /wizardRouteResponse/);
+  assert.match(blueprintRoute, /getWizardBlueprint/);
+  assert.doesNotMatch(client, /"\/api\/onboarding\/wizard\/start"/);
+  assert.doesNotMatch(client, /steps\/\$\{stepKey\}/);
 });

@@ -26,25 +26,25 @@ _GUIDED_STEPS = [
         "key": "business_basics",
         "label": "Datos base del negocio",
         "required": True,
-        "fields": ["business_name", "bot_name", "tone", "language", "timezone", "hours", "whatsapp_number"],
+        "fields": ["business_name", "bot_name", "tone", "language", "timezone"],
     },
     {
         "key": "catalog_offer",
         "label": "Oferta, catalogo y CTAs",
         "required": True,
-        "fields": ["services", "featured_offers", "primary_ctas", "pricing_notes"],
+        "fields": ["services", "primary_ctas"],
     },
     {
         "key": "knowledge_seed",
         "label": "Knowledge base viva",
         "required": True,
-        "fields": ["faqs", "policies", "knowledge_sources", "owner_user_id"],
+        "fields": ["faqs", "policies", "knowledge_sources"],
     },
     {
         "key": "integrations_rules",
         "label": "Integraciones, reglas y escalamiento",
         "required": True,
-        "fields": ["selected_integrations", "escalate_when", "handoff_keywords", "rule_overrides"],
+        "fields": ["selected_integrations", "escalate_when"],
     },
     {
         "key": "launch_review",
@@ -53,6 +53,7 @@ _GUIDED_STEPS = [
         "fields": ["recommended_playbooks", "launch_notes", "autopublish_knowledge"],
     },
 ]
+_GUIDED_STEP_INDEX = {str(step.get("key") or ""): index for index, step in enumerate(_GUIDED_STEPS)}
 
 _DEFAULT_INTEGRATION_PROVIDERS = {
     "whatsapp": {"integration_type": "whatsapp", "provider": "meta_cloud_api", "name": "WhatsApp Cloud API"},
@@ -411,13 +412,32 @@ def ensure_guided_vertical_onboarding_schema(conn: Any) -> None:
             FOREIGN KEY (bot_id) REFERENCES bots(id)
         );
 
+        CREATE TABLE IF NOT EXISTS vertical_onboarding_wizard_events (
+            id TEXT PRIMARY KEY,
+            wizard_id TEXT NOT NULL,
+            organization_id TEXT NOT NULL,
+            bot_id TEXT,
+            event_type TEXT NOT NULL,
+            step_key TEXT,
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (wizard_id) REFERENCES vertical_onboarding_wizards(id),
+            FOREIGN KEY (organization_id) REFERENCES organizations(id),
+            FOREIGN KEY (bot_id) REFERENCES bots(id)
+        );
+
         CREATE INDEX IF NOT EXISTS idx_vertical_onboarding_wizards_org ON vertical_onboarding_wizards(organization_id, status, updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_vertical_onboarding_wizards_bot ON vertical_onboarding_wizards(bot_id, updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_vertical_onboarding_step_runs_wizard ON vertical_onboarding_step_runs(wizard_id, step_key);
+        CREATE INDEX IF NOT EXISTS idx_vertical_onboarding_wizard_events_wizard ON vertical_onboarding_wizard_events(wizard_id, created_at DESC);
         """
     )
     if not has_column(conn, "vertical_onboarding_wizards", "validation_snapshot_json"):
         execute(conn, "ALTER TABLE vertical_onboarding_wizards ADD COLUMN validation_snapshot_json TEXT NOT NULL DEFAULT '{}' ")
+    if not has_column(conn, "vertical_onboarding_wizards", "recompute_state_json"):
+        execute(conn, "ALTER TABLE vertical_onboarding_wizards ADD COLUMN recompute_state_json TEXT NOT NULL DEFAULT '{}' ")
+    if not has_column(conn, "vertical_onboarding_wizards", "wizard_revision"):
+        execute(conn, "ALTER TABLE vertical_onboarding_wizards ADD COLUMN wizard_revision INTEGER NOT NULL DEFAULT 1")
 
 
 def _deep_merge(base: Any, updates: Any) -> Any:
@@ -541,11 +561,11 @@ def _recommended_integrations(profile: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _step_state(step: dict[str, Any], answers: dict[str, Any]) -> dict[str, Any]:
-    payload = answers.get(step["key"], {}) if isinstance(answers, dict) else {}
+    payload = _normalize_step_payload(_safe_text(step.get("key")), answers.get(step["key"], {})) if isinstance(answers, dict) else {}
     completed = True
     for field in step.get("fields") or []:
         value = payload.get(field) if isinstance(payload, dict) else None
-        if step.get("required") and (value is None or value == "" or value == [] or value == {}):
+        if step.get("required") and not _has_required_value(value):
             completed = False
             break
     status = "completed" if completed else ("in_progress" if payload else "pending")
@@ -564,6 +584,172 @@ def _progress_summary(steps: list[dict[str, Any]]) -> tuple[int, str | None]:
     percent = round((completed / len(steps)) * 100)
     current_step = next((item["key"] for item in steps if not item.get("completed")), steps[-1]["key"])
     return percent, current_step
+
+
+def _step_rank_key(step_key: str | None) -> int:
+    return _GUIDED_STEP_INDEX.get(_safe_text(step_key), -1)
+
+
+def _payload_fingerprint(value: Any) -> str:
+    rendered = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(rendered.encode("utf-8")).hexdigest()[:16]
+
+
+def _captured_step_seed(*, vertical_id: str | None, subvertical: str | None, primary_objective: str | None, business_name: str | None, bot_name: str | None, tone: str | None, language: str | None, timezone: str | None, hours: str | None, whatsapp_number: str | None) -> dict[str, Any]:
+    seeded: dict[str, Any] = {}
+    vertical_fit = {
+        "vertical_id": _safe_text(vertical_id),
+        "subvertical": _safe_text(subvertical),
+        "primary_objective": _safe_text(primary_objective),
+    }
+    if any(_has_required_value(value) for value in vertical_fit.values()):
+        seeded["vertical_fit"] = vertical_fit
+    return seeded
+
+
+def _first_incomplete_required_step_key(answers: dict[str, Any] | None) -> str | None:
+    normalized_answers = _normalize_answers(answers)
+    for step in _GUIDED_STEPS:
+        state = _step_state(step, normalized_answers)
+        if step.get("required") and not state.get("completed"):
+            return _safe_text(step.get("key")) or None
+    return None
+
+
+def _max_updateable_step_key(answers: dict[str, Any] | None) -> str | None:
+    first_incomplete = _first_incomplete_required_step_key(answers)
+    if first_incomplete:
+        return first_incomplete
+    if not _GUIDED_STEPS:
+        return None
+    return _safe_text(_GUIDED_STEPS[-1].get("key")) or None
+
+
+def _step_update_allowed(answers: dict[str, Any] | None, step_key: str) -> bool:
+    allowed_until = _max_updateable_step_key(answers)
+    if not allowed_until:
+        return True
+    return _step_rank_key(step_key) <= _step_rank_key(allowed_until)
+
+
+def _wizard_blueprint_from_wizard_state(wizard: dict[str, Any]) -> dict[str, Any]:
+    normalized_answers = _normalize_answers(_as_record(wizard.get("answers")))
+    fit = _as_record(normalized_answers.get("vertical_fit"))
+    basics = _as_record(normalized_answers.get("business_basics"))
+    return build_guided_onboarding_blueprint(
+        vertical_id=fit.get("vertical_id") or wizard.get("vertical_id"),
+        subvertical=fit.get("subvertical") or wizard.get("subvertical"),
+        business_name=basics.get("business_name") or wizard.get("business_name") or "",
+        bot_name=basics.get("bot_name") or wizard.get("bot_name") or "",
+        tone=basics.get("tone") or wizard.get("tone") or "",
+        language=basics.get("language") or wizard.get("language") or "es",
+        timezone=basics.get("timezone") or wizard.get("timezone") or "America/Mexico_City",
+        primary_objective=fit.get("primary_objective") or wizard.get("primary_objective") or "agendar",
+        hours=basics.get("hours") or "",
+        whatsapp_number=basics.get("whatsapp_number") or "",
+        answers=normalized_answers,
+        bot_id=wizard.get("bot_id"),
+    )
+
+
+
+def _step_run_drift_summary(step_runs: list[dict[str, Any]] | None, expected_steps: list[dict[str, Any]]) -> dict[str, Any]:
+    existing_by_key = {_safe_text(item.get("step_key")): item for item in list(step_runs or []) if _safe_text(item.get("step_key"))}
+    missing: list[str] = []
+    mismatched: list[str] = []
+    extra = [key for key in existing_by_key.keys() if key not in _GUIDED_STEP_INDEX]
+    for expected in expected_steps:
+        step_key = _safe_text(expected.get("key"))
+        if not step_key:
+            continue
+        row = existing_by_key.get(step_key)
+        if not row:
+            missing.append(step_key)
+            continue
+        normalized_payload = _normalize_step_payload(step_key, row.get("payload"))
+        if (
+            _payload_fingerprint(normalized_payload) != _payload_fingerprint(expected.get("payload") or {})
+            or _safe_text(row.get("step_status"), "pending") != _safe_text(expected.get("status"), "pending")
+            or bool(row.get("completed_at")) != bool(expected.get("completed"))
+            or bool(int(row.get("is_required") or 0)) != bool(expected.get("required"))
+        ):
+            mismatched.append(step_key)
+    return {
+        "missing": missing,
+        "mismatched": mismatched,
+        "extra": extra,
+        "count": len(missing) + len(mismatched) + len(extra),
+    }
+
+
+
+def _build_wizard_diagnostics(*, wizard: dict[str, Any], steps: list[dict[str, Any]], events: list[dict[str, Any]], step_runs: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    required_completed = [_safe_text(step.get("key")) for step in steps if step.get("required") and step.get("completed")]
+    required_pending = [_safe_text(step.get("key")) for step in steps if step.get("required") and not step.get("completed")]
+    recompute_state = _as_record(wizard.get("recompute_state"))
+    last_event = events[-1] if events else {}
+    blueprint = _wizard_blueprint_from_wizard_state(wizard)
+    expected_subvertical = blueprint.get("selected_subvertical", {}).get("name") if blueprint.get("selected_subvertical") else _read_nested_string(blueprint.get("answers"), ["vertical_fit", "subvertical"])
+    stored_answers = _normalize_answers(_as_record(wizard.get("answers")))
+    stored_setup = _as_record(wizard.get("setup"))
+    stored_checklist = list(wizard.get("checklist") or [])
+    step_run_drift = _step_run_drift_summary(step_runs or list(wizard.get("step_runs") or []), list(blueprint.get("steps") or []))
+    mismatch_fields: list[str] = []
+    if _safe_text(wizard.get("current_step")) != _safe_text(blueprint.get("current_step")):
+        mismatch_fields.append("current_step")
+    if int(wizard.get("progress_percent") or 0) != int(blueprint.get("progress_percent") or 0):
+        mismatch_fields.append("progress_percent")
+    if _safe_text(wizard.get("subvertical")) != _safe_text(expected_subvertical):
+        mismatch_fields.append("subvertical")
+    if _payload_fingerprint(stored_answers) != _payload_fingerprint(blueprint.get("answers") or {}):
+        mismatch_fields.append("answers")
+    if _payload_fingerprint(stored_setup) != _payload_fingerprint(blueprint.get("setup") or {}):
+        mismatch_fields.append("setup")
+    if _payload_fingerprint(stored_checklist) != _payload_fingerprint(blueprint.get("checklist") or []):
+        mismatch_fields.append("checklist")
+    if step_run_drift.get("count"):
+        mismatch_fields.append("step_runs")
+    integrity_signature = _payload_fingerprint(
+        {
+            "wizard_id": wizard.get("id"),
+            "answers": blueprint.get("answers") or {},
+            "current_step": blueprint.get("current_step"),
+            "progress_percent": blueprint.get("progress_percent") or 0,
+            "step_run_drift": step_run_drift,
+        }
+    )
+    return {
+        "first_incomplete_required_step": required_pending[0] if required_pending else None,
+        "required_steps_completed": [item for item in required_completed if item],
+        "required_steps_pending": [item for item in required_pending if item],
+        "can_update_up_to_step": _max_updateable_step_key(wizard.get("answers")),
+        "validation_snapshot_pending": bool(recompute_state.get("validation_snapshot_pending")),
+        "dry_run_pending": bool(recompute_state.get("dry_run_pending")),
+        "last_event_type": _safe_text(last_event.get("event_type")) or None,
+        "event_count": len(events),
+        "step_statuses": [
+            {
+                "key": _safe_text(step.get("key")),
+                "status": _safe_text(step.get("status"), "pending"),
+                "completed": bool(step.get("completed")),
+            }
+            for step in steps
+        ],
+        "stored_current_step": _safe_text(wizard.get("current_step")) or None,
+        "computed_current_step": _safe_text(blueprint.get("current_step")) or None,
+        "stored_progress_percent": int(wizard.get("progress_percent") or 0),
+        "computed_progress_percent": int(blueprint.get("progress_percent") or 0),
+        "stored_subvertical": _safe_text(wizard.get("subvertical")) or None,
+        "computed_subvertical": _safe_text(expected_subvertical) or None,
+        "integrity_signature": integrity_signature,
+        "integrity_mismatch": bool(mismatch_fields),
+        "integrity_mismatch_fields": mismatch_fields,
+        "step_run_drift": step_run_drift,
+    }
+
+
+def _blueprint_prefill_step_payload(blueprint: dict[str, Any], step_key: str) -> dict[str, Any]:
+    return _as_record(_as_record(blueprint.get("prefill_answers")).get(step_key))
 
 
 def _build_setup_payload(*, profile: dict[str, Any], subvertical: str | None, answers: dict[str, Any], bot_id: str | None) -> dict[str, Any]:
@@ -654,16 +840,33 @@ def build_guided_onboarding_blueprint(
         hours=hours,
         whatsapp_number=whatsapp_number,
     )
-    merged_answers = _deep_merge(defaults, answers or {})
-    steps = [_step_state(step, merged_answers) for step in _GUIDED_STEPS]
+    raw_captured_answers = _deep_merge(
+        _captured_step_seed(
+            vertical_id=profile.get("id"),
+            subvertical=selected_sub.get("name") if selected_sub else subvertical,
+            primary_objective=primary_objective,
+            business_name=business_name,
+            bot_name=bot_name,
+            tone=tone,
+            language=language,
+            timezone=timezone,
+            hours=hours,
+            whatsapp_number=whatsapp_number,
+        ),
+        answers or {},
+    )
+    captured_answers = _normalize_answers(raw_captured_answers)
+    display_answers = _normalize_answers(_deep_merge(defaults, raw_captured_answers))
+    steps = [_step_state(step, captured_answers) for step in _GUIDED_STEPS]
     progress_percent, current_step = _progress_summary(steps)
-    setup = _build_setup_payload(profile=profile, subvertical=selected_sub.get("name") if selected_sub else subvertical, answers=merged_answers, bot_id=bot_id)
+    setup = _build_setup_payload(profile=profile, subvertical=selected_sub.get("name") if selected_sub else subvertical, answers=display_answers, bot_id=bot_id)
+    step_status_by_key = {str(step.get("key") or ""): step for step in steps}
     checklist = [
-        {"key": "vertical_pack", "label": "Vertical y subvertical definidas", "completed": bool(selected_sub or profile.get("id"))},
-        {"key": "services", "label": "Catalogo minimo listo", "completed": len(setup.get("services") or []) > 0},
-        {"key": "knowledge", "label": "Knowledge base inicial lista", "completed": len((merged_answers.get("knowledge_seed") or {}).get("faqs") or []) > 0},
-        {"key": "integrations", "label": "Integraciones planificadas", "completed": len(setup.get("wizard", {}).get("recommended_integrations") or []) > 0},
-        {"key": "automation", "label": "Playbooks sugeridos seleccionados", "completed": len(setup.get("wizard", {}).get("recommended_playbooks") or []) > 0},
+        {"key": "vertical_pack", "label": "Vertical y subvertical definidas", "completed": bool(step_status_by_key.get("vertical_fit", {}).get("completed"))},
+        {"key": "services", "label": "Catalogo minimo listo", "completed": bool(step_status_by_key.get("catalog_offer", {}).get("completed"))},
+        {"key": "knowledge", "label": "Knowledge base inicial lista", "completed": bool(step_status_by_key.get("knowledge_seed", {}).get("completed"))},
+        {"key": "integrations", "label": "Integraciones planificadas", "completed": bool(step_status_by_key.get("integrations_rules", {}).get("completed"))},
+        {"key": "automation", "label": "Playbooks sugeridos seleccionados", "completed": bool(step_status_by_key.get("launch_review", {}).get("completed"))},
     ]
     return {
         "wizard_version": GUIDED_ONBOARDING_VERSION,
@@ -681,7 +884,8 @@ def build_guided_onboarding_blueprint(
         "steps": steps,
         "progress_percent": progress_percent,
         "current_step": current_step,
-        "answers": merged_answers,
+        "answers": captured_answers,
+        "prefill_answers": display_answers,
         "setup": setup,
         "checklist": checklist,
     }
@@ -719,9 +923,14 @@ def _parse_wizard_row(row: dict[str, Any] | None) -> dict[str, Any] | None:
         "recommended_ctas_json": [],
         "applied_summary_json": {},
         "validation_snapshot_json": {},
+        "recompute_state_json": {},
     }.items():
         clean_key = key[:-5] if key.endswith("_json") else key
         payload[clean_key] = from_json(payload.get(key), default)
+    try:
+        payload["wizard_revision"] = int(payload.get("wizard_revision") or 1)
+    except Exception:
+        payload["wizard_revision"] = 1
     return payload
 
 
@@ -732,13 +941,58 @@ def _parse_step_row(row: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
-def get_guided_onboarding_wizard(conn: Any, wizard_id: str) -> dict[str, Any] | None:
+def _parse_event_row(row: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(row)
+    payload["payload"] = from_json(payload.get("payload_json"), {})
+    return payload
+
+
+def _append_wizard_event(
+    conn: Any,
+    *,
+    wizard_id: str,
+    organization_id: str,
+    bot_id: str | None,
+    event_type: str,
+    step_key: str | None = None,
+    payload: dict[str, Any] | None = None,
+    created_at: str | None = None,
+) -> None:
     ensure_guided_vertical_onboarding_schema(conn)
+    execute(
+        conn,
+        "INSERT INTO vertical_onboarding_wizard_events (id, wizard_id, organization_id, bot_id, event_type, step_key, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            new_id("vwevt"),
+            wizard_id,
+            organization_id,
+            bot_id,
+            event_type,
+            step_key,
+            to_json(payload or {}),
+            created_at or utcnow_iso(),
+        ),
+    )
+
+
+def _load_guided_onboarding_wizard(conn: Any, wizard_id: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]], list[dict[str, Any]]]:
     row = _parse_wizard_row(fetch_one(conn, "SELECT * FROM vertical_onboarding_wizards WHERE id = ?", (wizard_id,)))
     if not row:
-        return None
+        return None, [], []
     steps = [_parse_step_row(item) for item in fetch_all(conn, "SELECT * FROM vertical_onboarding_step_runs WHERE wizard_id = ? ORDER BY created_at ASC", (wizard_id,))]
+    events = [_parse_event_row(item) for item in fetch_all(conn, "SELECT * FROM vertical_onboarding_wizard_events WHERE wizard_id = ? ORDER BY created_at ASC", (wizard_id,))]
+    return row, steps, events
+
+
+
+def get_guided_onboarding_wizard(conn: Any, wizard_id: str) -> dict[str, Any] | None:
+    ensure_guided_vertical_onboarding_schema(conn)
+    row, steps, events = _load_guided_onboarding_wizard(conn, wizard_id)
+    if not row:
+        return None
     row["step_runs"] = steps
+    row["event_log"] = events
+    row["diagnostics"] = _build_wizard_diagnostics(wizard=row, steps=[_step_state(step, row.get("answers") or {}) for step in _GUIDED_STEPS], events=events, step_runs=steps)
     return row
 
 
@@ -755,6 +1009,125 @@ def latest_guided_onboarding_wizard(conn: Any, *, organization_id: str, bot_id: 
             return parsed
     row = fetch_one(conn, "SELECT * FROM vertical_onboarding_wizards WHERE organization_id = ? ORDER BY updated_at DESC LIMIT 1", (organization_id,))
     return _parse_wizard_row(row)
+
+
+def reconcile_guided_onboarding_wizard_integrity(conn: Any, *, wizard_id: str, source: str = "integrity_check") -> dict[str, Any]:
+    ensure_guided_vertical_onboarding_schema(conn)
+    wizard, step_runs, events = _load_guided_onboarding_wizard(conn, wizard_id)
+    if not wizard:
+        raise ValueError("wizard_not_found")
+    wizard["step_runs"] = step_runs
+    wizard["event_log"] = events
+    diagnostics = _build_wizard_diagnostics(wizard=wizard, steps=[_step_state(step, wizard.get("answers") or {}) for step in _GUIDED_STEPS], events=events, step_runs=step_runs)
+    wizard["diagnostics"] = diagnostics
+    if not diagnostics.get("integrity_mismatch"):
+        return wizard
+
+    blueprint = _wizard_blueprint_from_wizard_state(wizard)
+    answers = _normalize_answers(_as_record(blueprint.get("answers")))
+    basics = _blueprint_prefill_step_payload(blueprint, "business_basics")
+    fit = _as_record(answers.get("vertical_fit"))
+    expected_subvertical = blueprint.get("selected_subvertical", {}).get("name") if blueprint.get("selected_subvertical") else fit.get("subvertical") or wizard.get("subvertical")
+    setup = _as_record(blueprint.get("setup"))
+    checklist = list(blueprint.get("checklist") or [])
+    now = utcnow_iso()
+    execute(
+        conn,
+        """
+        UPDATE vertical_onboarding_wizards
+        SET subvertical = ?, current_step = ?, progress_percent = ?, business_name = ?, bot_name = ?, tone = ?, language = ?, timezone = ?, primary_objective = ?,
+            answers_json = ?, setup_json = ?, checklist_json = ?, recommended_integrations_json = ?, recommended_playbooks_json = ?, recommended_ctas_json = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (
+            expected_subvertical,
+            blueprint.get("current_step"),
+            int(blueprint.get("progress_percent") or 0),
+            basics.get("business_name"),
+            basics.get("bot_name"),
+            basics.get("tone"),
+            basics.get("language"),
+            basics.get("timezone"),
+            fit.get("primary_objective"),
+            to_json(answers),
+            to_json(setup),
+            to_json(checklist),
+            to_json(_as_record(setup.get("wizard")).get("recommended_integrations") or []),
+            to_json(_as_record(setup.get("wizard")).get("recommended_playbooks") or []),
+            to_json(_as_record(setup.get("wizard")).get("recommended_ctas") or []),
+            wizard.get("updated_at") or now,
+            wizard_id,
+        ),
+    )
+
+    expected_by_key = {_safe_text(step.get("key")): step for step in list(blueprint.get("steps") or []) if _safe_text(step.get("key"))}
+    existing_by_key = {_safe_text(item.get("step_key")): item for item in step_runs if _safe_text(item.get("step_key"))}
+    for step_key, step in expected_by_key.items():
+        row = existing_by_key.get(step_key)
+        completed_at = row.get("completed_at") if row and row.get("completed_at") and step.get("completed") else (now if step.get("completed") else None)
+        if row:
+            execute(
+                conn,
+                """
+                UPDATE vertical_onboarding_step_runs
+                SET step_status = ?, is_required = ?, payload_json = ?, generated_patch_json = ?, updated_at = ?, completed_at = ?
+                WHERE wizard_id = ? AND step_key = ?
+                """,
+                (
+                    step.get("status") or "pending",
+                    1 if step.get("required") else 0,
+                    to_json(step.get("payload") or {}),
+                    to_json({"step_label": step.get("label"), "source": source}),
+                    now,
+                    completed_at,
+                    wizard_id,
+                    step_key,
+                ),
+            )
+        else:
+            execute(
+                conn,
+                """
+                INSERT INTO vertical_onboarding_step_runs (
+                    id, wizard_id, organization_id, bot_id, step_key, step_status, is_required, payload_json, generated_patch_json, created_at, updated_at, completed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    new_id("vstep"),
+                    wizard_id,
+                    wizard.get("organization_id"),
+                    wizard.get("bot_id"),
+                    step_key,
+                    step.get("status") or "pending",
+                    1 if step.get("required") else 0,
+                    to_json(step.get("payload") or {}),
+                    to_json({"step_label": step.get("label"), "source": source}),
+                    now,
+                    now,
+                    completed_at,
+                ),
+            )
+    extra_keys = [key for key in existing_by_key.keys() if key not in expected_by_key]
+    if extra_keys:
+        placeholders = ",".join("?" for _ in extra_keys)
+        execute(conn, f"DELETE FROM vertical_onboarding_step_runs WHERE wizard_id = ? AND step_key IN ({placeholders})", (wizard_id, *extra_keys))
+
+    _append_wizard_event(
+        conn,
+        wizard_id=wizard_id,
+        organization_id=wizard.get("organization_id"),
+        bot_id=wizard.get("bot_id"),
+        event_type="wizard.integrity_reconciled",
+        payload={
+            "source": source,
+            "mismatch_fields": list(diagnostics.get("integrity_mismatch_fields") or []),
+            "step_run_drift": diagnostics.get("step_run_drift") or {},
+            "stored_current_step": diagnostics.get("stored_current_step"),
+            "computed_current_step": diagnostics.get("computed_current_step"),
+        },
+        created_at=now,
+    )
+    return get_guided_onboarding_wizard(conn, wizard_id) or wizard
 
 
 def start_guided_onboarding_wizard(
@@ -800,8 +1173,8 @@ def start_guided_onboarding_wizard(
             id, organization_id, bot_id, vertical_id, subvertical, wizard_version, status, current_step, progress_percent,
             business_name, bot_name, tone, language, timezone, primary_objective,
             answers_json, setup_json, checklist_json, recommended_integrations_json, recommended_playbooks_json, recommended_ctas_json,
-            applied_summary_json, validation_snapshot_json, created_by, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', '{}', ?, ?, ?)
+            applied_summary_json, validation_snapshot_json, recompute_state_json, wizard_revision, created_by, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', '{}', '{}', 1, ?, ?, ?)
         """,
         (
             wizard_id,
@@ -812,11 +1185,11 @@ def start_guided_onboarding_wizard(
             GUIDED_ONBOARDING_VERSION,
             blueprint.get("current_step"),
             blueprint.get("progress_percent") or 0,
-            ((blueprint.get("answers") or {}).get("business_basics") or {}).get("business_name"),
-            ((blueprint.get("answers") or {}).get("business_basics") or {}).get("bot_name"),
-            ((blueprint.get("answers") or {}).get("business_basics") or {}).get("tone"),
-            ((blueprint.get("answers") or {}).get("business_basics") or {}).get("language"),
-            ((blueprint.get("answers") or {}).get("business_basics") or {}).get("timezone"),
+            _blueprint_prefill_step_payload(blueprint, "business_basics").get("business_name"),
+            _blueprint_prefill_step_payload(blueprint, "business_basics").get("bot_name"),
+            _blueprint_prefill_step_payload(blueprint, "business_basics").get("tone"),
+            _blueprint_prefill_step_payload(blueprint, "business_basics").get("language"),
+            _blueprint_prefill_step_payload(blueprint, "business_basics").get("timezone"),
             ((blueprint.get("answers") or {}).get("vertical_fit") or {}).get("primary_objective"),
             to_json(blueprint.get("answers") or {}),
             to_json(blueprint.get("setup") or {}),
@@ -852,16 +1225,44 @@ def start_guided_onboarding_wizard(
                 now if step.get("completed") else None,
             ),
         )
+    _append_wizard_event(
+        conn,
+        wizard_id=wizard_id,
+        organization_id=organization_id,
+        bot_id=bot_id,
+        event_type="wizard.started",
+        payload={
+            "current_step": blueprint.get("current_step"),
+            "progress_percent": blueprint.get("progress_percent") or 0,
+            "vertical_id": normalized_vertical,
+            "subvertical": blueprint.get("selected_subvertical", {}).get("name") if blueprint.get("selected_subvertical") else subvertical,
+        },
+        created_at=now,
+    )
     return get_guided_onboarding_wizard(conn, wizard_id) or {"id": wizard_id}
 
 
-def update_guided_onboarding_step(conn: Any, *, wizard_id: str, step_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+def update_guided_onboarding_step(conn: Any, *, wizard_id: str, step_key: str, payload: dict[str, Any], expected_revision: int | None = None) -> dict[str, Any]:
     ensure_guided_vertical_onboarding_schema(conn)
     wizard = get_guided_onboarding_wizard(conn, wizard_id)
     if not wizard:
         raise ValueError("wizard_not_found")
-    answers = deepcopy(wizard.get("answers") or {})
-    answers[step_key] = _deep_merge(answers.get(step_key, {}), payload or {})
+    if not any(_safe_text(step.get("key")) == step_key for step in (_GUIDED_STEPS or [])):
+        raise ValueError("invalid_step_key")
+    current_revision = int(wizard.get("wizard_revision") or 1)
+    if expected_revision is not None and int(expected_revision) != current_revision:
+        raise ValueError("wizard_revision_conflict")
+
+    answers = _normalize_answers(deepcopy(wizard.get("answers") or {}))
+    normalized_payload = _normalize_step_payload(step_key, payload or {})
+    if not _step_update_allowed(answers, step_key):
+        raise ValueError("wizard_step_out_of_sequence")
+    existing_payload = _normalize_step_payload(step_key, _as_record(answers.get(step_key)))
+    if _payload_fingerprint(existing_payload) == _payload_fingerprint(_deep_merge(_as_record(existing_payload), normalized_payload)):
+        return wizard
+    answers[step_key] = _deep_merge(_as_record(answers.get(step_key)), normalized_payload)
+    answers = _normalize_answers(answers)
+    answers.pop("dry_run_validation", None)
     blueprint = build_guided_onboarding_blueprint(
         vertical_id=wizard.get("vertical_id"),
         subvertical=(answers.get("vertical_fit") or {}).get("subvertical") or wizard.get("subvertical"),
@@ -877,23 +1278,42 @@ def update_guided_onboarding_step(conn: Any, *, wizard_id: str, step_key: str, p
         bot_id=wizard.get("bot_id"),
     )
     now = utcnow_iso()
-    execute(
-        conn,
+    step_payload = next((step for step in (blueprint.get("steps") or []) if _safe_text(step.get("key")) == step_key), None)
+    if not step_payload:
+        raise ValueError("invalid_step_key")
+
+    next_revision = current_revision + 1
+    stale_snapshot = {
+        "generated_at": wizard.get("updated_at") or wizard.get("created_at") or now,
+        "source": "stale_after_save",
+        "apply_ready": False,
+        "gate": {"status": "yellow", "label": "Pendiente de revalidación", "detail": "Se guardó el paso, pero la validación y el dry run quedaron pendientes de recomputarse."},
+        "warnings": [{"code": "validation_pending", "message": "El wizard cambió y necesita refrescar snapshot/dry run antes de aplicar."}],
+    }
+    recompute_state = {
+        "summary_pending": False,
+        "checklist_pending": False,
+        "validation_snapshot_pending": True,
+        "last_saved_step": step_key,
+        "last_saved_at": now,
+    }
+    cursor = conn.execute(
         """
         UPDATE vertical_onboarding_wizards
         SET subvertical = ?, current_step = ?, progress_percent = ?, business_name = ?, bot_name = ?, tone = ?, language = ?, timezone = ?, primary_objective = ?,
-            answers_json = ?, setup_json = ?, checklist_json = ?, recommended_integrations_json = ?, recommended_playbooks_json = ?, recommended_ctas_json = ?, validation_snapshot_json = '{}', updated_at = ?
-        WHERE id = ?
+            answers_json = ?, setup_json = ?, checklist_json = ?, recommended_integrations_json = ?, recommended_playbooks_json = ?, recommended_ctas_json = ?,
+            validation_snapshot_json = ?, recompute_state_json = ?, wizard_revision = ?, updated_at = ?
+        WHERE id = ? AND wizard_revision = ?
         """,
         (
             blueprint.get("selected_subvertical", {}).get("name") if blueprint.get("selected_subvertical") else wizard.get("subvertical"),
             blueprint.get("current_step"),
             blueprint.get("progress_percent") or 0,
-            ((blueprint.get("answers") or {}).get("business_basics") or {}).get("business_name"),
-            ((blueprint.get("answers") or {}).get("business_basics") or {}).get("bot_name"),
-            ((blueprint.get("answers") or {}).get("business_basics") or {}).get("tone"),
-            ((blueprint.get("answers") or {}).get("business_basics") or {}).get("language"),
-            ((blueprint.get("answers") or {}).get("business_basics") or {}).get("timezone"),
+            _blueprint_prefill_step_payload(blueprint, "business_basics").get("business_name"),
+            _blueprint_prefill_step_payload(blueprint, "business_basics").get("bot_name"),
+            _blueprint_prefill_step_payload(blueprint, "business_basics").get("tone"),
+            _blueprint_prefill_step_payload(blueprint, "business_basics").get("language"),
+            _blueprint_prefill_step_payload(blueprint, "business_basics").get("timezone"),
             ((blueprint.get("answers") or {}).get("vertical_fit") or {}).get("primary_objective"),
             to_json(blueprint.get("answers") or {}),
             to_json(blueprint.get("setup") or {}),
@@ -901,30 +1321,55 @@ def update_guided_onboarding_step(conn: Any, *, wizard_id: str, step_key: str, p
             to_json((blueprint.get("setup") or {}).get("wizard", {}).get("recommended_integrations") or []),
             to_json((blueprint.get("setup") or {}).get("wizard", {}).get("recommended_playbooks") or []),
             to_json((blueprint.get("setup") or {}).get("wizard", {}).get("recommended_ctas") or []),
+            to_json(stale_snapshot),
+            to_json(recompute_state),
+            next_revision,
             now,
             wizard_id,
+            current_revision,
         ),
     )
-    for step in blueprint.get("steps") or []:
-        execute(
-            conn,
-            """
-            UPDATE vertical_onboarding_step_runs
-            SET step_status = ?, payload_json = ?, generated_patch_json = ?, updated_at = ?, completed_at = ?
-            WHERE wizard_id = ? AND step_key = ?
-            """,
-            (
-                step.get("status") or "pending",
-                to_json(step.get("payload") or {}),
-                to_json({"step_label": step.get("label")}),
-                now,
-                now if step.get("completed") else None,
-                wizard_id,
-                step.get("key"),
-            ),
-        )
-    return get_guided_onboarding_wizard(conn, wizard_id) or wizard
+    if getattr(cursor, "rowcount", 1) == 0:
+        raise ValueError("wizard_revision_conflict")
 
+    execute(
+        conn,
+        """
+        UPDATE vertical_onboarding_step_runs
+        SET step_status = ?, payload_json = ?, generated_patch_json = ?, updated_at = ?, completed_at = ?
+        WHERE wizard_id = ? AND step_key = ?
+        """,
+        (
+            step_payload.get("status") or "pending",
+            to_json(step_payload.get("payload") or {}),
+            to_json({"step_label": step_payload.get("label")}),
+            now,
+            now if step_payload.get("completed") else None,
+            wizard_id,
+            step_key,
+        ),
+    )
+    _append_wizard_event(
+        conn,
+        wizard_id=wizard_id,
+        organization_id=wizard.get("organization_id"),
+        bot_id=wizard.get("bot_id"),
+        event_type="wizard.step_saved",
+        step_key=step_key,
+        payload={
+            "wizard_revision": next_revision,
+            "current_step": blueprint.get("current_step"),
+            "progress_percent": blueprint.get("progress_percent") or 0,
+            "completed": bool(step_payload.get("completed")),
+            "status": step_payload.get("status") or "pending",
+        },
+        created_at=now,
+    )
+    updated = get_guided_onboarding_wizard(conn, wizard_id) or wizard
+    updated["validation_snapshot"] = stale_snapshot
+    updated["recompute_state"] = recompute_state
+    updated["wizard_revision"] = next_revision
+    return updated
 
 
 def _safe_text(value: Any, fallback: str = "") -> str:
@@ -993,6 +1438,243 @@ def _integration_identity(item: Any) -> str:
         return _safe_text(item)
     record = _as_record(item)
     return _safe_text(record.get("provider") or record.get("integration_key") or record.get("name"))
+
+
+def _has_required_value(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, set)):
+        return len(value) > 0
+    if isinstance(value, dict):
+        return len(value) > 0
+    return True
+
+
+def _normalize_string_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return _unique_strings([value])
+    if isinstance(value, (list, tuple, set)):
+        return _unique_strings(list(value))
+    return []
+
+
+def _normalize_faq_items(value: Any) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    raw_items = list(value) if isinstance(value, (list, tuple, set)) else [value] if value is not None else []
+    for raw in raw_items:
+        if isinstance(raw, str):
+            question, sep, answer = raw.partition("|")
+            q = _safe_text(question)
+            a = _safe_text(answer if sep else "")
+        else:
+            record = _as_record(raw)
+            q = _safe_text(record.get("q") or record.get("question") or record.get("label"))
+            a = _safe_text(record.get("a") or record.get("answer") or record.get("value"))
+        if q and a:
+            items.append({"q": q, "a": a})
+    unique_items: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in items:
+        key = (item["q"].lower(), item["a"].lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_items.append(item)
+    return unique_items
+
+
+def _normalize_primary_ctas(value: Any) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    raw_items = list(value) if isinstance(value, (list, tuple, set)) else [value] if value is not None else []
+    for idx, item in enumerate(raw_items, start=1):
+        if isinstance(item, str):
+            label = _safe_text(item)
+            record = {"key": f"cta_{idx}", "label": label, "goal": "support"}
+        else:
+            raw = _as_record(item)
+            label = _safe_text(raw.get("label") or raw.get("name") or raw.get("key") or raw.get("goal"))
+            record = {
+                "key": _safe_text(raw.get("key"), f"cta_{idx}"),
+                "label": label,
+                "goal": _safe_text(raw.get("goal"), "support"),
+            }
+        if record.get("label"):
+            normalized.append(record)
+    seen: set[str] = set()
+    deduped: list[dict[str, Any]] = []
+    for item in normalized:
+        key = _safe_text(item.get("label")).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
+
+
+def _normalize_knowledge_sources(value: Any) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    raw_items = list(value) if isinstance(value, (list, tuple, set)) else [value] if value is not None else []
+    for item in raw_items:
+        if isinstance(item, str):
+            label = _safe_text(item)
+            connector_key = slugify(label).replace("-", "_") or "source"
+            record = {"connector_key": connector_key, "label": label, "publish_policy": "manual_review", "required": False}
+        else:
+            raw = _as_record(item)
+            label = _safe_text(raw.get("label") or raw.get("connector_key") or raw.get("provider") or raw.get("name"))
+            connector_key = _safe_text(raw.get("connector_key"), slugify(label).replace("-", "_")) or "source"
+            record = {
+                "connector_key": connector_key,
+                "label": label or connector_key,
+                "publish_policy": _safe_text(raw.get("publish_policy"), "manual_review"),
+                "required": bool(raw.get("required")),
+            }
+        if record.get("label"):
+            normalized.append(record)
+    seen: set[str] = set()
+    deduped: list[dict[str, Any]] = []
+    for item in normalized:
+        key = _safe_text(item.get("connector_key") or item.get("label")).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
+
+
+def _normalize_selected_integrations(value: Any) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    raw_items = list(value) if isinstance(value, (list, tuple, set)) else [value] if value is not None else []
+    for item in raw_items:
+        if isinstance(item, str):
+            key = _safe_text(item).lower()
+            provider_defaults = _DEFAULT_INTEGRATION_PROVIDERS.get(key, {})
+            record = {
+                "integration_key": key or "custom",
+                "integration_type": _safe_text(provider_defaults.get("integration_type"), "custom"),
+                "provider": _safe_text(provider_defaults.get("provider"), key or "custom"),
+                "name": _safe_text(provider_defaults.get("name"), item),
+                "status": "planned",
+                "required": bool(provider_defaults and key in {"whatsapp", "google_calendar", "calendar", "payments", "crm", "drive", "url"}),
+            }
+        else:
+            raw = _as_record(item)
+            integration_key = _safe_text(raw.get("integration_key") or raw.get("provider") or raw.get("name"))
+            provider_defaults = _DEFAULT_INTEGRATION_PROVIDERS.get(integration_key.lower(), {}) if integration_key else {}
+            record = {
+                "integration_key": integration_key or _safe_text(provider_defaults.get("provider"), "custom"),
+                "integration_type": _safe_text(raw.get("integration_type"), _safe_text(provider_defaults.get("integration_type"), "custom")),
+                "provider": _safe_text(raw.get("provider"), _safe_text(provider_defaults.get("provider"), integration_key or "custom")),
+                "name": _safe_text(raw.get("name"), _safe_text(provider_defaults.get("name"), integration_key or "custom")),
+                "status": _safe_text(raw.get("status"), "planned"),
+                "required": bool(raw.get("required")) if raw.get("required") is not None else bool(provider_defaults and integration_key.lower() in {"whatsapp", "google_calendar", "calendar", "payments", "crm", "drive", "url"}),
+            }
+        if record.get("provider") or record.get("integration_key"):
+            normalized.append(record)
+    seen: set[str] = set()
+    deduped: list[dict[str, Any]] = []
+    for item in normalized:
+        key = _safe_text(item.get("provider") or item.get("integration_key")).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
+
+
+def _normalize_playbooks(value: Any) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    raw_items = list(value) if isinstance(value, (list, tuple, set)) else [value] if value is not None else []
+    for idx, item in enumerate(raw_items, start=1):
+        if isinstance(item, str):
+            label = _safe_text(item)
+            record = {"key": slugify(label) or f"playbook_{idx}", "label": label, "priority": idx, "goal": "launch"}
+        else:
+            raw = _as_record(item)
+            label = _safe_text(raw.get("label") or raw.get("name") or raw.get("key"))
+            record = {
+                "key": _safe_text(raw.get("key"), slugify(label) or f"playbook_{idx}"),
+                "label": label,
+                "priority": int(raw.get("priority") or idx),
+                "goal": _safe_text(raw.get("goal"), "launch"),
+            }
+        if record.get("label"):
+            normalized.append(record)
+    seen: set[str] = set()
+    deduped: list[dict[str, Any]] = []
+    for item in normalized:
+        key = _safe_text(item.get("key") or item.get("label")).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
+
+
+def _normalize_step_payload(step_key: str, payload: Any) -> dict[str, Any]:
+    record = _as_record(payload)
+    if step_key == "vertical_fit":
+        return {
+            "vertical_id": _safe_text(record.get("vertical_id")),
+            "subvertical": _safe_text(record.get("subvertical")),
+            "primary_objective": _safe_text(record.get("primary_objective")),
+        }
+    if step_key == "business_basics":
+        return {
+            "business_name": _safe_text(record.get("business_name")),
+            "bot_name": _safe_text(record.get("bot_name")),
+            "tone": _safe_text(record.get("tone")),
+            "language": _safe_text(record.get("language")),
+            "timezone": _safe_text(record.get("timezone")),
+            "hours": _safe_text(record.get("hours")),
+            "whatsapp_number": _safe_text(record.get("whatsapp_number")),
+        }
+    if step_key == "catalog_offer":
+        return {
+            "services": _normalize_string_list(record.get("services")),
+            "featured_offers": _normalize_string_list(record.get("featured_offers")),
+            "primary_ctas": _normalize_primary_ctas(record.get("primary_ctas")),
+            "pricing_notes": _normalize_string_list(record.get("pricing_notes")),
+        }
+    if step_key == "knowledge_seed":
+        owner_user_id = _safe_text(record.get("owner_user_id"))
+        return {
+            "faqs": _normalize_faq_items(record.get("faqs")),
+            "policies": _normalize_string_list(record.get("policies")),
+            "knowledge_sources": _normalize_knowledge_sources(record.get("knowledge_sources")),
+            "owner_user_id": owner_user_id or None,
+        }
+    if step_key == "integrations_rules":
+        return {
+            "selected_integrations": _normalize_selected_integrations(record.get("selected_integrations")),
+            "escalate_when": _normalize_string_list(record.get("escalate_when")),
+            "handoff_keywords": _normalize_string_list(record.get("handoff_keywords")),
+            "expected_handoff_sla": _safe_text(record.get("expected_handoff_sla")),
+            "human_destination_channel": _safe_text(record.get("human_destination_channel")),
+            "rule_overrides": _as_record(record.get("rule_overrides")),
+        }
+    if step_key == "launch_review":
+        return {
+            "recommended_playbooks": _normalize_playbooks(record.get("recommended_playbooks")),
+            "launch_notes": _normalize_string_list(record.get("launch_notes")),
+            "autopublish_knowledge": bool(record.get("autopublish_knowledge")) if record.get("autopublish_knowledge") is not None else True,
+        }
+    return record
+
+
+def _normalize_answers(answers: dict[str, Any] | None) -> dict[str, Any]:
+    source = _as_record(answers)
+    normalized: dict[str, Any] = {}
+    for step in _GUIDED_STEPS:
+        key = _safe_text(step.get("key"))
+        if key:
+            normalized[key] = _normalize_step_payload(key, source.get(key))
+    for key, value in source.items():
+        if key not in normalized:
+            normalized[key] = deepcopy(value)
+    return normalized
 
 
 def _build_dry_run_signature(wizard: dict[str, Any]) -> str:
@@ -1317,16 +1999,22 @@ def _validation_item(*, key: str, label: str, status: str, detail: str, blocking
 
 
 def _compact_diff_summary(diff_domains: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [
-        {
-            "key": item.get("key"),
-            "label": item.get("label"),
-            "status": item.get("status"),
-            "summary": item.get("summary"),
-            "counters": item.get("counters") or {},
-        }
-        for item in diff_domains
-    ]
+    compact: list[dict[str, Any]] = []
+    for domain in diff_domains:
+        children = list(domain.get("items") or [])
+        if not children:
+            children = [domain]
+        for item in children:
+            compact.append(
+                {
+                    "key": item.get("key") or domain.get("key"),
+                    "label": item.get("label") or domain.get("label"),
+                    "status": item.get("status") or domain.get("status"),
+                    "summary": item.get("summary") or item.get("detail") or domain.get("summary") or domain.get("detail"),
+                    "counters": item.get("counters") or {},
+                }
+            )
+    return compact
 
 
 def _counts_from_validation_items(items: list[dict[str, Any]]) -> dict[str, int]:
@@ -1362,10 +2050,14 @@ def _build_validation_snapshot(
     applied_at = wizard.get("applied_at")
     simulation = _simulation_result_for_snapshot(conn, bot_id=wizard.get("bot_id"), applied_at=applied_at)
     release_state = _release_state_for_snapshot(conn, bot_id=wizard.get("bot_id"), applied_at=applied_at)
-    has_connected_channel = _has_connected_operational_channel(bot_row, bot_config)
+    integration_rows = fetch_all(conn, "SELECT * FROM integration_connections WHERE organization_id = ? AND COALESCE(bot_id,'') = COALESCE(?, '') ORDER BY updated_at DESC", (wizard.get("organization_id"), wizard.get("bot_id"))) if table_exists(conn, "integration_connections") else []
+    has_connected_channel = _has_connected_operational_channel(bot_row, bot_config) or any(
+        any(token in f"{_safe_text(row.get('integration_type')).lower()} {_safe_text(row.get('provider')).lower()} {_safe_text(row.get('name')).lower()}" for token in ["whatsapp", "instagram", "telegram", "webchat", "email", "voice", "sms", "messenger", "twilio"])
+        and (_connected_state(row.get("status")) or _connected_state(row.get("credential_status")) or _connected_state(row.get("health_status")))
+        for row in integration_rows
+    )
     selected_integrations = list(integrations.get("selected_integrations") or _as_record(setup.get("wizard")).get("recommended_integrations") or [])
     required_integrations = [item for item in selected_integrations if bool(_as_record(item).get("required"))]
-    integration_rows = fetch_all(conn, "SELECT * FROM integration_connections WHERE organization_id = ? AND COALESCE(bot_id,'') = COALESCE(?, '') ORDER BY updated_at DESC", (wizard.get("organization_id"), wizard.get("bot_id"))) if table_exists(conn, "integration_connections") else []
 
     def _integration_match(connection: dict[str, Any], item: Any) -> bool:
         record = _as_record(item)
@@ -1479,11 +2171,23 @@ def refresh_guided_onboarding_validation_snapshot(conn: Any, *, wizard_id: str, 
         source=source,
         exit_score=_as_record(previous_snapshot.get("exit_score")),
     )
-    if snapshot != previous_snapshot:
-        execute(conn, "UPDATE vertical_onboarding_wizards SET validation_snapshot_json = ? WHERE id = ?", (to_json(snapshot), wizard_id))
+    recompute_state = _as_record(wizard.get("recompute_state"))
+    recompute_state["validation_snapshot_pending"] = False
+    recompute_state["last_snapshot_source"] = source
+    if snapshot != previous_snapshot or recompute_state != _as_record(wizard.get("recompute_state")):
+        execute(conn, "UPDATE vertical_onboarding_wizards SET validation_snapshot_json = ?, recompute_state_json = ? WHERE id = ?", (to_json(snapshot), to_json(recompute_state), wizard_id))
+        _append_wizard_event(
+            conn,
+            wizard_id=wizard_id,
+            organization_id=wizard.get("organization_id"),
+            bot_id=wizard.get("bot_id"),
+            event_type="wizard.validation_snapshot_refreshed",
+            payload={"source": source, "gate_status": _as_record(snapshot.get("gate")).get("status"), "apply_ready": bool(snapshot.get("apply_ready"))},
+        )
         wizard = get_guided_onboarding_wizard(conn, wizard_id) or wizard
     else:
         wizard["validation_snapshot"] = snapshot
+        wizard["recompute_state"] = recompute_state
     return wizard
 
 
@@ -1520,7 +2224,7 @@ def dry_run_guided_onboarding_wizard(conn: Any, *, wizard_id: str) -> dict[str, 
     next_vertical = _safe_text(profile.get("name") or wizard.get("vertical_id"), _safe_text(wizard.get("vertical_id"), "Sin vertical"))
     current_subvertical = _safe_text(bot_config.get("selected_subvertical") or bot_config.get("subvertical") or org_row.get("subvertical"), "Sin subvertical")
     next_subvertical = _safe_text(wizard.get("subvertical") or fit.get("subvertical"), "Sin subvertical")
-    current_objective = _safe_text(bot_config.get("primary_objective") or _as_record(bot_config.get("objective")).get("primary") or bot_row.get("objective"), "Sin objetivo visible")
+    current_objective = _safe_text(bot_config.get("primary_objective") or _as_record(bot_config.get("objective")).get("primary") or (bot_row or {}).get("objective"), "Sin objetivo visible")
     next_objective = _safe_text(fit.get("primary_objective") or wizard.get("primary_objective"), "Sin objetivo definido")
     current_tone = _safe_text(_read_nested_string(bot_config, ["personality", "tone"], "") or _read_nested_string(bot_config, ["behavior_settings", "tone"], "") or behavior_row.get("tone"), "Sin tono visible")
     next_tone = _safe_text(_read_nested_string(setup, ["personality", "tone"], "") or _read_nested_string(setup, ["behavior_settings", "tone"], "") or wizard.get("tone"), "Segun defaults")
@@ -1644,17 +2348,7 @@ def dry_run_guided_onboarding_wizard(conn: Any, *, wizard_id: str) -> dict[str, 
         ),
     ]
 
-    diff_summary = [
-        {
-            "key": item.get("key"),
-            "label": item.get("label"),
-            "status": item.get("status"),
-            "before": _summarize_strings([_safe_text(_as_record(item.get("items")[0] if item.get("items") else {}).get("before"))], "Sin valor previo", 1),
-            "after": _safe_text(item.get("summary"), "Sin cambio material visible"),
-            "detail": _safe_text(item.get("detail"), "Sin detalle adicional."),
-        }
-        for item in diff_domains
-    ]
+    diff_summary = _compact_diff_summary(diff_domains)
 
     checklist = [
         {"key": "bot_scope", "label": "Asistente operativo explicitamente seleccionado", "completed": bool(bot_row) if wizard.get("bot_id") else True, "required": bool(wizard.get("bot_id"))},
@@ -1721,7 +2415,19 @@ def dry_run_guided_onboarding_wizard(conn: Any, *, wizard_id: str) -> dict[str, 
         source="dry_run",
         exit_score={"value": exit_value, "label": exit_label, "tone": exit_tone},
     )
-    execute(conn, "UPDATE vertical_onboarding_wizards SET answers_json = ?, validation_snapshot_json = ?, updated_at = ? WHERE id = ?", (to_json(answers), to_json(validation_snapshot), validated_at, wizard_id))
+    recompute_state = _as_record(wizard.get("recompute_state"))
+    recompute_state["validation_snapshot_pending"] = False
+    recompute_state["last_snapshot_source"] = "dry_run"
+    execute(conn, "UPDATE vertical_onboarding_wizards SET answers_json = ?, validation_snapshot_json = ?, recompute_state_json = ?, updated_at = ? WHERE id = ?", (to_json(answers), to_json(validation_snapshot), to_json(recompute_state), validated_at, wizard_id))
+    _append_wizard_event(
+        conn,
+        wizard_id=wizard_id,
+        organization_id=wizard.get("organization_id"),
+        bot_id=wizard.get("bot_id"),
+        event_type="wizard.dry_run_completed",
+        payload={"apply_ready": bool(apply_ready), "validation_hash": validation_hash, "exit_score": exit_value, "conflicts": len(conflicts), "risks": len(risks)},
+        created_at=validated_at,
+    )
     updated_wizard = get_guided_onboarding_wizard(conn, wizard_id) or wizard
 
     return {
@@ -1875,7 +2581,6 @@ def apply_guided_onboarding_wizard(conn: Any, *, wizard_id: str, actor_user: dic
             raise ValueError("bot_not_found")
         execute(conn, "UPDATE vertical_onboarding_wizards SET bot_id = ?, updated_at = ? WHERE id = ?", (bot_id, now, wizard_id))
         execute(conn, "UPDATE vertical_onboarding_step_runs SET bot_id = ?, updated_at = ? WHERE wizard_id = ?", (bot_id, now, wizard_id))
-        wizard["bot_id"] = bot_id
         wizard["bot_id"] = bot_id
         bot_row = fetch_one(conn, "SELECT * FROM bots WHERE id = ? AND organization_id = ?", (bot_id, wizard["organization_id"])) or {}
     if not bot_row:
@@ -2075,6 +2780,20 @@ def apply_guided_onboarding_wizard(conn: Any, *, wizard_id: str, actor_user: dic
         conn,
         "UPDATE vertical_onboarding_wizards SET status = 'applied', applied_at = ?, progress_percent = 100, current_step = 'launch_review', applied_summary_json = ?, updated_at = ? WHERE id = ?",
         (now, to_json(applied_summary), now, wizard_id),
+    )
+    _append_wizard_event(
+        conn,
+        wizard_id=wizard_id,
+        organization_id=wizard.get("organization_id"),
+        bot_id=wizard.get("bot_id"),
+        event_type="wizard.applied",
+        payload={
+            "created_services": len(created_services),
+            "knowledge_documents": len(docs_seeded),
+            "planned_integrations": len(integration_rows),
+            "template_count": template_count,
+        },
+        created_at=now,
     )
     final_wizard = refresh_guided_onboarding_validation_snapshot(conn, wizard_id=wizard_id, source="apply")
     return {

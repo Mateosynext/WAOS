@@ -15,6 +15,7 @@ from ..vertical_onboarding_runtime import (
     apply_guided_onboarding_wizard,
     dry_run_guided_onboarding_wizard,
     refresh_guided_onboarding_validation_snapshot,
+    reconcile_guided_onboarding_wizard_integrity,
     start_guided_onboarding_wizard,
     update_guided_onboarding_step,
 )
@@ -322,11 +323,35 @@ class OnboardingService:
             bot = get_bot(uow.conn, wizard["bot_id"])
             if bot:
                 ensure_bot_access(user, bot)
-        should_refresh_snapshot = bool(wizard.get("validation_snapshot") or wizard.get("applied_at") or ((wizard.get("answers") or {}).get("dry_run_validation")))
+        diagnostics = (wizard.get("diagnostics") or {}) if isinstance(wizard.get("diagnostics"), dict) else {}
+        if diagnostics.get("integrity_mismatch"):
+            try:
+                if uow.mode == "write":
+                    wizard = reconcile_guided_onboarding_wizard_integrity(uow.conn, wizard_id=wizard_id, source="get_wizard")
+                    uow.commit()
+                else:
+                    with UnitOfWork(mode="write") as write_uow:
+                        wizard = reconcile_guided_onboarding_wizard_integrity(write_uow.conn, wizard_id=wizard_id, source="get_wizard")
+                        write_uow.commit()
+            except ValueError:
+                wizard = wizard
+        recompute_state = (wizard.get("recompute_state") or {}) if isinstance(wizard.get("recompute_state"), dict) else {}
+        should_refresh_snapshot = bool(
+            wizard.get("validation_snapshot")
+            or wizard.get("applied_at")
+            or ((wizard.get("answers") or {}).get("dry_run_validation"))
+            or recompute_state.get("validation_snapshot_pending")
+            or (wizard.get("bot_id") and wizard.get("status") == "applied")
+        )
         if should_refresh_snapshot:
             try:
-                wizard = refresh_guided_onboarding_validation_snapshot(uow.conn, wizard_id=wizard_id, source="refresh")
-                uow.commit()
+                if uow.mode == "write":
+                    wizard = refresh_guided_onboarding_validation_snapshot(uow.conn, wizard_id=wizard_id, source="refresh")
+                    uow.commit()
+                else:
+                    with UnitOfWork(mode="write") as write_uow:
+                        wizard = refresh_guided_onboarding_validation_snapshot(write_uow.conn, wizard_id=wizard_id, source="refresh")
+                        write_uow.commit()
             except ValueError:
                 wizard = wizard
         return ok(wizard)
@@ -341,7 +366,28 @@ class OnboardingService:
             bot = get_bot(uow.conn, wizard["bot_id"])
             if bot:
                 ensure_bot_access(user, bot)
-        updated = update_guided_onboarding_step(uow.conn, wizard_id=wizard_id, step_key=step_key, payload=payload.payload)
+        diagnostics = (wizard.get("diagnostics") or {}) if isinstance(wizard.get("diagnostics"), dict) else {}
+        if diagnostics.get("integrity_mismatch"):
+            wizard = reconcile_guided_onboarding_wizard_integrity(uow.conn, wizard_id=wizard_id, source="before_update")
+        try:
+            updated = update_guided_onboarding_step(
+                uow.conn,
+                wizard_id=wizard_id,
+                step_key=step_key,
+                payload=payload.payload,
+                expected_revision=payload.expected_revision,
+            )
+        except ValueError as exc:
+            detail = str(exc)
+            if detail == "wizard_revision_conflict":
+                raise HTTPException(status_code=409, detail="wizard_revision_conflict")
+            if detail == "invalid_step_key":
+                raise HTTPException(status_code=400, detail="invalid_step_key")
+            if detail == "wizard_step_out_of_sequence":
+                raise HTTPException(status_code=409, detail="wizard_step_out_of_sequence")
+            if detail == "wizard_not_found":
+                raise HTTPException(status_code=404, detail="Wizard not found")
+            raise HTTPException(status_code=400, detail=detail)
         uow.commit()
         return ok(updated)
 
@@ -355,6 +401,9 @@ class OnboardingService:
             bot = get_bot(uow.conn, wizard["bot_id"])
             if bot:
                 ensure_bot_access(user, bot)
+        diagnostics = (wizard.get("diagnostics") or {}) if isinstance(wizard.get("diagnostics"), dict) else {}
+        if diagnostics.get("integrity_mismatch"):
+            wizard = reconcile_guided_onboarding_wizard_integrity(uow.conn, wizard_id=wizard_id, source="before_dry_run")
         try:
             result = dry_run_guided_onboarding_wizard(uow.conn, wizard_id=wizard_id)
         except ValueError as exc:
@@ -375,6 +424,9 @@ class OnboardingService:
             bot = get_bot(uow.conn, wizard["bot_id"])
             if bot:
                 ensure_bot_access(user, bot)
+        diagnostics = (wizard.get("diagnostics") or {}) if isinstance(wizard.get("diagnostics"), dict) else {}
+        if diagnostics.get("integrity_mismatch"):
+            wizard = reconcile_guided_onboarding_wizard_integrity(uow.conn, wizard_id=wizard_id, source="before_apply")
         try:
             result = apply_guided_onboarding_wizard(uow.conn, wizard_id=wizard_id, actor_user=user)
         except ValueError as exc:
@@ -384,9 +436,9 @@ class OnboardingService:
             if detail == "bot_not_found":
                 raise HTTPException(status_code=404, detail="Bot not found")
             if detail == "dry_run_required":
-                raise HTTPException(status_code=400, detail="Debes correr un dry run vigente antes de aplicar la reconfiguracion.")
+                raise HTTPException(status_code=400, detail="dry_run_required")
             if detail == "dry_run_blocked":
-                raise HTTPException(status_code=400, detail="El dry run actual sigue bloqueando el apply. Resuelve conflictos o vuelve a validar antes de aplicar.")
+                raise HTTPException(status_code=400, detail="dry_run_blocked")
             raise HTTPException(status_code=400, detail=detail)
         uow.commit()
         return ok(result)

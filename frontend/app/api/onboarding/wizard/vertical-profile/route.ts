@@ -1,11 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getVerticalProfile } from "../../../../lib/waos";
+import { NextRequest } from "next/server";
+import { wizardRouteResponse } from "../route-helpers";
+import { getWizardVerticalProfile } from "../../../../lib/data/wizard";
 
 export async function GET(request: NextRequest) {
-  const organizationId = request.nextUrl.searchParams.get("organization_id") || undefined;
-  const botId = request.nextUrl.searchParams.get("bot_id") || undefined;
-  const vertical = request.nextUrl.searchParams.get("vertical") || undefined;
-  const subvertical = request.nextUrl.searchParams.get("subvertical") || undefined;
-  const profile = await getVerticalProfile(vertical, botId, subvertical, organizationId);
-  return NextResponse.json(profile, { headers: { "Cache-Control": "no-store" } });
+  return wizardRouteResponse(() => getWizardVerticalProfile({
+    organizationId: request.nextUrl.searchParams.get("organization_id"),
+    botId: request.nextUrl.searchParams.get("bot_id"),
+    verticalId: request.nextUrl.searchParams.get("vertical") || request.nextUrl.searchParams.get("vertical_id"),
+    subvertical: request.nextUrl.searchParams.get("subvertical"),
+  }), "No se pudo cargar el perfil vertical.");
 }

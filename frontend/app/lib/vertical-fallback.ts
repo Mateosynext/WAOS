@@ -1,5 +1,6 @@
 import "server-only";
-import { normalizeCollection, normalizeVerticalProfile, type VerticalProfileContract } from "./contracts";
+import { normalizeCollection } from "./contracts/shared";
+import { normalizeVerticalProfile, type VerticalProfileContract } from "./contracts/verticals";
 
 const RAW_FALLBACK_VERTICALS: unknown[] = [
   {

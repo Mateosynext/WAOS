@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { ContextTip, EmptyActionState, Section, Shell } from "../components";
-import { apiFetchOrDefault } from "../lib/api";
 import { requireSession } from "../lib/session";
-import { getBots, getStrongestVerticals, getVerticalCatalog, getVerticalProfile } from "../lib/waos";
+import { getBots, getStrongestVerticals, getVerticalCatalog } from "../lib/waos";
+import { getWizardBlueprint, getWizardInstance, getWizardVerticalProfile } from "../lib/data/wizard";
 import BotStudioWizardClient from "./BotStudioWizardClient";
 import type { WizardBlueprint, WizardInstance, WizardMode } from "./wizard-types";
 
@@ -14,22 +14,6 @@ function firstParam(value: string | string[] | undefined) {
 
 function pickCatalogSubvertical(profile?: { selected_subvertical?: { name?: string }; recommended_subverticals?: string[]; subvertical_profiles?: Array<{ name?: string }>; subverticals?: string[] } | null) {
   return profile?.selected_subvertical?.name || "";
-}
-
-async function getInitialBlueprint(args: {
-  organizationId: string;
-  verticalId: string;
-  subvertical: string;
-  primaryObjective: string;
-  botId?: string;
-}) {
-  const params = new URLSearchParams();
-  params.set("organization_id", args.organizationId);
-  params.set("vertical_id", args.verticalId);
-  params.set("primary_objective", args.primaryObjective || "agendar");
-  if (args.subvertical) params.set("subvertical", args.subvertical);
-  if (args.botId) params.set("bot_id", args.botId);
-  return apiFetchOrDefault<WizardBlueprint | null>(`/api/v1/onboarding/wizard/blueprint?${params.toString()}`, null);
 }
 
 export default async function BotStudioPage({
@@ -52,7 +36,7 @@ export default async function BotStudioPage({
     getVerticalCatalog(),
     getStrongestVerticals(),
     getBots(),
-    routeWizardId ? apiFetchOrDefault<WizardInstance | null>(`/api/v1/onboarding/wizard/${routeWizardId}`, null) : Promise.resolve(null),
+    routeWizardId ? getWizardInstance(routeWizardId) : Promise.resolve(null),
   ]);
 
   const organizations = session?.user.organizations || [];
@@ -89,14 +73,20 @@ export default async function BotStudioPage({
   const initialSelectedBotId = initialMode === "reconfigure" ? initialSelectedBot?.id || String(initialWizard?.bot_id || "") : "";
   const [initialBlueprint, initialVerticalProfile] = initialOrganizationId && initialVerticalId
     ? await Promise.all([
-        getInitialBlueprint({
+        getWizardBlueprint({
           organizationId: initialOrganizationId,
           verticalId: initialVerticalId,
           subvertical: initialSubvertical,
           primaryObjective: initialPrimaryObjective,
           botId: initialSelectedBotId || undefined,
         }),
-        getVerticalProfile(initialVerticalId, initialSelectedBotId || undefined, initialSubvertical || undefined, initialOrganizationId),
+        getWizardVerticalProfile({
+          organizationId: initialOrganizationId,
+          verticalId: initialVerticalId,
+          subvertical: initialSubvertical || undefined,
+          botId: initialSelectedBotId || undefined,
+          mode: initialMode,
+        }),
       ])
     : [null, null];
 

@@ -192,6 +192,34 @@ export type WizardValidationSnapshot = {
   };
 };
 
+
+export type WizardRuntimeDiagnostics = {
+  first_incomplete_required_step?: string | null;
+  required_steps_completed?: string[];
+  required_steps_pending?: string[];
+  can_update_up_to_step?: string | null;
+  validation_snapshot_pending?: boolean;
+  dry_run_pending?: boolean;
+  last_event_type?: string | null;
+  event_count?: number;
+  step_statuses?: Array<{ key?: string; status?: string; completed?: boolean }>;
+  stored_current_step?: string | null;
+  computed_current_step?: string | null;
+  stored_progress_percent?: number;
+  computed_progress_percent?: number;
+  stored_subvertical?: string | null;
+  computed_subvertical?: string | null;
+  integrity_signature?: string | null;
+  integrity_mismatch?: boolean;
+  integrity_mismatch_fields?: string[];
+  step_run_drift?: {
+    missing?: string[];
+    mismatched?: string[];
+    extra?: string[];
+    count?: number;
+  };
+};
+
 export type WizardInstance = {
   id: string;
   organization_id: string;
@@ -211,8 +239,11 @@ export type WizardInstance = {
   setup?: WizardBlueprint["setup"];
   checklist?: WizardBlueprint["checklist"];
   step_runs?: WizardStepRun[];
+  event_log?: Array<Record<string, unknown>>;
   applied_summary?: Record<string, unknown>;
   validation_snapshot?: WizardValidationSnapshot;
+  wizard_revision?: number;
+  diagnostics?: WizardRuntimeDiagnostics;
   created_at?: string;
   updated_at?: string;
   applied_at?: string | null;

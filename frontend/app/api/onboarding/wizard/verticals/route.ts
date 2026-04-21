@@ -1,9 +1,6 @@
-import { NextResponse } from "next/server";
-import { getVerticalCatalog } from "../../../../lib/waos";
+import { wizardRouteResponse } from "../route-helpers";
+import { getVerticalCatalog } from "../../../../lib/data/verticals";
 
 export async function GET() {
-  const verticals = await getVerticalCatalog(false);
-  return NextResponse.json(verticals, {
-    headers: { "Cache-Control": "no-store" },
-  });
+  return wizardRouteResponse(() => getVerticalCatalog(false), "No se pudo cargar el catálogo vertical del wizard.");
 }

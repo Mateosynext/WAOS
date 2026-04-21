@@ -2,7 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { ACCESS_COOKIE, getCurrentBotId, getCurrentOrganizationId, refreshAccessToken } from "./session";
 import { explainMissingApiBase, getClientApiBase, getFrontendEnvConfig, getServerApiBase } from "./env";
-import { unwrapApiEnvelope } from "./contracts";
+import { unwrapApiEnvelope } from "./contracts/shared";
 
 const ENV = getFrontendEnvConfig();
 

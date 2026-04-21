@@ -66,10 +66,11 @@ bash scripts/validate_release_in_ci.sh
 - La revisión de siguientes candidatos de refactor quedó documentada en `docs/MAINTAINABILITY_REVIEW_2026-04-18.md`.
 
 ## Render + Vercel
-- Render usa `render.yaml` o `backend/render.yaml` con `healthCheckPath: /livez`.
+- Render usa preferentemente `render.yaml` en raíz; `backend/render.yaml` queda como copia explícita del backend.
 - El endpoint `GET /api/v1/system/deploy-checklist` resume coherencia de despliegue.
 - Vercel debe usar `Root Directory = frontend`.
-- El frontend ya no usa fallbacks silenciosos a dominios productivos antiguos; requiere envs correctos en build.
+- El frontend exige envs correctos en build y trae `frontend/.env.vercel.example` + `frontend/.vercelignore`.
+- El backend trae `backend/.env.render.example` para cargar variables mínimas de Render.
 - Ruta única de handoff: `RELEASE_HANDOFF.md` y `docs/WAOS_RELEASE_CANDIDATE_HANDOFF.md`.
 - Validación local rápida: `bash scripts/release_candidate_smoke.sh`.
 

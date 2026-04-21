@@ -44,6 +44,17 @@ backend/app/artifacts/reports/*.pdf
 dist/
 build/
 
+# Backup / patch / scratch artifacts
 *.bak
-
-*.broken.bak
+*.backup
+*.old
+*.orig
+*.rej
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+*.local.notes.md
+.notes/
+.tmp/

@@ -1,15 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { apiFetch } from "../../../../lib/api";
+import { NextRequest } from "next/server";
+import { wizardRouteResponse } from "../route-helpers";
+import { getWizardInstance } from "../../../../lib/data/wizard";
 
 type RouteContext = { params: Promise<{ wizardId: string }> };
 
 export async function GET(_request: NextRequest, context: RouteContext) {
-  try {
-    const { wizardId } = await context.params;
-    const payload = await apiFetch<Record<string, unknown>>(`/api/v1/onboarding/wizard/${encodeURIComponent(wizardId)}`);
-    return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "No se pudo cargar el wizard.";
-    return NextResponse.json({ detail: message }, { status: 500, headers: { "Cache-Control": "no-store" } });
-  }
+  const { wizardId } = await context.params;
+  return wizardRouteResponse(() => getWizardInstance(wizardId), "No se pudo cargar el wizard.");
 }

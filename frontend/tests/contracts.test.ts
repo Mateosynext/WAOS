@@ -2,8 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const repoRoot = path.resolve(import.meta.dirname, "../..");
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 test("agenda contract expects pending metric and backend exposes overview endpoint", () => {
   const result = spawnSync("python", ["-c", `from backend.app.main import app; import json; print(json.dumps(app.openapi()))`], {

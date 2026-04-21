@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerApiBase } from "../../../lib/env";
-import { ACCESS_COOKIE, REFRESH_COOKIE, sessionCookieOptions } from "../../../lib/session";
+import { ACCESS_COOKIE, REFRESH_COOKIE, sessionCookieOptions } from "../../../lib/auth/cookies";
 
 const API_BASE = getServerApiBase();
 

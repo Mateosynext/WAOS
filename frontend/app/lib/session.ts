@@ -1,32 +1,17 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { normalizeSessionUser, type SessionUser } from "./contracts";
+import { normalizeSessionUser, type SessionUser } from "./contracts/auth";
 import { getServerApiBase } from "./env";
-
-export const ACCESS_COOKIE = "waos_access_token";
-export const REFRESH_COOKIE = "waos_refresh_token";
-export const ORG_COOKIE = "waos_org_id";
-export const BOT_COOKIE = "waos_bot_id";
-export const CSRF_COOKIE = "waos_csrf_token";
+import { ACCESS_COOKIE, BOT_COOKIE, ORG_COOKIE, REFRESH_COOKIE, accessCookieOptions, refreshCookieOptions, sessionCookieOptions, sessionScopeCookieOptions } from "./auth/cookies";
 
 const API_BASE = getServerApiBase();
-const secureCookies = process.env.NODE_ENV === "production" || process.env.SECURE_COOKIES === "true";
 
-export type { SessionOrganization } from "./contracts";
-export type { SessionUser } from "./contracts";
+export type { SessionOrganization } from "./contracts/auth";
+export type { SessionUser } from "./contracts/auth";
 
-function accessCookieOptions() {
-  return { httpOnly: true as const, sameSite: "lax" as const, secure: secureCookies, path: "/", maxAge: 60 * 60 };
-}
+export { ACCESS_COOKIE, BOT_COOKIE, CSRF_COOKIE, ORG_COOKIE, REFRESH_COOKIE, sessionCookieOptions } from "./auth/cookies";
 
-function refreshCookieOptions() {
-  return { httpOnly: true as const, sameSite: "strict" as const, secure: secureCookies, path: "/", maxAge: 60 * 60 * 12 };
-}
-
-function sessionScopeCookieOptions() {
-  return { httpOnly: true as const, sameSite: "lax" as const, secure: secureCookies, path: "/" };
-}
 
 export async function getAccessToken(): Promise<string | null> {
   const store = await cookies();
@@ -123,7 +108,12 @@ async function keepScopeConsistent(store: Awaited<ReturnType<typeof cookies>>, r
 
 export async function getSession(): Promise<{ user: SessionUser; organizationId: string | null } | null> {
   let accessToken = await getAccessToken();
-  if (!accessToken || !API_BASE) return null;
+  if (!API_BASE) return null;
+  if (!accessToken) {
+    const refreshed = await refreshAccessToken();
+    if (!refreshed?.accessToken) return null;
+    accessToken = refreshed.accessToken;
+  }
   try {
     let response = await fetchSessionUser(accessToken);
     if (response.status === 401) {
@@ -155,8 +145,3 @@ export async function requireSession(redirectTo = "/login") {
   return session;
 }
 
-export const sessionCookieOptions = {
-  access: accessCookieOptions,
-  refresh: refreshCookieOptions,
-  scope: sessionScopeCookieOptions,
-};

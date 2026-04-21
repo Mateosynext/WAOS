@@ -12,6 +12,7 @@ import { safeText } from "../lib/ui";
 import SubverticalPicker from "./SubverticalPicker";
 import VerticalPicker from "./VerticalPicker";
 import type { WizardBlueprint, WizardMode, WizardSubverticalProfile } from "./wizard-types";
+import { loadWizardReactiveSelection } from "./wizardReactiveData";
 
 type BotStudioWizardProps = {
   organizations: SessionOrganization[];
@@ -199,33 +200,6 @@ function resolveActiveSubverticalProfile(args: {
     || null;
 }
 
-async function fetchWizardBlueprint(params: URLSearchParams): Promise<WizardBlueprint> {
-  const response = await fetch(`/api/onboarding/wizard/blueprint?${params.toString()}`, {
-    method: "GET",
-    cache: "no-store",
-    credentials: "same-origin",
-  });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    const detail = typeof payload?.detail === "string" ? payload.detail : `La UI no pudo actualizar el blueprint (${response.status}).`;
-    throw new Error(detail);
-  }
-  return response.json();
-}
-
-async function fetchWizardVerticalProfile(params: URLSearchParams): Promise<VerticalProfileContract> {
-  const response = await fetch(`/api/onboarding/wizard/vertical-profile?${params.toString()}`, {
-    method: "GET",
-    cache: "no-store",
-    credentials: "same-origin",
-  });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    const detail = typeof payload?.detail === "string" ? payload.detail : `La UI no pudo cargar el perfil vertical (${response.status}).`;
-    throw new Error(detail);
-  }
-  return response.json();
-}
 
 function cardClasses(active: boolean) {
   return active
@@ -491,37 +465,21 @@ export default function BotStudioWizard({
       return;
     }
 
-    const blueprintParams = new URLSearchParams();
-    blueprintParams.set("organization_id", selectedOrganizationId);
-    blueprintParams.set("vertical_id", selectedVerticalId);
-    blueprintParams.set("primary_objective", selectedPrimaryObjective);
-    if (selectedSubvertical) blueprintParams.set("subvertical", selectedSubvertical);
-    if (mode === "reconfigure" && selectedBotId) blueprintParams.set("bot_id", selectedBotId);
-
-    const verticalParams = new URLSearchParams();
-    verticalParams.set("organization_id", selectedOrganizationId);
-    verticalParams.set("vertical", selectedVerticalId);
-    if (selectedSubvertical) verticalParams.set("subvertical", selectedSubvertical);
-    if (mode === "reconfigure" && selectedBotId) verticalParams.set("bot_id", selectedBotId);
-
     let ignore = false;
     setPreviewLoading(true);
     setPreviewError(null);
 
-    void Promise.allSettled([
-      fetchWizardBlueprint(blueprintParams),
-      fetchWizardVerticalProfile(verticalParams),
-    ]).then((results) => {
+    void loadWizardReactiveSelection({
+      organizationId: selectedOrganizationId,
+      verticalId: selectedVerticalId,
+      subvertical: selectedSubvertical,
+      primaryObjective: selectedPrimaryObjective,
+      mode,
+      botId: selectedBotId,
+    }).then(({ blueprint: nextBlueprint, verticalProfile: nextVerticalProfile, errors }) => {
       if (ignore) return;
-      const [blueprintResult, profileResult] = results;
-      const errors: string[] = [];
-
-      if (blueprintResult.status === "fulfilled") setBlueprint(blueprintResult.value);
-      else errors.push(blueprintResult.reason instanceof Error ? blueprintResult.reason.message : "No se pudo actualizar el blueprint.");
-
-      if (profileResult.status === "fulfilled") setVerticalProfile(profileResult.value);
-      else errors.push(profileResult.reason instanceof Error ? profileResult.reason.message : "No se pudo cargar el perfil vertical.");
-
+      setBlueprint(nextBlueprint);
+      setVerticalProfile(nextVerticalProfile);
       setPreviewError(errors.length ? errors.join(" ") : null);
     }).finally(() => {
       if (!ignore) setPreviewLoading(false);

@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { ApiRequestError, apiFetch } from "../lib/api";
+import { normalizeDisplayError } from "../lib/error-display";
 import { getServerApiBase } from "../lib/env";
 import { ACCESS_COOKIE, BOT_COOKIE, ORG_COOKIE, REFRESH_COOKIE, sessionCookieOptions } from "../lib/session";
 
@@ -11,10 +12,8 @@ export type ActionRunResult<T = unknown> = { ok: true; data: T; error: null } | 
 export function readString(formData: FormData, key: string): string { return String(formData.get(key) || "").trim(); }
 
 export function normalizeActionError(error: unknown, fallback = "No se pudo completar la acción."): string {
-  if (error instanceof ApiRequestError) return error.message || fallback;
-  if (error instanceof Error) return error.message || fallback;
-  if (typeof error === "string" && error.trim()) return error.trim();
-  return fallback;
+  if (error instanceof ApiRequestError) return normalizeDisplayError(error.message, fallback);
+  return normalizeDisplayError(error, fallback);
 }
 
 export function withActionError(redirectTo: string, error: unknown, fallback?: string): string {

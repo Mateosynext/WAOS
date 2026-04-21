@@ -6,7 +6,9 @@ import { safeText } from "../lib/ui";
 import { UiMessage } from "./UiMessage";
 import VerticalPicker from "../bot-studio/VerticalPicker";
 import SubverticalPicker from "../bot-studio/SubverticalPicker";
-import type { WizardBlueprint, WizardSubverticalProfile } from "../bot-studio/wizard-types";
+import type { WizardBlueprint } from "../bot-studio/wizard-types";
+import { loadWizardReactiveSelection } from "../bot-studio/wizardReactiveData";
+import { buildReactiveVerticalPreviewModel, isSelectedSubverticalValid } from "./reactiveVerticalViewModel";
 
 type ReactiveVerticalConfiguratorProps = {
   organizationId: string;
@@ -23,117 +25,6 @@ type ReactiveVerticalConfiguratorProps = {
   introDescription: string;
   previewTitle: string;
 };
-
-function unique(values: Array<string | null | undefined>) {
-  return Array.from(new Set(values.map((item) => String(item || "").trim()).filter(Boolean)));
-}
-
-function normalizeName(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function summarize(values: Array<string | null | undefined>, fallback: string, limit = 4) {
-  const cleaned = unique(values).slice(0, limit);
-  return cleaned.length ? cleaned.join(" · ") : fallback;
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? { ...(value as Record<string, unknown>) } : {};
-}
-
-function readNestedString(value: unknown, path: string[], fallback = "") {
-  let current: unknown = value;
-  for (const key of path) current = asRecord(current)[key];
-  const result = String(current || "").trim();
-  return result || fallback;
-}
-
-function pickSubverticalOptions(blueprint: WizardBlueprint | null, catalogVertical?: VerticalProfileContract | null) {
-  return unique([
-    blueprint?.selected_subvertical?.name,
-    blueprint?.setup?.wizard?.selected_subvertical,
-    ...(blueprint?.profile?.recommended_subverticals || []),
-    ...(blueprint?.profile?.subverticals || []),
-    catalogVertical?.selected_subvertical?.name,
-    ...(catalogVertical?.recommended_subverticals || []),
-    ...(catalogVertical?.subvertical_profiles || []).map((item) => item.name),
-    ...(catalogVertical?.subverticals || []),
-  ]);
-}
-
-function buildSubverticalProfiles(verticalProfile: VerticalProfileContract | null, blueprint: WizardBlueprint | null): WizardSubverticalProfile[] {
-  if (verticalProfile?.subvertical_profiles?.length) return verticalProfile.subvertical_profiles as WizardSubverticalProfile[];
-  return pickSubverticalOptions(blueprint, verticalProfile).map((name) => ({
-    id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-    name,
-  } as WizardSubverticalProfile));
-}
-
-function resolveActiveSubverticalProfile(args: {
-  selectedSubvertical: string;
-  verticalProfile: VerticalProfileContract | null;
-  blueprint: WizardBlueprint | null;
-  subverticalProfiles: WizardSubverticalProfile[];
-}) {
-  const selected = normalizeName(args.selectedSubvertical);
-  const match = (value?: string | null) => normalizeName(String(value || "")) === selected;
-
-  if (!selected) return null;
-
-  return args.verticalProfile?.selected_subvertical && match(args.verticalProfile.selected_subvertical.name)
-    ? args.verticalProfile.selected_subvertical as WizardSubverticalProfile
-    : args.subverticalProfiles.find((item) => match(item.name)) || null;
-}
-
-function pickRecommendedIntegrations(blueprint: WizardBlueprint | null, catalogVertical?: VerticalProfileContract | null) {
-  const fromBlueprint = unique((blueprint?.setup?.wizard?.recommended_integrations || []).map((item) => item.name || item.provider || item.integration_key));
-  return fromBlueprint.length ? fromBlueprint : unique(catalogVertical?.recommended_integrations || []);
-}
-
-function pickPlaybooks(blueprint: WizardBlueprint | null, catalogVertical?: VerticalProfileContract | null) {
-  const fromBlueprint = unique((blueprint?.setup?.wizard?.recommended_playbooks || []).map((item) => item.label));
-  return fromBlueprint.length ? fromBlueprint : unique(catalogVertical?.flows || []);
-}
-
-function pickTemplateLabels(blueprint: WizardBlueprint | null, activeSubverticalProfile: WizardSubverticalProfile | null, activeVerticalProfile: VerticalProfileContract | null) {
-  const setupTemplates = Array.isArray(asRecord(blueprint?.setup).response_templates)
-    ? asRecord(blueprint?.setup).response_templates as Array<Record<string, unknown>>
-    : [];
-
-  return unique([
-    ...setupTemplates.map((item) => String(item.title || item.template_key || item.key || "").trim()),
-    ...(activeSubverticalProfile?.templates || []).map((item) => String(item.title || item.template_key || item.key || item.name || "").trim()),
-    ...((asRecord(activeVerticalProfile?.pipeline).templates || []) as Array<Record<string, unknown>>).map((item) => String(item.title || item.template_key || item.key || item.name || "").trim()),
-  ]);
-}
-
-async function fetchWizardBlueprint(params: URLSearchParams): Promise<WizardBlueprint> {
-  const response = await fetch(`/api/onboarding/wizard/blueprint?${params.toString()}`, {
-    method: "GET",
-    cache: "no-store",
-    credentials: "same-origin",
-  });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    const detail = typeof payload?.detail === "string" ? payload.detail : `La UI no pudo actualizar el blueprint (${response.status}).`;
-    throw new Error(detail);
-  }
-  return response.json();
-}
-
-async function fetchWizardVerticalProfile(params: URLSearchParams): Promise<VerticalProfileContract> {
-  const response = await fetch(`/api/onboarding/wizard/vertical-profile?${params.toString()}`, {
-    method: "GET",
-    cache: "no-store",
-    credentials: "same-origin",
-  });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    const detail = typeof payload?.detail === "string" ? payload.detail : `La UI no pudo cargar el perfil vertical (${response.status}).`;
-    throw new Error(detail);
-  }
-  return response.json();
-}
 
 function PreviewTile({ label, value }: { label: string; value: string }) {
   return (
@@ -171,36 +62,27 @@ export default function ReactiveVerticalConfigurator({
     [selectedVerticalId, verticals],
   );
 
-  const subverticalProfiles = useMemo(
-    () => buildSubverticalProfiles(verticalProfile, blueprint),
-    [verticalProfile, blueprint],
-  );
-
-  const subverticalOptions = useMemo(
-    () => unique([
-      ...subverticalProfiles.map((item) => item.name),
-      ...pickSubverticalOptions(blueprint, verticalProfile),
-    ]),
-    [blueprint, subverticalProfiles, verticalProfile],
-  );
-
-  const activeSubverticalProfile = useMemo(() => resolveActiveSubverticalProfile({
+  const previewModel = useMemo(() => buildReactiveVerticalPreviewModel({
     selectedSubvertical,
     verticalProfile,
     blueprint,
-    subverticalProfiles,
-  }), [blueprint, selectedSubvertical, subverticalProfiles, verticalProfile]);
+    activeCatalogVertical,
+  }), [activeCatalogVertical, blueprint, selectedSubvertical, verticalProfile]);
 
-  const previewVerticalName = safeText(blueprint?.profile?.name, safeText(verticalProfile?.name, safeText(activeCatalogVertical?.name, "Vertical")));
-  const previewVerticalProblem = safeText(blueprint?.profile?.problem, safeText(verticalProfile?.problem, safeText(activeCatalogVertical?.description, "Selecciona industria y tipo de operación para ver el preview operativo.")));
-  const previewSubverticalName = safeText(activeSubverticalProfile?.name, safeText(blueprint?.setup?.wizard?.selected_subvertical || selectedSubvertical, "Sin subvertical fija"));
-  const previewPromise = safeText(activeSubverticalProfile?.promise, previewVerticalProblem);
-  const previewIntegrations = summarize(pickRecommendedIntegrations(blueprint, verticalProfile), "Sin integraciones sugeridas visibles");
-  const previewPlaybooks = summarize(pickPlaybooks(blueprint, verticalProfile), "Sin playbooks visibles");
-  const previewTemplates = summarize(pickTemplateLabels(blueprint, activeSubverticalProfile, verticalProfile), "Sin templates visibles");
-  const previewQuestions = summarize(activeSubverticalProfile?.qualification_questions || [], "Sin preguntas sugeridas visibles");
-  const previewServiceBundle = summarize(activeSubverticalProfile?.service_bundle || [], "Sin bundle de servicios visible");
-  const previewTone = readNestedString(blueprint?.setup, ["personality", "tone"], safeText(verticalProfile?.short_name, "según defaults de industria"));
+  const {
+    subverticalProfiles,
+    subverticalOptions,
+    previewVerticalName,
+    previewVerticalProblem,
+    previewSubverticalName,
+    previewPromise,
+    previewIntegrations,
+    previewPlaybooks,
+    previewTemplates,
+    previewQuestions,
+    previewServiceBundle,
+    previewTone,
+  } = previewModel;
 
   useEffect(() => {
     let cancelled = false;
@@ -215,24 +97,16 @@ export default function ReactiveVerticalConfigurator({
       setLoading(true);
       setError(null);
       try {
-        const blueprintParams = new URLSearchParams();
-        blueprintParams.set("organization_id", organizationId);
-        blueprintParams.set("vertical_id", selectedVerticalId);
-        if (selectedSubvertical) blueprintParams.set("subvertical", selectedSubvertical);
-
-        const verticalParams = new URLSearchParams();
-        verticalParams.set("organization_id", organizationId);
-        verticalParams.set("vertical", selectedVerticalId);
-        if (selectedSubvertical) verticalParams.set("subvertical", selectedSubvertical);
-
-        const [nextBlueprint, nextVerticalProfile] = await Promise.all([
-          fetchWizardBlueprint(blueprintParams),
-          fetchWizardVerticalProfile(verticalParams),
-        ]);
+        const { blueprint: nextBlueprint, verticalProfile: nextVerticalProfile, errors } = await loadWizardReactiveSelection({
+          organizationId,
+          verticalId: selectedVerticalId,
+          subvertical: selectedSubvertical,
+        });
 
         if (cancelled) return;
         setBlueprint(nextBlueprint);
         setVerticalProfile(nextVerticalProfile);
+        setError(errors.length ? errors.join(" ") : null);
       } catch (loadError) {
         if (cancelled) return;
         setError(loadError instanceof Error ? loadError.message : "No se pudo refrescar la selección de industria.");
@@ -252,7 +126,7 @@ export default function ReactiveVerticalConfigurator({
       if (selectedSubvertical) setSelectedSubvertical("");
       return;
     }
-    if (selectedSubvertical && subverticalOptions.some((item) => normalizeName(item) === normalizeName(selectedSubvertical))) return;
+    if (isSelectedSubverticalValid(selectedSubvertical, subverticalOptions)) return;
     setSelectedSubvertical("");
   }, [selectedSubvertical, subverticalOptions]);
 

@@ -35,3 +35,4 @@ class GuidedOnboardingWizardStartRequest(BaseModel):
 
 class GuidedOnboardingWizardStepUpdateRequest(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
+    expected_revision: int | None = None
