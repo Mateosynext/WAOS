@@ -73,6 +73,26 @@ function normalizeName(value: string) {
   return value.trim().toLowerCase();
 }
 
+function isTimeoutLikeError(error: unknown) {
+  return error instanceof Error && /timeout|tard[oó] demasiado|abort/i.test(error.message);
+}
+
+function clampAutosaveBackoffDelay(timeoutCount: number) {
+  if (timeoutCount <= 0) return 900;
+  return Math.min(16000, 900 + timeoutCount * 2500);
+}
+
+function wizardScopeStorageKey(payload: Record<string, unknown>) {
+  return [
+    "waos-wizard-scope",
+    String(payload.organization_id || "").trim(),
+    String(payload.bot_id || "").trim(),
+    String(payload.vertical_id || "").trim(),
+    normalizeName(String(payload.subvertical || "")),
+    String(payload.primary_objective || "").trim(),
+  ].join(":");
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? { ...(value as Record<string, unknown>) } : {};
 }
@@ -691,12 +711,15 @@ export default function BotStudioWizardClient({
   const reactiveSelectionLoader = useMemo(() => createLatestWizardReactiveSelectionLoader(), []);
   const lastAutosavedPayloadsRef = useRef<Record<string, string>>({});
   const wizardRef = useRef<WizardInstance | null>(initialWizard || null);
+  const startWizardPromiseRef = useRef<Promise<WizardInstance> | null>(null);
   const saveQueueRef = useRef<Promise<WizardInstance | null>>(Promise.resolve(initialWizard || null));
   const autosaveRunRef = useRef(0);
   const lastRecoverySignatureRef = useRef("");
   const lastIntegrityRefreshSignatureRef = useRef("");
   const [diagnosticsVersion, setDiagnosticsVersion] = useState(0);
   const [diagnosticCopyFeedback, setDiagnosticCopyFeedback] = useState("");
+  const [autosaveRetryTick, setAutosaveRetryTick] = useState(0);
+  const [autosaveTimeoutCount, setAutosaveTimeoutCount] = useState(0);
 
   const postApplyBotId = String(applyResult?.wizard?.bot_id || (wizard?.status === "applied" ? wizard?.bot_id || "" : ""));
   const postApplyAppliedAt = String(applyResult?.wizard?.applied_at || wizard?.applied_at || "");
@@ -740,6 +763,42 @@ export default function BotStudioWizardClient({
 
   function getWizardTelemetryStorage() {
     return typeof window !== "undefined" ? window.sessionStorage : null;
+  }
+
+  function persistWizardScopeSnapshot(payload: Record<string, unknown>, instance: WizardInstance | null | undefined) {
+    const storage = getWizardTelemetryStorage();
+    if (!storage || !instance?.id) return;
+    storage.setItem(wizardScopeStorageKey(payload), instance.id);
+  }
+
+  function clearWizardScopeSnapshot(payload: Record<string, unknown>) {
+    const storage = getWizardTelemetryStorage();
+    if (!storage) return;
+    storage.removeItem(wizardScopeStorageKey(payload));
+  }
+
+  async function restoreWizardFromScopeSnapshot(payload: Record<string, unknown>) {
+    const storage = getWizardTelemetryStorage();
+    const persistedWizardId = storage?.getItem(wizardScopeStorageKey(payload)) || "";
+    if (!persistedWizardId) return null;
+    try {
+      const persisted = await getWizardRequest(persistedWizardId);
+      const sameScope = persisted
+        && persisted.organization_id === payload.organization_id
+        && String(persisted.bot_id || "") === String(payload.bot_id || "")
+        && String(persisted.vertical_id || "") === String(payload.vertical_id || "")
+        && normalizeName(String(persisted.subvertical || "")) === normalizeName(String(payload.subvertical || ""))
+        && String(persisted.primary_objective || "") === String(payload.primary_objective || "")
+        && String(persisted.status || "draft") !== "applied";
+      if (!sameScope) {
+        clearWizardScopeSnapshot(payload);
+        return null;
+      }
+      return persisted;
+    } catch {
+      clearWizardScopeSnapshot(payload);
+      return null;
+    }
   }
 
   function recordTimeline(type: string, payload: Record<string, unknown> = {}) {
@@ -1497,24 +1556,41 @@ const proposedHandoffPreview = useMemo(() => {
       && currentWizard.organization_id === payload.organization_id
       && String(currentWizard.bot_id || "") === String(payload.bot_id || "")
       && String(currentWizard.vertical_id || "") === payload.vertical_id
-      && normalizeName(String(currentWizard.subvertical || "")) === normalizeName(payload.subvertical || "");
+      && normalizeName(String(currentWizard.subvertical || "")) === normalizeName(payload.subvertical || "")
+      && String(currentWizard.primary_objective || "") === String(payload.primary_objective || "");
 
     const reusedWizard = sameScope && currentWizard?.id ? currentWizard : null;
-    const activeWizard = reusedWizard || await startWizardRequest(payload);
+    if (reusedWizard?.id) {
+      persistWizardScopeSnapshot(payload, reusedWizard);
+      return reusedWizard;
+    }
 
-    wizardRef.current = activeWizard;
-    setWizard(activeWizard);
-    setWizardId(activeWizard.id);
-    updateUrl({ mode, wizardId: activeWizard.id, botId: payload.bot_id || "" });
-    if (!reusedWizard?.id) {
-      recordTimeline("wizard.started", {
+    if (startWizardPromiseRef.current) return startWizardPromiseRef.current;
+
+    startWizardPromiseRef.current = (async () => {
+      const restoredWizard = await restoreWizardFromScopeSnapshot(payload);
+      const activeWizard = restoredWizard || await startWizardRequest(payload);
+      wizardRef.current = activeWizard;
+      setWizard(activeWizard);
+      setWizardId(activeWizard.id);
+      setLastSavedAt(String(activeWizard.updated_at || ""));
+      persistWizardScopeSnapshot(payload, activeWizard);
+      updateUrl({ mode, wizardId: activeWizard.id, botId: payload.bot_id || "" });
+      recordTimeline(restoredWizard ? "wizard.resumed" : "wizard.started", {
         wizardId: activeWizard.id,
         verticalId: payload.vertical_id,
         subvertical: payload.subvertical || null,
         botId: payload.bot_id || null,
+        primaryObjective: payload.primary_objective || null,
       });
+      return activeWizard;
+    })();
+
+    try {
+      return await startWizardPromiseRef.current;
+    } finally {
+      startWizardPromiseRef.current = null;
     }
-    return activeWizard;
   }
 
   function isWizardRevisionConflict(error: unknown) {
@@ -1531,6 +1607,7 @@ const proposedHandoffPreview = useMemo(() => {
     setWizard(latest);
     setWizardId(latest.id);
     setLastSavedAt(String(latest.updated_at || ""));
+    persistWizardScopeSnapshot(wizardPayloads.start, latest);
     recordTimeline("wizard.refreshed", { wizardId: latest.id, revision: latest.wizard_revision ?? null, currentStep: latest.current_step || null });
     return latest;
   }
@@ -1567,6 +1644,7 @@ const proposedHandoffPreview = useMemo(() => {
       setWizard(updated);
       setWizardId(updated.id);
       setLastSavedAt(String(updated.updated_at || ""));
+      persistWizardScopeSnapshot(wizardPayloads.start, updated);
       lastAutosavedPayloadsRef.current[stepKey] = payloadFingerprint;
       refreshVisibleDiagnostics();
       recordTimeline(source === "autosave" ? "wizard.autosave_step_succeeded" : "wizard.step_save_succeeded", {
@@ -1614,6 +1692,7 @@ const proposedHandoffPreview = useMemo(() => {
       setWizard(updated);
       setWizardId(updated.id);
       setLastSavedAt(String(updated.updated_at || ""));
+      persistWizardScopeSnapshot(wizardPayloads.start, updated);
       lastAutosavedPayloadsRef.current[stepKey] = payloadFingerprint;
       refreshVisibleDiagnostics();
       recordTimeline(source === "autosave" ? "wizard.autosave_step_succeeded" : "wizard.step_save_succeeded", {
@@ -1738,7 +1817,8 @@ const proposedHandoffPreview = useMemo(() => {
 
     const runId = ++autosaveRunRef.current;
     const startedAt = Date.now();
-    recordTimeline("wizard.autosave_scheduled", { runId, changedSteps: changedSteps.map(([stepKey]) => stepKey), activeStep });
+    const autosaveDelayMs = clampAutosaveBackoffDelay(autosaveTimeoutCount);
+    recordTimeline("wizard.autosave_scheduled", { runId, changedSteps: changedSteps.map(([stepKey]) => stepKey), activeStep, delayMs: autosaveDelayMs, timeoutCount: autosaveTimeoutCount });
     autosaveTimerRef.current = setTimeout(async () => {
       try {
         if (runId !== autosaveRunRef.current) {
@@ -1759,6 +1839,7 @@ const proposedHandoffPreview = useMemo(() => {
           recordAutosaveBatchMetric("ignored", Date.now() - startedAt, changedSteps.length);
           return;
         }
+        setAutosaveTimeoutCount(0);
         setAutosaveState("saved");
         setLastSavedAt(String(currentWizard.updated_at || ""));
         recordTimeline("wizard.autosave_succeeded", { runId, wizardId: currentWizard.id, changedSteps: changedSteps.map(([stepKey]) => stepKey), durationMs: Date.now() - startedAt });
@@ -1771,11 +1852,19 @@ const proposedHandoffPreview = useMemo(() => {
         }
         setAutosaveState("error");
         const message = error instanceof Error ? error.message : "No se pudo guardar el progreso.";
+        const timeoutError = isTimeoutLikeError(error);
         setAutosaveError(message);
-        recordTimeline("wizard.autosave_failed", { runId, changedSteps: changedSteps.map(([stepKey]) => stepKey), durationMs: Date.now() - startedAt, error: message });
+        recordTimeline("wizard.autosave_failed", { runId, changedSteps: changedSteps.map(([stepKey]) => stepKey), durationMs: Date.now() - startedAt, error: message, timeoutLike: timeoutError });
         recordAutosaveBatchMetric("error", Date.now() - startedAt, changedSteps.length);
+        if (timeoutError) {
+          setAutosaveTimeoutCount((current) => {
+            const nextCount = Math.min(current + 1, 6);
+            window.setTimeout(() => setAutosaveRetryTick((value) => value + 1), clampAutosaveBackoffDelay(nextCount));
+            return nextCount;
+          });
+        }
       }
-    }, 900);
+    }, autosaveDelayMs);
 
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
@@ -1816,6 +1905,8 @@ const proposedHandoffPreview = useMemo(() => {
     wizardId,
     hasBusinessIdentity,
     activeStep,
+    autosaveRetryTick,
+    autosaveTimeoutCount,
   ]);
 
   useEffect(() => {

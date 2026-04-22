@@ -26,6 +26,7 @@ export class ApiRequestError extends Error {
 }
 
 export type ApiResult<T> = { ok: true; data: T; error: null } | { ok: false; data: null; error: ApiRequestError };
+export type ApiRequestInit = RequestInit & { timeoutMs?: number | null };
 
 function methodAllowsRetry(method: string | null | undefined) {
   return ["GET", "HEAD", "OPTIONS"].includes(String(method || "GET").toUpperCase());
@@ -74,18 +75,26 @@ async function readError(response: Response): Promise<ApiRequestError> {
   });
 }
 
-async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = ENV.timeoutMs) {
+async function fetchWithTimeout(input: RequestInfo | URL, init: ApiRequestInit = {}, timeoutMs = ENV.timeoutMs) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const upstreamSignal = init.signal;
+  const resolvedTimeoutMs = Math.max(Number(timeoutMs) || ENV.timeoutMs, ENV.timeoutMs, 1000);
+  const forwardAbort = () => controller.abort(upstreamSignal?.reason);
+  if (upstreamSignal?.aborted) forwardAbort();
+  upstreamSignal?.addEventListener("abort", forwardAbort, { once: true });
+  const timeout = setTimeout(() => controller.abort(new DOMException("Request timeout", "AbortError")), resolvedTimeoutMs);
   try {
-    return await fetch(input, { ...init, signal: controller.signal });
+    const { timeoutMs: _timeoutMs, signal: _signal, ...rest } = init;
+    return await fetch(input, { ...rest, signal: controller.signal });
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
+      if (upstreamSignal?.aborted) throw error;
       throw new ApiRequestError("La solicitud tardó demasiado y se canceló.", { code: "timeout", retryable: true });
     }
     throw error;
   } finally {
     clearTimeout(timeout);
+    upstreamSignal?.removeEventListener("abort", forwardAbort);
   }
 }
 
@@ -123,7 +132,7 @@ async function buildContextHeaders(serverMode: boolean, headers: Headers, method
   }
 }
 
-async function requestJson<T>(base: string | null, path: string, init: RequestInit = {}, authToken?: string | null): Promise<T> {
+async function requestJson<T>(base: string | null, path: string, init: ApiRequestInit = {}, authToken?: string | null): Promise<T> {
   if (!base) throw new ApiRequestError(explainMissingApiBase(authToken === undefined ? "client" : "server"), { code: "missing_api_base" });
   const headers = new Headers(init.headers || {});
   const serverMode = authToken !== undefined;
@@ -136,7 +145,7 @@ async function requestJson<T>(base: string | null, path: string, init: RequestIn
   let lastError: unknown = null;
   for (let attempt = 0; attempt <= ENV.retries; attempt += 1) {
     try {
-      const response = await fetchWithTimeout(`${base}${path}`, { ...init, method, headers, cache: "no-store" });
+      const response = await fetchWithTimeout(`${base}${path}`, { ...init, method, headers, cache: "no-store" }, init.timeoutMs ?? ENV.timeoutMs);
       if (response.status === 401 && !refreshedOnce) {
         refreshedOnce = true;
         const nextToken = serverMode ? (await refreshAccessToken())?.accessToken ?? null : await refreshClientSession();
@@ -160,13 +169,13 @@ async function requestJson<T>(base: string | null, path: string, init: RequestIn
   throw new ApiRequestError("No se pudo completar la solicitud.", { code: "unknown_error" });
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function apiFetch<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
   const store = await cookies();
   const accessToken = store.get(ACCESS_COOKIE)?.value || null;
   return requestJson<T>(getServerApiBase(), path, init, accessToken);
 }
 
-export async function apiFetchResult<T>(path: string, init: RequestInit = {}): Promise<ApiResult<T>> {
+export async function apiFetchResult<T>(path: string, init: ApiRequestInit = {}): Promise<ApiResult<T>> {
   try {
     return { ok: true, data: await apiFetch<T>(path, init), error: null };
   } catch (error) {
@@ -175,12 +184,12 @@ export async function apiFetchResult<T>(path: string, init: RequestInit = {}): P
   }
 }
 
-export async function apiFetchOrDefault<T>(path: string, fallback: T, init: RequestInit = {}): Promise<T> {
+export async function apiFetchOrDefault<T>(path: string, fallback: T, init: ApiRequestInit = {}): Promise<T> {
   const result = await apiFetchResult<T>(path, init);
   return result.ok ? result.data : fallback;
 }
 
-export async function clientApiFetchResult<T>(path: string, init: RequestInit = {}): Promise<ApiResult<T>> {
+export async function clientApiFetchResult<T>(path: string, init: ApiRequestInit = {}): Promise<ApiResult<T>> {
   try {
     return { ok: true, data: await requestJson<T>(getClientApiBase(), path, init), error: null };
   } catch (error) {

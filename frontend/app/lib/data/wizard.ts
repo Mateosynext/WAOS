@@ -25,6 +25,10 @@ export type WizardVerticalProfileRequest = {
   mode?: WizardMode;
 };
 
+const WIZARD_START_TIMEOUT_MS = 30000;
+const WIZARD_STEP_TIMEOUT_MS = 20000;
+const WIZARD_EXECUTION_TIMEOUT_MS = 45000;
+
 function appendIfPresent(params: URLSearchParams, key: string, value: unknown) {
   const rendered = String(value || "").trim();
   if (rendered) params.set(key, rendered);
@@ -57,6 +61,7 @@ export async function startWizard(payload: Record<string, unknown>): Promise<Wiz
   return apiFetch<WizardInstance>("/api/v1/onboarding/wizard/start", {
     method: "POST",
     body: JSON.stringify(payload || {}),
+    timeoutMs: WIZARD_START_TIMEOUT_MS,
   });
 }
 
@@ -64,17 +69,20 @@ export async function saveWizardStep(wizardId: string, stepKey: string, payload:
   return apiFetch<WizardInstance>(`/api/v1/onboarding/wizard/${encodeURIComponent(wizardId)}/steps/${encodeURIComponent(stepKey)}`, {
     method: "POST",
     body: JSON.stringify({ payload, expected_revision: options.expectedRevision ?? null }),
+    timeoutMs: WIZARD_STEP_TIMEOUT_MS,
   });
 }
 
 export async function runWizardDryRun(wizardId: string): Promise<WizardDryRunResult> {
   return apiFetch<WizardDryRunResult>(`/api/v1/onboarding/wizard/${encodeURIComponent(wizardId)}/dry-run`, {
     method: "POST",
+    timeoutMs: WIZARD_EXECUTION_TIMEOUT_MS,
   });
 }
 
 export async function applyWizard(wizardId: string): Promise<WizardApplyResult> {
   return apiFetch<WizardApplyResult>(`/api/v1/onboarding/wizard/${encodeURIComponent(wizardId)}/apply`, {
     method: "POST",
+    timeoutMs: WIZARD_EXECUTION_TIMEOUT_MS,
   });
 }

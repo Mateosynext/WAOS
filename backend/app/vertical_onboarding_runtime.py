@@ -1011,6 +1011,40 @@ def latest_guided_onboarding_wizard(conn: Any, *, organization_id: str, bot_id: 
     return _parse_wizard_row(row)
 
 
+def _find_matching_guided_onboarding_draft(
+    conn: Any,
+    *,
+    organization_id: str,
+    bot_id: str | None,
+    vertical_id: str | None,
+    subvertical: str | None,
+    primary_objective: str | None,
+) -> dict[str, Any] | None:
+    ensure_guided_vertical_onboarding_schema(conn)
+    normalized_vertical = normalize_vertical_key(vertical_id)
+    normalized_subvertical = (subvertical or "").strip().lower()
+    normalized_objective = (primary_objective or "").strip().lower()
+    row = fetch_one(
+        conn,
+        """
+        SELECT * FROM vertical_onboarding_wizards
+        WHERE organization_id = ?
+          AND status = 'draft'
+          AND COALESCE(bot_id, '') = COALESCE(?, '')
+          AND COALESCE(vertical_id, '') = COALESCE(?, '')
+          AND LOWER(TRIM(COALESCE(subvertical, ''))) = ?
+          AND LOWER(TRIM(COALESCE(primary_objective, ''))) = ?
+        ORDER BY updated_at DESC
+        LIMIT 1
+        """,
+        (organization_id, bot_id, normalized_vertical, normalized_subvertical, normalized_objective),
+    )
+    parsed = _parse_wizard_row(row)
+    if not parsed:
+        return None
+    return get_guided_onboarding_wizard(conn, parsed["id"])
+
+
 def reconcile_guided_onboarding_wizard_integrity(conn: Any, *, wizard_id: str, source: str = "integrity_check") -> dict[str, Any]:
     ensure_guided_vertical_onboarding_schema(conn)
     wizard, step_runs, events = _load_guided_onboarding_wizard(conn, wizard_id)
@@ -1150,6 +1184,16 @@ def start_guided_onboarding_wizard(
 ) -> dict[str, Any]:
     ensure_guided_vertical_onboarding_schema(conn)
     normalized_vertical = normalize_vertical_key(vertical_id)
+    existing_draft = _find_matching_guided_onboarding_draft(
+        conn,
+        organization_id=organization_id,
+        bot_id=bot_id,
+        vertical_id=normalized_vertical,
+        subvertical=subvertical,
+        primary_objective=primary_objective,
+    )
+    if existing_draft:
+        return existing_draft
     blueprint = build_guided_onboarding_blueprint(
         vertical_id=normalized_vertical,
         subvertical=subvertical,

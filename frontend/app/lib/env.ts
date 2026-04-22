@@ -9,6 +9,7 @@ export type FrontendEnvConfig = {
 const DEV_FALLBACK_CLIENT_API_BASE = "http://localhost:4100";
 const DEV_FALLBACK_SERVER_API_BASE = "http://localhost:4100";
 const DEV_FALLBACK_PUBLIC_SITE_URL = "http://localhost:3000";
+const MIN_API_TIMEOUT_MS = 8000;
 
 function allowDevFallback() {
   return process.env.NODE_ENV !== "production" || process.env.WAOS_ALLOW_ENV_FALLBACK === "true";
@@ -42,7 +43,7 @@ export function getFrontendEnvConfig(): FrontendEnvConfig {
     clientApiBase: getClientApiBase(),
     serverApiBase: getServerApiBase(),
     publicSiteUrl: getPublicSiteUrl(),
-    timeoutMs: readNumber(process.env.API_TIMEOUT_MS, 12000),
+    timeoutMs: Math.max(readNumber(process.env.API_TIMEOUT_MS, 12000), MIN_API_TIMEOUT_MS),
     retries: readNumber(process.env.API_RETRIES, 1),
   };
 }
