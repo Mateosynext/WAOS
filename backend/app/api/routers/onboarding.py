@@ -4,17 +4,22 @@ from fastapi import APIRouter, Query
 
 from ...application.onboarding_service import onboarding_service
 from ...schemas import (
+    ApiEnvelope,
     GuidedOnboardingWizardStartRequest,
     GuidedOnboardingWizardStepUpdateRequest,
     InboxSavedViewCreateRequest,
+    OnboardingPayloadResponse,
+    OnboardingSummaryData,
     TenantModeUpdateRequest,
 )
 from ..dependencies import CurrentUoW, CurrentUser
 
-router = APIRouter(tags=["onboarding"])
+router = APIRouter()
+onboarding_router = APIRouter(prefix="/api/v1/onboarding", tags=["onboarding"])
+inbox_router = APIRouter(prefix="/api/v1/inbox", tags=["onboarding"])
 
 
-@router.get("/api/v1/onboarding/summary")
+@onboarding_router.get("/summary", response_model=ApiEnvelope[OnboardingSummaryData])
 def onboarding_summary(
     organization_id: str | None = Query(default=None),
     bot_id: str | None = Query(default=None),
@@ -24,17 +29,17 @@ def onboarding_summary(
     return onboarding_service.summary(uow, user=user, organization_id=organization_id, bot_id=bot_id)
 
 
-@router.post("/api/v1/onboarding/tenant-mode")
+@onboarding_router.post("/tenant-mode", response_model=ApiEnvelope[OnboardingPayloadResponse])
 def set_tenant_mode(payload: TenantModeUpdateRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return onboarding_service.set_tenant_mode(uow, payload=payload, user=user)
 
 
-@router.get("/api/v1/onboarding/wizard/verticals")
+@onboarding_router.get("/wizard/verticals", response_model=ApiEnvelope[OnboardingPayloadResponse])
 def list_guided_verticals(user: CurrentUser = None, uow: CurrentUoW = None) -> dict:
     return onboarding_service.list_guided_verticals(uow, user=user)
 
 
-@router.get("/api/v1/onboarding/wizard/blueprint")
+@onboarding_router.get("/wizard/blueprint", response_model=ApiEnvelope[OnboardingPayloadResponse])
 def get_guided_wizard_blueprint(
     organization_id: str | None = Query(default=None),
     bot_id: str | None = Query(default=None),
@@ -55,36 +60,40 @@ def get_guided_wizard_blueprint(
     )
 
 
-@router.post("/api/v1/onboarding/wizard/start")
+@onboarding_router.post("/wizard/start", response_model=ApiEnvelope[OnboardingPayloadResponse])
 def start_guided_wizard(payload: GuidedOnboardingWizardStartRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return onboarding_service.start_wizard(uow, payload=payload, user=user)
 
 
-@router.get("/api/v1/onboarding/wizard/{wizard_id}")
+@onboarding_router.get("/wizard/{wizard_id}", response_model=ApiEnvelope[OnboardingPayloadResponse])
 def get_guided_wizard(wizard_id: str, user: CurrentUser = None, uow: CurrentUoW = None) -> dict:
     return onboarding_service.get_wizard(uow, wizard_id=wizard_id, user=user)
 
 
-@router.post("/api/v1/onboarding/wizard/{wizard_id}/steps/{step_key}")
+@onboarding_router.post("/wizard/{wizard_id}/steps/{step_key}", response_model=ApiEnvelope[OnboardingPayloadResponse])
 def update_guided_wizard_step(wizard_id: str, step_key: str, payload: GuidedOnboardingWizardStepUpdateRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return onboarding_service.update_wizard_step(uow, wizard_id=wizard_id, step_key=step_key, payload=payload, user=user)
 
 
-@router.post("/api/v1/onboarding/wizard/{wizard_id}/dry-run")
+@onboarding_router.post("/wizard/{wizard_id}/dry-run", response_model=ApiEnvelope[OnboardingPayloadResponse])
 def dry_run_guided_wizard(wizard_id: str, user: CurrentUser, uow: CurrentUoW) -> dict:
     return onboarding_service.dry_run_wizard(uow, wizard_id=wizard_id, user=user)
 
 
-@router.post("/api/v1/onboarding/wizard/{wizard_id}/apply")
+@onboarding_router.post("/wizard/{wizard_id}/apply", response_model=ApiEnvelope[OnboardingPayloadResponse])
 def apply_guided_wizard(wizard_id: str, user: CurrentUser, uow: CurrentUoW) -> dict:
     return onboarding_service.apply_wizard(uow, wizard_id=wizard_id, user=user)
 
 
-@router.get("/api/v1/inbox/saved-views")
+@inbox_router.get("/saved-views", response_model=ApiEnvelope[OnboardingPayloadResponse])
 def list_saved_views(organization_id: str = Query(...), user: CurrentUser = None, uow: CurrentUoW = None) -> dict:
     return onboarding_service.list_saved_views(uow, organization_id=organization_id, user=user)
 
 
-@router.post("/api/v1/inbox/saved-views")
+@inbox_router.post("/saved-views", response_model=ApiEnvelope[OnboardingPayloadResponse])
 def create_saved_view(payload: InboxSavedViewCreateRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return onboarding_service.create_saved_view(uow, payload=payload, user=user)
+
+
+router.include_router(onboarding_router)
+router.include_router(inbox_router)

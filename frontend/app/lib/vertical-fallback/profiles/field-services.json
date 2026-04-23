@@ -1,0 +1,1371 @@
+{
+  "id": "field-services",
+  "name": "WAOS Field Services",
+  "short_name": "Home services & field services",
+  "description": "Sistema operativo conversacional para servicios en sitio.",
+  "problem": "Field services falla cuando no clasifica urgencia, no levanta contexto suficiente, no asigna técnico rápido, no da visibilidad de estatus y no convierte servicio puntual en mantenimiento.",
+  "subverticals": [
+    "HVAC",
+    "plomería",
+    "electricidad",
+    "cerrajería",
+    "paneles solares",
+    "limpieza especializada",
+    "fumigación",
+    "jardinería",
+    "mantenimiento residencial",
+    "seguridad electrónica"
+  ],
+  "objects": [
+    "incidente",
+    "urgencia",
+    "zona",
+    "técnico",
+    "orden de trabajo",
+    "visita",
+    "evidencia",
+    "cotización",
+    "garantía",
+    "contrato de mantenimiento",
+    "sitio de servicio",
+    "incidencia / trabajo",
+    "prioridad",
+    "técnico / cuadrilla",
+    "ventana de atención",
+    "materiales / evidencia",
+    "firma de cierre"
+  ],
+  "flows": [
+    "solicitud -> intake",
+    "intake -> visita",
+    "visita -> servicio",
+    "servicio -> cobro",
+    "postservicio -> garantía/mantenimiento"
+  ],
+  "kpis": [
+    "tiempo de respuesta",
+    "tiempo a visita",
+    "solicitud a visita",
+    "primera visita resuelta",
+    "mantenimiento vendido",
+    "satisfacción",
+    "tiempo a asignación",
+    "first-time fix",
+    "ticket",
+    "cancelación",
+    "puntualidad"
+  ],
+  "recommended_integrations": [
+    "whatsapp",
+    "calendar",
+    "operations",
+    "payments",
+    "crm"
+  ],
+  "default_services": [
+    "visita diagnostica",
+    "reparacion urgente",
+    "mantenimiento preventivo",
+    "servicio en sitio",
+    "garantia"
+  ],
+  "default_faqs": [
+    {
+      "q": "¿Pueden atender urgencias?",
+      "a": "Si, el bot clasifica prioridad y recopila lo necesario para asignar tecnico o visita."
+    },
+    {
+      "q": "¿Piden fotos o ubicacion?",
+      "a": "Si, podemos solicitar evidencia y direccion para despachar mejor."
+    },
+    {
+      "q": "¿Dan rango de precio?",
+      "a": "Podemos estimar un servicio inicial o programar visita diagnostica."
+    },
+    {
+      "q": "¿Manejan garantia?",
+      "a": "Si, podemos dejar seguimiento o garantia posterior si aplica."
+    }
+  ],
+  "behavior": {
+    "tone": "directo y resolutivo",
+    "response_length": "media",
+    "use_emojis": false,
+    "sales_intensity": "media",
+    "offer_promotions_when": "after_issue_categorized",
+    "escalate_when": [
+      "riesgo electrico",
+      "fuga grave",
+      "seguridad",
+      "emergencia"
+    ],
+    "insistence_policy": "respectful",
+    "can_share_price_directly": true,
+    "can_negotiate": false,
+    "can_mention_stock": true,
+    "auto_send_images": false,
+    "bot_mode": "triage_y_despacho",
+    "active_channels": [
+      "whatsapp",
+      "webchat"
+    ],
+    "forbidden_topics": [
+      "garantia total sin diagnostico"
+    ],
+    "required_phrases": [
+      "te ayudo a clasificar la urgencia",
+      "puedo coordinar visita o tecnico",
+      "te sigo",
+      "si la pregunta viene rara, igual te la aterrizo",
+      "te lo aterrizo a tu caso"
+    ],
+    "fallback_message": "Te ayudo a clasificar el problema, tomar datos clave y coordinar la visita correcta. Si la pregunta viene rara, en broma o medio fuera de tema, igual te sigo y la aterrizamos al negocio.",
+    "humor_policy": "light_contextual",
+    "strange_question_policy": "respond_validate_reframe_sell_move"
+  },
+  "followup_rules": [
+    {
+      "type": "no_response",
+      "delay_minutes": 45,
+      "max_attempts": 2,
+      "message_template": "¿Quieres que retomemos tu servicio y coordinemos tecnico o visita?"
+    },
+    {
+      "type": "post_quote",
+      "delay_minutes": 720,
+      "max_attempts": 2,
+      "message_template": "Sigo pendiente por si quieres avanzar con la visita o aceptar el servicio propuesto."
+    },
+    {
+      "type": "reactivation",
+      "delay_minutes": 43200,
+      "max_attempts": 1,
+      "message_template": "Si quieres, te ayudo a programar mantenimiento preventivo o revisar garantia de servicio."
+    }
+  ],
+  "templates": [
+    {
+      "template_key": "incident_triage",
+      "title": "Triage de incidente",
+      "content": "Cuentame que sucede, si es urgente y comparteme ubicacion o foto para asignar mejor la visita.",
+      "variables": []
+    },
+    {
+      "template_key": "dispatch_visit",
+      "title": "Despacho de visita",
+      "content": "Puedo coordinar una visita para {{date}} en tu zona. ¿Te funciona?",
+      "variables": [
+        "date"
+      ]
+    },
+    {
+      "template_key": "estimate",
+      "title": "Estimacion inicial",
+      "content": "Con lo que nos compartes, podemos darte una estimacion inicial o agendar visita diagnostica.",
+      "variables": []
+    },
+    {
+      "template_key": "status_field",
+      "title": "Estatus de servicio",
+      "content": "Tu orden esta en {{status}}. Si hay ajuste o llegada estimada, te lo comparto por aqui.",
+      "variables": [
+        "status"
+      ]
+    },
+    {
+      "template_key": "warranty_followup",
+      "title": "Seguimiento garantia",
+      "content": "Te escribimos para confirmar que todo quedo bien y ayudarte con cualquier garantia o ajuste.",
+      "variables": []
+    }
+  ],
+  "config_overrides": {
+    "objective_secondary": [
+      "calificar",
+      "agendar",
+      "cobrar"
+    ],
+    "policies": [
+      "Escalar riesgos de seguridad o emergencias",
+      "No garantizar solucion final sin visita"
+    ],
+    "can_say": [
+      "urgencia",
+      "tecnico",
+      "visita",
+      "estimacion",
+      "garantia"
+    ],
+    "cannot_say": [
+      "diagnostico final sin visita",
+      "garantia total sin validacion"
+    ],
+    "whatsapp_flows": [
+      "triage_servicio",
+      "agenda_visita_tecnica",
+      "estimacion_inicial",
+      "seguimiento_garantia"
+    ],
+    "appointment_duration_minutes": 60,
+    "handoff_keywords": [
+      "emergencia",
+      "riesgo",
+      "seguridad",
+      "seguro"
+    ],
+    "high_score_threshold": 90
+  },
+  "portfolio_tier": "tier_1",
+  "master_thesis": "Sistema operativo conversacional para servicios en sitio que convierte WhatsApp en intake, despacho, seguimiento de visita, garantía y mantenimiento.",
+  "buyer": {
+    "primary": "Dueño o gerente de operación de servicio en sitio",
+    "secondary": [
+      "dispatcher",
+      "supervisor técnico",
+      "equipo comercial"
+    ]
+  },
+  "one_pager": {
+    "headline": "WAOS Field Services",
+    "thesis": "WhatsApp se vuelve intake y dispatch operativo, no solo atención.",
+    "problem": "Sin estructura se pierde urgencia, contexto, asignación y seguimiento al cliente.",
+    "promise": "Cada mensaje termina en orden de trabajo, visita programada, servicio cerrado o mantenimiento vendido.",
+    "monetizes": [
+      "visita diagnóstica",
+      "servicio puntual",
+      "urgencia",
+      "garantía",
+      "mantenimiento recurrente",
+      "contratos"
+    ],
+    "packaging": [
+      "setup field services",
+      "intake por incidente",
+      "despacho y estatus",
+      "garantía + contrato de mantenimiento"
+    ],
+    "strategic_care": "Muy buena vertical para WAOS porque conecta conversación con acción operativa real; hay que cuidar bien urgencias críticas y promesas de llegada."
+  },
+  "demo_flow": [
+    "El cliente entra con un problema urgente o solicitud de visita.",
+    "WAOS clasifica urgencia y pide ubicación y evidencia.",
+    "Arma intake y agenda o despacha técnico.",
+    "Comunica estatus: en camino, trabajando, terminado.",
+    "Confirma cierre y cobro.",
+    "Después deja garantía y ofrece mantenimiento o contrato."
+  ],
+  "native_objects": {
+    "core": [
+      "cliente",
+      "incidente",
+      "prioridad",
+      "zona",
+      "evidencia",
+      "orden de trabajo en sitio"
+    ],
+    "commercial": [
+      "visita diagnóstica",
+      "cotización",
+      "servicio",
+      "contrato"
+    ],
+    "operations": [
+      "técnico",
+      "orden de trabajo",
+      "garantía",
+      "mantenimiento",
+      "encuesta"
+    ]
+  },
+  "pipeline": {
+    "primary": {
+      "name": "Solicitud y servicio",
+      "states": [
+        "solicitud nueva",
+        "intake parcial",
+        "intake completo",
+        "urgencia clasificada",
+        "visita ofrecida",
+        "visita agendada",
+        "técnico asignado",
+        "en camino",
+        "trabajando",
+        "terminado",
+        "cobrado",
+        "garantía activa",
+        "mantenimiento próximo"
+      ]
+    },
+    "secondary": [
+      {
+        "name": "Contrato de mantenimiento",
+        "states": [
+          "sin contrato",
+          "contrato ofrecido",
+          "contrato activo",
+          "renovación pendiente",
+          "renovado"
+        ]
+      }
+    ]
+  },
+  "bot_playbook": {
+    "must_do": [
+      "entender problema",
+      "clasificar urgencia",
+      "levantar ubicación y contexto",
+      "pedir evidencia",
+      "programar visita",
+      "comunicar estatus",
+      "cerrar servicio",
+      "ofrecer mantenimiento",
+      "nunca quedarse seco ante bromas, preguntas raras o cambios bruscos de tema",
+      "usar humor ligero cuando sume, sin sonar payaso ni poco serio",
+      "validar el momento y luego reencauzar la conversacion al negocio",
+      "cerrar siempre con una pregunta util o siguiente paso"
+    ],
+    "must_ask": [
+      "tipo de falla",
+      "urgencia",
+      "ubicación",
+      "tipo de inmueble",
+      "evidencia",
+      "disponibilidad",
+      "que parte del negocio se esta atorando mas",
+      "si quiere que se lo aterrice a su caso"
+    ],
+    "objections": [
+      "precio",
+      "tiempo de llegada",
+      "desconfianza",
+      "solo quiero cotizar",
+      "quiero que sea hoy"
+    ],
+    "escalate_when": [
+      "urgencia crítica",
+      "negociación compleja",
+      "reclamación",
+      "instalación grande",
+      "contrato empresarial"
+    ],
+    "forbidden": [
+      "prometer tiempos de llegada no confirmados",
+      "diagnósticos definitivos sin visita"
+    ],
+    "success_signals": [
+      "me urge",
+      "¿pueden venir hoy?",
+      "¿cuánto cobran la visita?",
+      "mándame técnico",
+      "quiero mantenimiento"
+    ],
+    "style": [
+      "humor ligero",
+      "manejo de preguntas raras",
+      "reencuadre comercial"
+    ]
+  },
+  "automation_sequences": [
+    {
+      "key": "fs_request",
+      "name": "Confirmación de solicitud",
+      "trigger": "entra incidente",
+      "goal": "completar intake",
+      "steps": [
+        "pedir datos mínimos",
+        "clasificar urgencia",
+        "proponer visita"
+      ]
+    },
+    {
+      "key": "fs_dispatch",
+      "name": "Técnico en camino",
+      "trigger": "técnico asignado",
+      "goal": "dar visibilidad",
+      "steps": [
+        "avisar salida",
+        "ETA",
+        "confirmar llegada"
+      ]
+    },
+    {
+      "key": "fs_post_service",
+      "name": "Post servicio",
+      "trigger": "servicio terminado",
+      "goal": "garantía y satisfacción",
+      "steps": [
+        "encuesta",
+        "recordar garantía",
+        "ofrecer mantenimiento"
+      ]
+    },
+    {
+      "key": "fs_contract",
+      "name": "Renovación de contrato",
+      "trigger": "contrato por vencer",
+      "goal": "retener ingreso recurrente",
+      "steps": [
+        "recordar vencimiento",
+        "mostrar beneficios",
+        "cerrar renovación"
+      ]
+    }
+  ],
+  "dashboard": {
+    "north_star": "Solicitudes resueltas con primera visita y mantenimiento vendido.",
+    "sections": [
+      {
+        "name": "Operación",
+        "metrics": [
+          "tiempo de respuesta",
+          "tiempo a visita",
+          "técnico asignado a tiempo",
+          "resolución en primera visita"
+        ]
+      },
+      {
+        "name": "Revenue",
+        "metrics": [
+          "solicitud a visita",
+          "visita a servicio",
+          "mantenimiento vendido",
+          "contrato renovado"
+        ]
+      },
+      {
+        "name": "Calidad",
+        "metrics": [
+          "garantías activas",
+          "reclamos",
+          "satisfacción",
+          "repetición de servicio"
+        ]
+      },
+      {
+        "name": "Eficiencia",
+        "metrics": [
+          "carga por técnico",
+          "tiempos por zona",
+          "abandono en intake",
+          "cancelaciones"
+        ]
+      }
+    ]
+  },
+  "hardening_model": {
+    "goal": "Pasar de preset inteligente a sistema especialista",
+    "wave": "ola_2",
+    "entity_queen": "orden de trabajo en sitio",
+    "core_common": true,
+    "domain_by_vertical": true,
+    "playbooks_by_subvertical": true,
+    "kpis_by_vertical": true,
+    "pricing_by_vertical": true,
+    "journeys_by_vertical": true,
+    "reusable_modules": [
+      "intake / calificación",
+      "agenda / recursos",
+      "cotización / propuesta",
+      "pago / anticipo / membresía",
+      "seguimiento / recurrencia",
+      "reporting vertical"
+    ],
+    "minimum_viable_hardening": [
+      "1 entidad reina",
+      "1 pipeline propio",
+      "1 cotización propia",
+      "1 recurrencia propia",
+      "1 dashboard propio"
+    ],
+    "hard_checklist": [
+      "tiene entidad principal propia",
+      "tiene pipeline específico",
+      "tiene cotización o pricing del nicho",
+      "tiene agenda o recursos del nicho",
+      "tiene postventa o recurrencia del nicho",
+      "tiene documentos o compliance del nicho",
+      "tiene KPIs del nicho",
+      "tiene 3 automatizaciones que mueven dinero",
+      "tiene 2 pruebas e2e de negocio",
+      "tiene subplaybooks por subvertical",
+      "entidad principal propia",
+      "pipeline específico",
+      "pricing del nicho",
+      "agenda y recursos del nicho",
+      "postventa o recurrencia del nicho",
+      "documentos o compliance del nicho",
+      "KPIs del nicho",
+      "3 automatizaciones que mueven dinero",
+      "2 pruebas e2e de negocio",
+      "subplaybooks por subvertical",
+      "runtime ejecutable por vertical"
+    ]
+  },
+  "specialist_layers": {
+    "persistent_entities": [
+      "sitio de servicio",
+      "incidencia / trabajo",
+      "prioridad",
+      "técnico / cuadrilla",
+      "ventana de atención",
+      "cotización",
+      "materiales / evidencia",
+      "firma de cierre"
+    ],
+    "business_pipeline": {
+      "primary_entity": "orden de trabajo en sitio",
+      "primary_pipeline": {
+        "name": "Solicitud y servicio",
+        "states": [
+          "solicitud nueva",
+          "intake parcial",
+          "intake completo",
+          "urgencia clasificada",
+          "visita ofrecida",
+          "visita agendada",
+          "técnico asignado",
+          "en camino",
+          "trabajando",
+          "terminado",
+          "cobrado",
+          "garantía activa",
+          "mantenimiento próximo"
+        ]
+      },
+      "secondary_pipelines": [
+        {
+          "name": "Contrato de mantenimiento",
+          "states": [
+            "sin contrato",
+            "contrato ofrecido",
+            "contrato activo",
+            "renovación pendiente",
+            "renovado"
+          ]
+        }
+      ]
+    },
+    "pricing_and_quotes": [
+      "cotización por incidencia",
+      "recargo por prioridad",
+      "mantenimiento preventivo"
+    ],
+    "agenda_and_resources": [
+      "técnico",
+      "cuadrilla",
+      "ruta",
+      "ventana de atención",
+      "inventario básico"
+    ],
+    "post_sale_and_recurrence": [
+      "seguimiento post-cierre",
+      "recompra operativa",
+      "contrato de mantenimiento preventivo"
+    ],
+    "documents_compliance": [
+      "orden de trabajo",
+      "evidencia fotográfica",
+      "firma de cierre",
+      "checklist de servicio"
+    ],
+    "kpis_that_matter": [
+      "tiempo de respuesta",
+      "tiempo a visita",
+      "solicitud a visita",
+      "primera visita resuelta",
+      "mantenimiento vendido",
+      "satisfacción",
+      "tiempo a asignación",
+      "first-time fix",
+      "ticket",
+      "cancelación",
+      "puntualidad"
+    ],
+    "money_automations": [
+      "diagnóstico remoto a cotización",
+      "recordatorio de visita",
+      "venta de mantenimiento preventivo"
+    ]
+  },
+  "domain_contract": {
+    "vertical_entity_types": [
+      "sitio de servicio",
+      "incidencia / trabajo",
+      "prioridad",
+      "técnico / cuadrilla",
+      "ventana de atención",
+      "cotización",
+      "materiales / evidencia",
+      "firma de cierre"
+    ],
+    "vertical_pipeline_stages": {
+      "primary": [
+        "solicitud nueva",
+        "intake parcial",
+        "intake completo",
+        "urgencia clasificada",
+        "visita ofrecida",
+        "visita agendada",
+        "técnico asignado",
+        "en camino",
+        "trabajando",
+        "terminado",
+        "cobrado",
+        "garantía activa",
+        "mantenimiento próximo"
+      ],
+      "secondary": [
+        [
+          "sin contrato",
+          "contrato ofrecido",
+          "contrato activo",
+          "renovación pendiente",
+          "renovado"
+        ]
+      ]
+    },
+    "vertical_quote_types": [
+      "diagnóstico remoto",
+      "cotización",
+      "servicio en sitio",
+      "mantenimiento preventivo",
+      "contrato liviano"
+    ],
+    "vertical_resource_types": [
+      "técnico",
+      "cuadrilla",
+      "ruta",
+      "ventana de atención",
+      "inventario básico"
+    ],
+    "vertical_followup_policies": [
+      "seguimiento post-cierre",
+      "recompra operativa",
+      "contrato de mantenimiento preventivo"
+    ],
+    "vertical_kpi_definitions": [
+      "tiempo de respuesta",
+      "tiempo a visita",
+      "solicitud a visita",
+      "primera visita resuelta",
+      "mantenimiento vendido",
+      "satisfacción",
+      "tiempo a asignación",
+      "first-time fix",
+      "ticket",
+      "cancelación",
+      "puntualidad"
+    ],
+    "vertical_playbooks": [
+      "HVAC",
+      "plomería",
+      "electricidad",
+      "limpieza técnica",
+      "mantenimiento industrial liviano"
+    ],
+    "vertical_document_types": [
+      "orden de trabajo",
+      "evidencia fotográfica",
+      "firma de cierre",
+      "checklist de servicio"
+    ]
+  },
+  "subvertical_playbooks": [
+    {
+      "name": "HVAC",
+      "focus": "Playbook operativo y comercial para HVAC"
+    },
+    {
+      "name": "plomería",
+      "focus": "Playbook operativo y comercial para plomería"
+    },
+    {
+      "name": "electricidad",
+      "focus": "Playbook operativo y comercial para electricidad"
+    },
+    {
+      "name": "limpieza técnica",
+      "focus": "Playbook operativo y comercial para limpieza técnica"
+    },
+    {
+      "name": "mantenimiento industrial liviano",
+      "focus": "Playbook operativo y comercial para mantenimiento industrial liviano"
+    }
+  ],
+  "business_e2e_tests": [
+    {
+      "name": "lead recibe diagnóstico remoto, aprueba cotización y se asigna técnico",
+      "status": "designed"
+    },
+    {
+      "name": "servicio cerrado dispara oferta de mantenimiento preventivo",
+      "status": "designed"
+    }
+  ],
+  "vertical_runtime": {
+    "pipeline_machine": {
+      "primary_pipeline": "Solicitud y servicio",
+      "entity": "orden de trabajo en sitio",
+      "states": [
+        "solicitud nueva",
+        "intake parcial",
+        "intake completo",
+        "urgencia clasificada",
+        "visita ofrecida",
+        "visita agendada",
+        "técnico asignado",
+        "en camino",
+        "trabajando",
+        "terminado",
+        "cobrado",
+        "garantía activa",
+        "mantenimiento próximo"
+      ],
+      "transitions": [
+        {
+          "from": "solicitud nueva",
+          "to": "intake parcial",
+          "trigger": "qualification_complete",
+          "business_effect": "advance opportunity"
+        },
+        {
+          "from": "intake parcial",
+          "to": "intake completo",
+          "trigger": "crew_assigned",
+          "business_effect": "open commercial step"
+        },
+        {
+          "from": "garantía activa",
+          "to": "mantenimiento próximo",
+          "trigger": "successful_outcome",
+          "business_effect": "realize revenue or continuity"
+        },
+        {
+          "from": "garantía activa",
+          "to": "at_risk",
+          "trigger": "remote_diagnosis_done",
+          "business_effect": "activate retention sequence"
+        }
+      ],
+      "at_risk_state": "at_risk",
+      "closed_states": [
+        "mantenimiento próximo"
+      ]
+    },
+    "pricing_engine": {
+      "quote_types": [
+        "diagnostico remoto",
+        "cotizacion en sitio",
+        "mantenimiento preventivo",
+        "contrato recurrente"
+      ],
+      "pricing_basis": "job_type + urgency + materials + travel zone",
+      "rules": [
+        {
+          "rule": "base price by servicio type",
+          "effect": "set base_price"
+        },
+        {
+          "rule": "premium or urgent add-ons increase quote",
+          "effect": "add surcharge"
+        },
+        {
+          "rule": "bundle, membership or financing can lower immediate friction",
+          "effect": "recommend package or installments"
+        }
+      ],
+      "deposit_policy": "request advance when capacity, specialist time or inventory must be secured"
+    },
+    "resource_capacity": {
+      "resource_types": [
+        "tecnico",
+        "cuadrilla",
+        "unidad movil",
+        "ventana de atencion",
+        "materiales"
+      ],
+      "capacity_basis": "crew calendars, territory routing and job duration",
+      "constraints": [
+        "avoid double booking of critical resources",
+        "respect service duration and cleanup/buffer time",
+        "prioritize higher urgency and higher close probability cases"
+      ],
+      "priority_queue": "cuadrilla, prioridad y ventana"
+    },
+    "recurrence_engine": {
+      "policies": [
+        {
+          "type": "preventive_plan",
+          "interval_days": 90,
+          "anchor": "orden de trabajo en sitio"
+        },
+        {
+          "type": "post_service_followup",
+          "interval_days": 2,
+          "anchor": "orden de trabajo en sitio"
+        },
+        {
+          "type": "reactivation",
+          "interval_days": 30,
+          "anchor": "orden de trabajo en sitio"
+        }
+      ],
+      "reactivation_window_days": 90,
+      "goal": "protect retention, repeat revenue and continuity"
+    },
+    "kpi_engine": {
+      "north_star": "Solicitudes resueltas con primera visita y mantenimiento vendido.",
+      "definitions": [
+        {
+          "name": "time_to_assignment",
+          "formula": "assigned_jobs / created_jobs with SLA"
+        },
+        {
+          "name": "first_time_fix",
+          "formula": "fixed_first_visit / closed_jobs"
+        },
+        {
+          "name": "punctuality",
+          "formula": "on_time_arrivals / assigned_jobs"
+        }
+      ],
+      "leading_indicators": [
+        "remote_diagnosis_done",
+        "quote_sent",
+        "no_response_7d"
+      ]
+    },
+    "automation_engine": {
+      "money_automation_policies": [
+        {
+          "trigger": "remote_diagnosis_done",
+          "actions": [
+            "send_followup",
+            "escalate_owner",
+            "offer_relevant_next_step"
+          ],
+          "goal": "save conversion or retention"
+        },
+        {
+          "trigger": "quote_sent",
+          "actions": [
+            "send_quote_or_payment_link",
+            "remind_deadline",
+            "notify_human"
+          ],
+          "goal": "move revenue forward"
+        },
+        {
+          "trigger": "service_closed",
+          "actions": [
+            "schedule_recurrence",
+            "cross_sell_next_best_offer",
+            "create_task"
+          ],
+          "goal": "increase LTV"
+        }
+      ],
+      "quiet_hours": "21:00-08:00"
+    },
+    "document_flow": {
+      "required_documents": [
+        "orden de trabajo",
+        "evidencia fotografica",
+        "firma de cierre",
+        "bitacora de materiales"
+      ],
+      "lifecycle_rules": [
+        {
+          "document": "orden de trabajo",
+          "required_before": "first committed step",
+          "signature_required": true
+        },
+        {
+          "document": "bitacora de materiales",
+          "required_before": "handoff or continuity step",
+          "signature_required": false
+        }
+      ]
+    },
+    "matching_engine": {
+      "entity": "orden de trabajo en sitio",
+      "rules": [
+        "incident_type -> crew_skill",
+        "priority -> response_sla",
+        "territory_match",
+        "materials_available"
+      ],
+      "next_best_match_outputs": [
+        "best_owner",
+        "best_resource_slot",
+        "best_offer"
+      ]
+    }
+  },
+  "transactional_motor_v12": {
+    "version": "v12_full_transactional",
+    "aggregate_root": "field_service_job_account",
+    "main_business_entity": "orden de trabajo en sitio",
+    "transaction_unit": "dispatch_cycle",
+    "system_of_record": {
+      "write_model": [
+        "commands",
+        "events",
+        "ledger",
+        "aggregate_snapshots"
+      ],
+      "read_models": [
+        "commercial_board",
+        "operations_board",
+        "finance_board",
+        "continuity_board",
+        "resource_load_board",
+        "document_readiness_board",
+        "revenue_levers_board"
+      ],
+      "idempotency_scope": [
+        "organization_id",
+        "vertical_id",
+        "external_reference",
+        "command_key"
+      ],
+      "audit_mode": "append_only_with_snapshots"
+    },
+    "transaction_primitives": {
+      "commands": [
+        "capture_intent",
+        "qualify_record",
+        "create_quote",
+        "request_deposit",
+        "reserve_capacity",
+        "confirm_booking",
+        "start_case",
+        "approve_quote",
+        "collect_payment",
+        "start_fulfillment",
+        "close_fulfillment",
+        "schedule_recurrence",
+        "issue_refund",
+        "reactivate_customer",
+        "create_dispatch_job",
+        "assign_crew",
+        "capture_site_evidence",
+        "close_with_signature"
+      ],
+      "events": [
+        "intent_captured",
+        "record_qualified",
+        "quote_created",
+        "deposit_requested",
+        "capacity_reserved",
+        "booking_confirmed",
+        "case_started",
+        "quote_approved",
+        "payment_collected",
+        "fulfillment_started",
+        "fulfillment_closed",
+        "recurrence_scheduled",
+        "refund_issued",
+        "customer_reactivated",
+        "dispatch_job_created",
+        "crew_assigned",
+        "site_evidence_captured",
+        "job_closed_signed"
+      ],
+      "ledger_event_types": [
+        "charge_opened",
+        "deposit_collected",
+        "installment_due",
+        "payment_applied",
+        "credit_issued",
+        "refund_issued",
+        "write_off_registered"
+      ],
+      "invariants": [
+        "no asignar técnico sin ventana",
+        "no iniciar servicio sin aprobación",
+        "no cerrar sin evidencia y firma",
+        "todo pago debe referenciar quote, order o case activo",
+        "todo cambio crítico debe emitir evento y renglón de auditoría",
+        "ningún recurso se confirma dos veces en la misma ventana"
+      ],
+      "idempotency_keys": [
+        "command_key",
+        "payment_reference",
+        "booking_reference",
+        "external_message_id"
+      ]
+    },
+    "aggregates": {
+      "primary_record": {
+        "name": "orden de trabajo en sitio",
+        "status_axis": [
+          "commercial",
+          "operations",
+          "finance",
+          "continuity"
+        ]
+      },
+      "quote": {
+        "name": "job_quote",
+        "states": [
+          "draft",
+          "sent",
+          "accepted",
+          "expired",
+          "lost"
+        ]
+      },
+      "booking": {
+        "name": "service_window_booking",
+        "states": [
+          "proposed",
+          "reserved",
+          "confirmed",
+          "attended_or_executed",
+          "missed_or_canceled"
+        ]
+      },
+      "execution": {
+        "name": "dispatch_and_close",
+        "states": [
+          "pending",
+          "ready",
+          "in_progress",
+          "blocked",
+          "completed",
+          "closed"
+        ]
+      },
+      "payment_account": {
+        "name": "payment_account",
+        "states": [
+          "open",
+          "partially_paid",
+          "paid",
+          "overdue",
+          "refunded"
+        ]
+      },
+      "continuity": {
+        "name": "maintenance_contract",
+        "states": [
+          "not_started",
+          "active",
+          "at_risk",
+          "recovered",
+          "closed"
+        ]
+      }
+    },
+    "orchestration": {
+      "command_handlers": [
+        "handle_capture_intent",
+        "handle_qualify_record",
+        "handle_create_quote",
+        "handle_request_deposit",
+        "handle_reserve_capacity",
+        "handle_confirm_booking",
+        "handle_start_case",
+        "handle_approve_quote",
+        "handle_create_dispatch_job",
+        "handle_assign_crew",
+        "handle_capture_site_evidence",
+        "handle_close_with_signature"
+      ],
+      "sagas": [
+        "diagnosis_to_dispatch",
+        "dispatch_to_close",
+        "maintenance_contract_renewal"
+      ],
+      "money_guards": [
+        "quote_before_payment",
+        "capacity_before_confirmation",
+        "documents_before_execution",
+        "balance_before_close"
+      ],
+      "read_model_refresh": [
+        "on_every_event",
+        "nightly_reconciliation",
+        "pre_dashboard_cache"
+      ]
+    },
+    "finance": {
+      "money_objects": [
+        "diagnostic_charge",
+        "job_deposit",
+        "completion_collection",
+        "maintenance_invoice"
+      ],
+      "collection_modes": [
+        "diagnóstico",
+        "anticipo",
+        "contra cierre"
+      ],
+      "refund_modes": [
+        "service_recovery_credit",
+        "partial_refund"
+      ],
+      "reconciliation_views": [
+        "expected_vs_collected",
+        "aging_balance",
+        "refund_exposure",
+        "cash_by_stage"
+      ]
+    },
+    "operations": {
+      "fulfillment_unit": "dispatch_cycle",
+      "resource_locking": [
+        "technician_or_crew",
+        "route_window",
+        "materials_reservation"
+      ],
+      "dispatch_or_schedule_board": [
+        "queued",
+        "ready",
+        "assigned",
+        "in_progress",
+        "blocked",
+        "done"
+      ],
+      "handoff_rules": [
+        "human_handoff_on_exception",
+        "supervisor_handoff_on_money_risk",
+        "operator_handoff_on_compliance_gap"
+      ]
+    },
+    "audit_compliance": {
+      "timeline_entities": [
+        "orden de trabajo en sitio",
+        "job_quote",
+        "service_window_booking",
+        "dispatch_and_close",
+        "payment_account"
+      ],
+      "consent_gates": [
+        "site_evidence",
+        "service_authorization",
+        "closure_signature"
+      ],
+      "required_evidence": [
+        "timeline_event",
+        "actor",
+        "timestamp",
+        "before_after_snapshot"
+      ],
+      "retention_rules": [
+        "audit_log_append_only",
+        "documents_linked_to_primary_record",
+        "payment_trace_non_destructive"
+      ]
+    },
+    "transaction_views": {
+      "commercial": [
+        "remote_diagnosis",
+        "quote_acceptance",
+        "contracts"
+      ],
+      "operations": [
+        "dispatch",
+        "sla",
+        "first_time_fix"
+      ],
+      "finance": [
+        "job_margin",
+        "collection_rate",
+        "callbacks_cost"
+      ],
+      "continuity": [
+        "preventive_maintenance",
+        "repeat_jobs",
+        "contract_renewal"
+      ]
+    },
+    "command_catalog": [
+      {
+        "command": "capture_intent",
+        "writes": "orden de trabajo en sitio",
+        "emits": "intent_captured",
+        "guard": "no asignar técnico sin ventana"
+      },
+      {
+        "command": "qualify_record",
+        "writes": "orden de trabajo en sitio",
+        "emits": "record_qualified",
+        "guard": "no iniciar servicio sin aprobación"
+      },
+      {
+        "command": "create_quote",
+        "writes": "orden de trabajo en sitio",
+        "emits": "quote_created",
+        "guard": "no cerrar sin evidencia y firma"
+      },
+      {
+        "command": "request_deposit",
+        "writes": "orden de trabajo en sitio",
+        "emits": "deposit_requested",
+        "guard": "no asignar técnico sin ventana"
+      },
+      {
+        "command": "reserve_capacity",
+        "writes": "orden de trabajo en sitio",
+        "emits": "capacity_reserved",
+        "guard": "no iniciar servicio sin aprobación"
+      },
+      {
+        "command": "confirm_booking",
+        "writes": "orden de trabajo en sitio",
+        "emits": "booking_confirmed",
+        "guard": "no cerrar sin evidencia y firma"
+      },
+      {
+        "command": "start_case",
+        "writes": "orden de trabajo en sitio",
+        "emits": "case_started",
+        "guard": "no asignar técnico sin ventana"
+      },
+      {
+        "command": "approve_quote",
+        "writes": "orden de trabajo en sitio",
+        "emits": "quote_approved",
+        "guard": "no iniciar servicio sin aprobación"
+      },
+      {
+        "command": "create_dispatch_job",
+        "writes": "orden de trabajo en sitio",
+        "emits": "payment_collected",
+        "guard": "no cerrar sin evidencia y firma"
+      },
+      {
+        "command": "assign_crew",
+        "writes": "orden de trabajo en sitio",
+        "emits": "fulfillment_started",
+        "guard": "no asignar técnico sin ventana"
+      },
+      {
+        "command": "capture_site_evidence",
+        "writes": "orden de trabajo en sitio",
+        "emits": "fulfillment_closed",
+        "guard": "no iniciar servicio sin aprobación"
+      },
+      {
+        "command": "close_with_signature",
+        "writes": "orden de trabajo en sitio",
+        "emits": "recurrence_scheduled",
+        "guard": "no cerrar sin evidencia y firma"
+      }
+    ],
+    "event_catalog": [
+      {
+        "event": "intent_captured",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "diagnosis_to_dispatch"
+      },
+      {
+        "event": "record_qualified",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "dispatch_to_close"
+      },
+      {
+        "event": "quote_created",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "maintenance_contract_renewal"
+      },
+      {
+        "event": "deposit_requested",
+        "updates": [
+          "timeline",
+          "boards",
+          "ledger"
+        ],
+        "next_action": "diagnosis_to_dispatch"
+      },
+      {
+        "event": "capacity_reserved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "dispatch_to_close"
+      },
+      {
+        "event": "booking_confirmed",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "maintenance_contract_renewal"
+      },
+      {
+        "event": "case_started",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "diagnosis_to_dispatch"
+      },
+      {
+        "event": "quote_approved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "dispatch_to_close"
+      },
+      {
+        "event": "dispatch_job_created",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "maintenance_contract_renewal"
+      },
+      {
+        "event": "crew_assigned",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "diagnosis_to_dispatch"
+      },
+      {
+        "event": "site_evidence_captured",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "dispatch_to_close"
+      },
+      {
+        "event": "job_closed_signed",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "maintenance_contract_renewal"
+      }
+    ]
+  },
+  "subvertical_profiles": [],
+  "recommended_subverticals": []
+}

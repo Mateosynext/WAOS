@@ -1,4 +1,5 @@
 import type { WizardApplyResult, WizardDryRunResult, WizardInstance } from "./wizard-types";
+import { buildWizardApplyPath, buildWizardBasePath, buildWizardDryRunPath, buildWizardStepPath, WIZARD_START_PATH } from "../../features/bot-studio/api/wizardEndpoints";
 
 type WizardRequestOptions = {
   signal?: AbortSignal;
@@ -15,14 +16,14 @@ async function requestWizardJson<T>(url: string, init?: RequestInit): Promise<T>
 }
 
 export function getWizardRequest(wizardId: string, options: WizardRequestOptions = {}) {
-  return requestWizardJson<WizardInstance>(`/api/onboarding/wizard/${encodeURIComponent(wizardId)}`, {
+  return requestWizardJson<WizardInstance>(buildWizardBasePath(wizardId), {
     method: "GET",
     signal: options.signal,
   });
 }
 
 export function startWizardRequest(payload: Record<string, unknown>, options: WizardRequestOptions = {}) {
-  return requestWizardJson<WizardInstance>("/api/onboarding/wizard/start", {
+  return requestWizardJson<WizardInstance>(WIZARD_START_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -31,7 +32,7 @@ export function startWizardRequest(payload: Record<string, unknown>, options: Wi
 }
 
 export function saveWizardStepRequest(wizardId: string, stepKey: string, payload: Record<string, unknown>, options: WizardRequestOptions = {}) {
-  return requestWizardJson<WizardInstance>(`/api/onboarding/wizard/${encodeURIComponent(wizardId)}/steps/${stepKey}`, {
+  return requestWizardJson<WizardInstance>(buildWizardStepPath(wizardId, stepKey), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ payload, expected_revision: options.expectedRevision ?? null }),
@@ -40,14 +41,14 @@ export function saveWizardStepRequest(wizardId: string, stepKey: string, payload
 }
 
 export function dryRunWizardRequest(wizardId: string, options: WizardRequestOptions = {}) {
-  return requestWizardJson<WizardDryRunResult>(`/api/onboarding/wizard/${encodeURIComponent(wizardId)}/dry-run`, {
+  return requestWizardJson<WizardDryRunResult>(buildWizardDryRunPath(wizardId), {
     method: "POST",
     signal: options.signal,
   });
 }
 
 export function applyWizardRequest(wizardId: string, options: WizardRequestOptions = {}) {
-  return requestWizardJson<WizardApplyResult>(`/api/onboarding/wizard/${encodeURIComponent(wizardId)}/apply`, {
+  return requestWizardJson<WizardApplyResult>(buildWizardApplyPath(wizardId), {
     method: "POST",
     signal: options.signal,
   });

@@ -1,0 +1,158 @@
+[
+  {
+    "id": "fitness",
+    "name": "WAOS Fitness",
+    "short_name": "Fitness & entrenamiento",
+    "aliases": [
+      "fitness",
+      "WAOS Fitness",
+      "Fitness & entrenamiento"
+    ],
+    "is_strongest_vertical": true,
+    "strongest_rank": 1,
+    "file": "profiles/fitness.json"
+  },
+  {
+    "id": "dental",
+    "name": "WAOS Dental",
+    "short_name": "Clinicas dentales",
+    "aliases": [
+      "dental",
+      "WAOS Dental",
+      "Clinicas dentales"
+    ],
+    "is_strongest_vertical": true,
+    "strongest_rank": 2,
+    "file": "profiles/dental.json"
+  },
+  {
+    "id": "aesthetic",
+    "name": "WAOS Aesthetic",
+    "short_name": "Medicina estetica & wellness premium",
+    "aliases": [
+      "aesthetic",
+      "WAOS Aesthetic",
+      "Medicina estetica & wellness premium"
+    ],
+    "is_strongest_vertical": true,
+    "strongest_rank": 3,
+    "file": "profiles/aesthetic.json"
+  },
+  {
+    "id": "vet",
+    "name": "WAOS Vet",
+    "short_name": "Veterinaria & pet care",
+    "aliases": [
+      "vet",
+      "WAOS Vet",
+      "Veterinaria & pet care"
+    ],
+    "is_strongest_vertical": true,
+    "strongest_rank": 4,
+    "file": "profiles/vet.json"
+  },
+  {
+    "id": "real-estate",
+    "name": "WAOS Real Estate",
+    "short_name": "Inmobiliaria & property lifecycle",
+    "aliases": [
+      "real-estate",
+      "WAOS Real Estate",
+      "Inmobiliaria & property lifecycle"
+    ],
+    "is_strongest_vertical": null,
+    "strongest_rank": null,
+    "file": "profiles/real-estate.json"
+  },
+  {
+    "id": "auto-service",
+    "name": "WAOS Auto Service",
+    "short_name": "Automotriz service & aftermarket",
+    "aliases": [
+      "auto-service",
+      "WAOS Auto Service",
+      "Automotriz service & aftermarket"
+    ],
+    "is_strongest_vertical": true,
+    "strongest_rank": 5,
+    "file": "profiles/auto-service.json"
+  },
+  {
+    "id": "education",
+    "name": "WAOS Education",
+    "short_name": "Educacion & formacion",
+    "aliases": [
+      "education",
+      "WAOS Education",
+      "Educacion & formacion"
+    ],
+    "is_strongest_vertical": null,
+    "strongest_rank": null,
+    "file": "profiles/education.json"
+  },
+  {
+    "id": "beauty",
+    "name": "WAOS Beauty",
+    "short_name": "Belleza personal & self-care",
+    "aliases": [
+      "beauty",
+      "WAOS Beauty",
+      "Belleza personal & self-care"
+    ],
+    "is_strongest_vertical": null,
+    "strongest_rank": null,
+    "file": "profiles/beauty.json"
+  },
+  {
+    "id": "field-services",
+    "name": "WAOS Field Services",
+    "short_name": "Home services & field services",
+    "aliases": [
+      "field-services",
+      "WAOS Field Services",
+      "Home services & field services"
+    ],
+    "is_strongest_vertical": null,
+    "strongest_rank": null,
+    "file": "profiles/field-services.json"
+  },
+  {
+    "id": "professional-intake",
+    "name": "WAOS Professional Intake",
+    "short_name": "Servicios profesionales de alto seguimiento",
+    "aliases": [
+      "professional-intake",
+      "WAOS Professional Intake",
+      "Servicios profesionales de alto seguimiento"
+    ],
+    "is_strongest_vertical": null,
+    "strongest_rank": null,
+    "file": "profiles/professional-intake.json"
+  },
+  {
+    "id": "commerce",
+    "name": "WAOS Commerce",
+    "short_name": "Commerce & retail conversacional",
+    "aliases": [
+      "commerce",
+      "WAOS Commerce",
+      "Commerce & retail conversacional"
+    ],
+    "is_strongest_vertical": null,
+    "strongest_rank": null,
+    "file": "profiles/commerce.json"
+  },
+  {
+    "id": "waos-bot",
+    "name": "WAOS Bot",
+    "short_name": "Bot que vende WAOS",
+    "aliases": [
+      "waos-bot",
+      "WAOS Bot",
+      "Bot que vende WAOS"
+    ],
+    "is_strongest_vertical": null,
+    "strongest_rank": null,
+    "file": "profiles/waos-bot.json"
+  }
+]

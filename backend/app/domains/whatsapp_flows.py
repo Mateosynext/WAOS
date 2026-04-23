@@ -7,8 +7,41 @@ from typing import Any
 import httpx
 
 from ..config import settings
-from ..db import execute, fetch_all, fetch_one, table_exists
+from ..db import table_exists
 from ..platform import store_secret
+from ..repositories import get_whatsapp_number_for_bot
+from ..repositories.whatsapp_flows_domain import (
+    count_whatsapp_flow_execution_events,
+    create_whatsapp_flow_event,
+    create_whatsapp_flow_execution,
+    create_whatsapp_flow_publication,
+    get_active_whatsapp_flow_experiment,
+    get_latest_whatsapp_flow_version,
+    get_whatsapp_flow,
+    get_whatsapp_flow_event,
+    get_whatsapp_flow_execution,
+    get_whatsapp_flow_experiment,
+    get_whatsapp_flow_version,
+    get_whatsapp_flow_version_for_flow,
+    insert_whatsapp_flow,
+    insert_whatsapp_flow_experiment,
+    insert_whatsapp_flow_version,
+    list_whatsapp_flow_publications,
+    list_whatsapp_flow_versions,
+    mark_whatsapp_flow_publication_success,
+    mark_whatsapp_flow_version_published,
+    mark_whatsapp_flow_version_rollback_candidate,
+    set_whatsapp_flow_remote_draft,
+    summarize_whatsapp_flow_analytics,
+    touch_whatsapp_flow_execution,
+    update_whatsapp_flow_current_version,
+    update_whatsapp_flow_execution_progress,
+    update_whatsapp_flow_experiment_metrics,
+    update_whatsapp_flow_last_sync_error,
+    update_whatsapp_flow_sync_snapshot,
+    update_whatsapp_flow_version_validation,
+    finish_whatsapp_flow_publication,
+)
 from ..utils import from_json, new_id, to_json, utcnow_iso
 from ..whatsapp import resolve_whatsapp_access_token
 
@@ -39,7 +72,7 @@ class MetaFlowAPIError(RuntimeError):
 
 class MetaFlowClient:
     def __init__(self, conn, *, organization_id: str, bot_id: str, waba_id: str | None = None, phone_number_id: str | None = None):
-        number = fetch_one(conn, "SELECT * FROM whatsapp_numbers WHERE bot_id = ?", (bot_id,))
+        number = get_whatsapp_number_for_bot(conn, bot_id)
         if not number:
             raise ValueError("whatsapp_number_not_configured")
         access_token = resolve_whatsapp_access_token(conn, organization_id=organization_id, bot_id=bot_id)
@@ -179,10 +212,10 @@ def serialize_flow(conn, row: dict[str, Any], *, include_versions: bool = False,
         "runtime_config": _json(row, "runtime_config_json", {}),
     }
     if include_versions and table_exists(conn, "whatsapp_flow_versions"):
-        versions = fetch_all(conn, "SELECT * FROM whatsapp_flow_versions WHERE flow_id = ? ORDER BY version_number DESC, created_at DESC", (row["id"],))
+        versions = list_whatsapp_flow_versions(conn, row["id"])
         payload["versions"] = [_serialize_flow_version(item) for item in versions]
     if include_publications and table_exists(conn, "whatsapp_flow_publications"):
-        publications = fetch_all(conn, "SELECT * FROM whatsapp_flow_publications WHERE flow_id = ? ORDER BY started_at DESC LIMIT 20", (row["id"],))
+        publications = list_whatsapp_flow_publications(conn, row["id"], limit=20)
         payload["publications"] = [_serialize_publication(item) for item in publications]
     return payload
 
@@ -219,58 +252,42 @@ def create_whatsapp_flow(
         "categories": categories,
         "endpoint_uri": runtime_endpoint,
     }
-    execute(
+    insert_whatsapp_flow(
         conn,
-        """
-        INSERT INTO whatsapp_flows (
-            id, organization_id, bot_id, name, flow_type, status, language, definition_json, metadata_json,
-            remote_flow_id, remote_status, remote_details_json, fallback_json, runtime_config_json,
-            current_version_id, published_version_id, runtime_endpoint, remote_last_synced_at, remote_last_published_at,
-            last_sync_error, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'not_synced', '{}', ?, ?, ?, NULL, ?, NULL, NULL, NULL, ?, ?)
-        """,
-        (
-            flow_id,
-            organization_id,
-            bot_id,
-            name,
-            flow_type,
-            status,
-            language,
-            to_json(definition),
-            to_json(metadata or {}),
-            to_json(fallback or DEFAULT_FALLBACK),
-            to_json(runtime_config or {}),
-            version_id,
-            runtime_endpoint,
-            now,
-            now,
-        ),
+        flow_id=flow_id,
+        organization_id=organization_id,
+        bot_id=bot_id,
+        name=name,
+        flow_type=flow_type,
+        status=status,
+        language=language,
+        definition_json=to_json(definition),
+        metadata_json=to_json(metadata or {}),
+        fallback_json=to_json(fallback or DEFAULT_FALLBACK),
+        runtime_config_json=to_json(runtime_config or {}),
+        current_version_id=version_id,
+        runtime_endpoint=runtime_endpoint,
+        created_at=now,
+        updated_at=now,
     )
     version_flow_json = flow_json or _default_flow_json(name, definition["screens"])
-    execute(
+    insert_whatsapp_flow_version(
         conn,
-        """
-        INSERT INTO whatsapp_flow_versions (
-            id, flow_id, organization_id, bot_id, version_number, state, flow_json, metadata_json,
-            compatibility_json, rollout_json, remote_asset_status, validation_errors_json,
-            cloned_from_version_id, created_at, updated_at, published_at
-        ) VALUES (?, ?, ?, ?, 1, 'draft', ?, ?, ?, ?, 'pending', '[]', NULL, ?, ?, NULL)
-        """,
-        (
-            version_id,
-            flow_id,
-            organization_id,
-            bot_id,
-            to_json(version_flow_json),
-            to_json({"categories": categories, "endpoint_uri": runtime_endpoint}),
-            to_json(compatibility or {}),
-            to_json({}),
-            now,
-            now,
-        ),
+        version_id=version_id,
+        flow_id=flow_id,
+        organization_id=organization_id,
+        bot_id=bot_id,
+        version_number=1,
+        state="draft",
+        flow_json=to_json(version_flow_json),
+        metadata_json=to_json({"categories": categories, "endpoint_uri": runtime_endpoint}),
+        compatibility_json=to_json(compatibility or {}),
+        rollout_json=to_json({}),
+        cloned_from_version_id=None,
+        created_at=now,
+        updated_at=now,
     )
-    row = fetch_one(conn, "SELECT * FROM whatsapp_flows WHERE id = ?", (flow_id,)) or {}
+    row = get_whatsapp_flow(conn, flow_id) or {}
     return serialize_flow(conn, row, include_versions=True)
 
 
@@ -284,40 +301,32 @@ def create_whatsapp_flow_version(
     compatibility: dict[str, Any] | None = None,
     cloned_from_version_id: str | None = None,
 ) -> dict[str, Any]:
-    flow = fetch_one(conn, "SELECT * FROM whatsapp_flows WHERE id = ?", (flow_id,))
+    flow = get_whatsapp_flow(conn, flow_id)
     if not flow:
         raise ValueError("whatsapp_flow_not_found")
-    current = fetch_one(conn, "SELECT * FROM whatsapp_flow_versions WHERE flow_id = ? ORDER BY version_number DESC LIMIT 1", (flow_id,))
+    current = get_latest_whatsapp_flow_version(conn, flow_id)
     next_version = int(current.get("version_number") or 0) + 1 if current else 1
     version_id = new_id("flowv")
     now = utcnow_iso()
     base_json = flow_json or _json(current, "flow_json", _json(flow, "definition_json", {}))
-    execute(
+    insert_whatsapp_flow_version(
         conn,
-        """
-        INSERT INTO whatsapp_flow_versions (
-            id, flow_id, organization_id, bot_id, version_number, state, flow_json, metadata_json,
-            compatibility_json, rollout_json, remote_asset_status, validation_errors_json,
-            cloned_from_version_id, created_at, updated_at, published_at
-        ) VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, 'pending', '[]', ?, ?, ?, NULL)
-        """,
-        (
-            version_id,
-            flow_id,
-            flow["organization_id"],
-            flow["bot_id"],
-            next_version,
-            to_json(base_json),
-            to_json(metadata or _json(current, "metadata_json", {})),
-            to_json(compatibility or _json(current, "compatibility_json", {})),
-            to_json({}),
-            cloned_from_version_id,
-            now,
-            now,
-        ),
+        version_id=version_id,
+        flow_id=flow_id,
+        organization_id=flow["organization_id"],
+        bot_id=flow["bot_id"],
+        version_number=next_version,
+        state="draft",
+        flow_json=to_json(base_json),
+        metadata_json=to_json(metadata or _json(current, "metadata_json", {})),
+        compatibility_json=to_json(compatibility or _json(current, "compatibility_json", {})),
+        rollout_json=to_json({}),
+        cloned_from_version_id=cloned_from_version_id,
+        created_at=now,
+        updated_at=now,
     )
-    execute(conn, "UPDATE whatsapp_flows SET current_version_id = ?, updated_at = ? WHERE id = ?", (version_id, now, flow_id))
-    return _serialize_flow_version(fetch_one(conn, "SELECT * FROM whatsapp_flow_versions WHERE id = ?", (version_id,)) or {})
+    update_whatsapp_flow_current_version(conn, flow_id=flow_id, version_id=version_id, updated_at=now)
+    return _serialize_flow_version(get_whatsapp_flow_version(conn, version_id) or {})
 
 
 def create_flow_experiment(
@@ -330,23 +339,32 @@ def create_flow_experiment(
     status: str = "active",
     note: str | None = None,
 ) -> dict[str, Any]:
-    flow = fetch_one(conn, "SELECT * FROM whatsapp_flows WHERE id = ?", (flow_id,))
+    flow = get_whatsapp_flow(conn, flow_id)
     if not flow:
         raise ValueError("whatsapp_flow_not_found")
     row_id = new_id("flowexp")
     now = utcnow_iso()
-    execute(
+    insert_whatsapp_flow_experiment(
         conn,
-        "INSERT INTO whatsapp_flow_experiments (id, flow_id, organization_id, bot_id, version_a_id, version_b_id, rollout_percentage, status, note, metrics_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, ?)",
-        (row_id, flow_id, flow["organization_id"], flow["bot_id"], version_a_id, version_b_id, max(1, min(99, rollout_percentage)), status, note, now, now),
+        row_id=row_id,
+        flow_id=flow_id,
+        organization_id=flow["organization_id"],
+        bot_id=flow["bot_id"],
+        version_a_id=version_a_id,
+        version_b_id=version_b_id,
+        rollout_percentage=max(1, min(99, rollout_percentage)),
+        status=status,
+        note=note,
+        created_at=now,
+        updated_at=now,
     )
-    return fetch_one(conn, "SELECT * FROM whatsapp_flow_experiments WHERE id = ?", (row_id,)) or {}
+    return get_whatsapp_flow_experiment(conn, row_id) or {}
 
 
 def _get_active_experiment(conn, *, flow_id: str) -> dict[str, Any] | None:
     if not table_exists(conn, "whatsapp_flow_experiments"):
         return None
-    return fetch_one(conn, "SELECT * FROM whatsapp_flow_experiments WHERE flow_id = ? AND status = 'active' ORDER BY updated_at DESC LIMIT 1", (flow_id,))
+    return get_active_whatsapp_flow_experiment(conn, flow_id)
 
 
 def _assign_experiment_variant(conn, *, flow: dict[str, Any], conversation_id: str | None, contact_id: str | None, flow_token: str | None) -> tuple[str | None, str | None]:
@@ -360,26 +378,29 @@ def _assign_experiment_variant(conn, *, flow: dict[str, Any], conversation_id: s
     metrics = _json(experiment, "metrics_json", {})
     bucket_key = "a_assignments" if variant == "A" else "b_assignments"
     metrics[bucket_key] = int(metrics.get(bucket_key) or 0) + 1
-    execute(conn, "UPDATE whatsapp_flow_experiments SET metrics_json = ?, updated_at = ? WHERE id = ?", (to_json(metrics), utcnow_iso(), experiment["id"]))
+    update_whatsapp_flow_experiment_metrics(conn, experiment_id=experiment["id"], metrics_json=to_json(metrics), updated_at=utcnow_iso())
     return variant, version_id
 
 
 def _create_publication_run(conn, *, flow: dict[str, Any], version_id: str, action: str, request_payload: dict[str, Any] | None = None) -> str:
     row_id = new_id("flowpub")
-    execute(
+    create_whatsapp_flow_publication(
         conn,
-        "INSERT INTO whatsapp_flow_publications (id, flow_id, version_id, organization_id, bot_id, provider, action, status, remote_flow_id, request_json, response_json, validation_errors_json, started_at, finished_at) VALUES (?, ?, ?, ?, ?, 'meta', ?, 'running', ?, ?, '{}', '[]', ?, NULL)",
-        (row_id, flow["id"], version_id, flow["organization_id"], flow["bot_id"], action, flow.get("remote_flow_id"), to_json(request_payload or {}), utcnow_iso()),
+        row_id=row_id,
+        flow_id=flow["id"],
+        version_id=version_id,
+        organization_id=flow["organization_id"],
+        bot_id=flow["bot_id"],
+        action=action,
+        remote_flow_id=flow.get("remote_flow_id"),
+        request_json=to_json(request_payload or {}),
+        started_at=utcnow_iso(),
     )
     return row_id
 
 
 def _finish_publication_run(conn, *, publication_id: str, status: str, remote_flow_id: str | None = None, response_payload: dict[str, Any] | None = None, validation_errors: list[dict[str, Any]] | None = None) -> None:
-    execute(
-        conn,
-        "UPDATE whatsapp_flow_publications SET status = ?, remote_flow_id = COALESCE(?, remote_flow_id), response_json = ?, validation_errors_json = ?, finished_at = ? WHERE id = ?",
-        (status, remote_flow_id, to_json(response_payload or {}), to_json(validation_errors or []), utcnow_iso(), publication_id),
-    )
+    finish_whatsapp_flow_publication(conn, publication_id=publication_id, status=status, remote_flow_id=remote_flow_id, response_json=to_json(response_payload or {}), validation_errors_json=to_json(validation_errors or []), finished_at=utcnow_iso())
 
 
 def publish_whatsapp_flow(
@@ -390,10 +411,10 @@ def publish_whatsapp_flow(
     actor_user_id: str | None = None,
     register_encryption_public_key: str | None = None,
 ) -> dict[str, Any]:
-    flow = fetch_one(conn, "SELECT * FROM whatsapp_flows WHERE id = ?", (flow_id,))
+    flow = get_whatsapp_flow(conn, flow_id)
     if not flow:
         raise ValueError("whatsapp_flow_not_found")
-    version = fetch_one(conn, "SELECT * FROM whatsapp_flow_versions WHERE id = ? AND flow_id = ?", (version_id or flow.get("current_version_id"), flow_id))
+    version = get_whatsapp_flow_version_for_flow(conn, version_id=version_id or flow.get("current_version_id"), flow_id=flow_id)
     if not version:
         raise ValueError("whatsapp_flow_version_not_found")
     flow_json = _json(version, "flow_json", {})
@@ -412,10 +433,10 @@ def publish_whatsapp_flow(
             remote_flow_id = str(created.get("id") or "")
             if not remote_flow_id:
                 raise MetaFlowAPIError("meta_flow_create_missing_id", payload=created)
-            execute(conn, "UPDATE whatsapp_flows SET remote_flow_id = ?, remote_status = 'draft', updated_at = ? WHERE id = ?", (remote_flow_id, utcnow_iso(), flow_id))
+            set_whatsapp_flow_remote_draft(conn, flow_id=flow_id, remote_flow_id=remote_flow_id, updated_at=utcnow_iso())
         asset_result = client.upload_flow_json(remote_flow_id, flow_json=flow_json)
         validation_errors = asset_result.get("validation_errors") or []
-        execute(conn, "UPDATE whatsapp_flow_versions SET remote_asset_status = ?, validation_errors_json = ?, updated_at = ? WHERE id = ?", ("validated" if not validation_errors else "validation_failed", to_json(validation_errors), utcnow_iso(), version["id"]))
+        update_whatsapp_flow_version_validation(conn, version_id=version["id"], remote_asset_status="validated" if not validation_errors else "validation_failed", validation_errors_json=to_json(validation_errors), updated_at=utcnow_iso())
         if validation_errors:
             _finish_publication_run(conn, publication_id=publication_id, status="validation_failed", remote_flow_id=remote_flow_id, response_payload=asset_result, validation_errors=validation_errors)
             raise MetaFlowAPIError("meta_flow_validation_failed", payload=asset_result)
@@ -423,40 +444,31 @@ def publish_whatsapp_flow(
         remote_details = client.get_flow(remote_flow_id)
         preview = client.get_preview(remote_flow_id)
         now = utcnow_iso()
-        execute(
+        mark_whatsapp_flow_publication_success(
             conn,
-            """
-            UPDATE whatsapp_flows
-            SET status = 'active', remote_flow_id = ?, remote_status = ?, remote_details_json = ?,
-                current_version_id = ?, published_version_id = ?, runtime_endpoint = ?, remote_last_synced_at = ?,
-                remote_last_published_at = ?, last_sync_error = NULL, updated_at = ?
-            WHERE id = ?
-            """,
-            (
-                remote_flow_id,
-                remote_details.get("status") or "published",
-                to_json({"detail": remote_details, "preview": preview}),
-                version["id"],
-                version["id"],
-                endpoint_uri,
-                now,
-                now,
-                now,
-                flow_id,
-            ),
+            flow_id=flow_id,
+            remote_flow_id=remote_flow_id,
+            remote_status=remote_details.get("status") or "published",
+            remote_details_json=to_json({"detail": remote_details, "preview": preview}),
+            current_version_id=version["id"],
+            published_version_id=version["id"],
+            runtime_endpoint=endpoint_uri,
+            remote_last_synced_at=now,
+            remote_last_published_at=now,
+            updated_at=now,
         )
-        execute(conn, "UPDATE whatsapp_flow_versions SET state = 'published', remote_asset_status = 'published', published_at = ?, updated_at = ? WHERE id = ?", (now, now, version["id"]))
+        mark_whatsapp_flow_version_published(conn, version_id=version["id"], published_at=now, updated_at=now)
         _finish_publication_run(conn, publication_id=publication_id, status="published", remote_flow_id=remote_flow_id, response_payload={"asset": asset_result, "publish": publish_result, "detail": remote_details, "preview": preview})
     except MetaFlowAPIError as exc:
         _finish_publication_run(conn, publication_id=publication_id, status="failed", remote_flow_id=remote_flow_id, response_payload=exc.payload)
-        execute(conn, "UPDATE whatsapp_flows SET last_sync_error = ?, updated_at = ? WHERE id = ?", (to_json({"status_code": exc.status_code, "payload": exc.payload}), utcnow_iso(), flow_id))
+        update_whatsapp_flow_last_sync_error(conn, flow_id=flow_id, last_sync_error_json=to_json({"status_code": exc.status_code, "payload": exc.payload}), updated_at=utcnow_iso())
         raise
-    row = fetch_one(conn, "SELECT * FROM whatsapp_flows WHERE id = ?", (flow_id,)) or flow
+    row = get_whatsapp_flow(conn, flow_id) or flow
     return serialize_flow(conn, row, include_versions=True, include_publications=True)
 
 
 def sync_whatsapp_flow(conn, *, flow_id: str) -> dict[str, Any]:
-    flow = fetch_one(conn, "SELECT * FROM whatsapp_flows WHERE id = ?", (flow_id,))
+    flow = get_whatsapp_flow(conn, flow_id)
     if not flow:
         raise ValueError("whatsapp_flow_not_found")
     if not flow.get("remote_flow_id"):
@@ -466,25 +478,28 @@ def sync_whatsapp_flow(conn, *, flow_id: str) -> dict[str, Any]:
     try:
         remote_details = client.get_flow(flow["remote_flow_id"])
         preview = client.get_preview(flow["remote_flow_id"])
-        execute(
+        update_whatsapp_flow_sync_snapshot(
             conn,
-            "UPDATE whatsapp_flows SET remote_status = ?, remote_details_json = ?, remote_last_synced_at = ?, last_sync_error = NULL, updated_at = ? WHERE id = ?",
-            (remote_details.get("status") or flow.get("remote_status") or "unknown", to_json({"detail": remote_details, "preview": preview}), utcnow_iso(), utcnow_iso(), flow_id),
+            flow_id=flow_id,
+            remote_status=remote_details.get("status") or flow.get("remote_status") or "unknown",
+            remote_details_json=to_json({"detail": remote_details, "preview": preview}),
+            remote_last_synced_at=utcnow_iso(),
+            updated_at=utcnow_iso(),
         )
         _finish_publication_run(conn, publication_id=publication_id, status="synced", remote_flow_id=flow["remote_flow_id"], response_payload={"detail": remote_details, "preview": preview})
     except MetaFlowAPIError as exc:
         _finish_publication_run(conn, publication_id=publication_id, status="failed", remote_flow_id=flow["remote_flow_id"], response_payload=exc.payload)
-        execute(conn, "UPDATE whatsapp_flows SET last_sync_error = ?, updated_at = ? WHERE id = ?", (to_json({"status_code": exc.status_code, "payload": exc.payload}), utcnow_iso(), flow_id))
+        update_whatsapp_flow_last_sync_error(conn, flow_id=flow_id, last_sync_error_json=to_json({"status_code": exc.status_code, "payload": exc.payload}), updated_at=utcnow_iso())
         raise
-    refreshed = fetch_one(conn, "SELECT * FROM whatsapp_flows WHERE id = ?", (flow_id,)) or flow
+    refreshed = get_whatsapp_flow(conn, flow_id) or flow
     return serialize_flow(conn, refreshed, include_versions=True, include_publications=True)
 
 
 def rollback_whatsapp_flow(conn, *, flow_id: str, target_version_id: str, register_encryption_public_key: str | None = None) -> dict[str, Any]:
-    flow = fetch_one(conn, "SELECT * FROM whatsapp_flows WHERE id = ?", (flow_id,))
+    flow = get_whatsapp_flow(conn, flow_id)
     if not flow:
         raise ValueError("whatsapp_flow_not_found")
-    target = fetch_one(conn, "SELECT * FROM whatsapp_flow_versions WHERE id = ? AND flow_id = ?", (target_version_id, flow_id))
+    target = get_whatsapp_flow_version_for_flow(conn, version_id=target_version_id, flow_id=flow_id)
     if not target:
         raise ValueError("whatsapp_flow_version_not_found")
     cloned = create_whatsapp_flow_version(
@@ -495,7 +510,7 @@ def rollback_whatsapp_flow(conn, *, flow_id: str, target_version_id: str, regist
         compatibility=_json(target, "compatibility_json", {}),
         cloned_from_version_id=target_version_id,
     )
-    execute(conn, "UPDATE whatsapp_flow_versions SET state = 'rollback_candidate', updated_at = ? WHERE id = ?", (utcnow_iso(), cloned["id"]))
+    mark_whatsapp_flow_version_rollback_candidate(conn, version_id=cloned["id"], updated_at=utcnow_iso())
     return publish_whatsapp_flow(conn, flow_id=flow_id, version_id=cloned["id"], register_encryption_public_key=register_encryption_public_key)
 
 
@@ -512,12 +527,21 @@ def _record_flow_event(
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     row_id = new_id("flowevt")
-    execute(
+    return create_whatsapp_flow_event(
         conn,
-        "INSERT INTO whatsapp_flow_events (id, flow_id, version_id, execution_id, organization_id, bot_id, event_type, screen_id, step_index, variant, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (row_id, flow["id"], version_id, execution_id, flow["organization_id"], flow["bot_id"], event_type, screen_id, step_index, variant, to_json(payload or {}), utcnow_iso()),
+        row_id=row_id,
+        flow_id=flow["id"],
+        version_id=version_id,
+        execution_id=execution_id,
+        organization_id=flow["organization_id"],
+        bot_id=flow["bot_id"],
+        event_type=event_type,
+        screen_id=screen_id,
+        step_index=step_index,
+        variant=variant,
+        payload_json=to_json(payload or {}),
+        created_at=utcnow_iso(),
     )
-    return fetch_one(conn, "SELECT * FROM whatsapp_flow_events WHERE id = ?", (row_id,)) or {}
 
 
 def execute_whatsapp_flow(
@@ -532,12 +556,12 @@ def execute_whatsapp_flow(
     source: str = "api",
     send_message: bool = False,
 ) -> dict[str, Any]:
-    flow = fetch_one(conn, "SELECT * FROM whatsapp_flows WHERE id = ?", (flow_id,))
+    flow = get_whatsapp_flow(conn, flow_id)
     if not flow:
         raise ValueError("whatsapp_flow_not_found")
     assigned_variant, experiment_version_id = _assign_experiment_variant(conn, flow=flow, conversation_id=conversation_id, contact_id=contact_id, flow_token=flow_token)
     selected_version_id = version_id or experiment_version_id or flow.get("published_version_id") or flow.get("current_version_id")
-    version = fetch_one(conn, "SELECT * FROM whatsapp_flow_versions WHERE id = ? AND flow_id = ?", (selected_version_id, flow_id))
+    version = get_whatsapp_flow_version_for_flow(conn, version_id=selected_version_id, flow_id=flow_id)
     if not version:
         raise ValueError("whatsapp_flow_version_not_found")
     capabilities = client_capabilities or {}
@@ -558,33 +582,24 @@ def execute_whatsapp_flow(
     if (not supports_flows) or flow_message_version < min_supported:
         status = "fallback"
         fallback_reason = "unsupported_client_version"
-    execute(
+    create_whatsapp_flow_execution(
         conn,
-        """
-        INSERT INTO whatsapp_flow_executions (
-            id, flow_id, version_id, organization_id, bot_id, conversation_id, contact_id, flow_token,
-            assigned_variant, status, current_screen_id, fallback_reason, fallback_mode, context_json,
-            result_json, channel_message_id, started_at, completed_at, last_event_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', NULL, ?, NULL, ?)
-        """,
-        (
-            execution_id,
-            flow_id,
-            version["id"],
-            flow["organization_id"],
-            flow["bot_id"],
-            conversation_id,
-            contact_id,
-            flow_token or new_id("flowtok"),
-            assigned_variant,
-            status,
-            current_screen_id,
-            fallback_reason,
-            fallback.get("mode"),
-            to_json({"source": source, "client_capabilities": capabilities}),
-            now,
-            now,
-        ),
+        execution_id=execution_id,
+        flow_id=flow_id,
+        version_id=version["id"],
+        organization_id=flow["organization_id"],
+        bot_id=flow["bot_id"],
+        conversation_id=conversation_id,
+        contact_id=contact_id,
+        flow_token=flow_token or new_id("flowtok"),
+        assigned_variant=assigned_variant,
+        status=status,
+        current_screen_id=current_screen_id,
+        fallback_reason=fallback_reason,
+        fallback_mode=fallback.get("mode"),
+        context_json=to_json({"source": source, "client_capabilities": capabilities}),
+        started_at=now,
+        last_event_at=now,
     )
     _record_flow_event(conn, flow=flow, version_id=version["id"], execution_id=execution_id, event_type="execution_started" if status == "started" else "fallback_triggered", screen_id=current_screen_id, step_index=1, variant=assigned_variant, payload={"source": source, "client_capabilities": capabilities, "selected_version_id": version["id"]})
     provider_payload = None
@@ -625,13 +640,13 @@ def runtime_step(
     submitted_data: dict[str, Any] | None = None,
     client_capabilities: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    flow = fetch_one(conn, "SELECT * FROM whatsapp_flows WHERE id = ?", (flow_id,))
+    flow = get_whatsapp_flow(conn, flow_id)
     if not flow:
         raise ValueError("whatsapp_flow_not_found")
-    execution = fetch_one(conn, "SELECT * FROM whatsapp_flow_executions WHERE id = ? AND flow_id = ?", (execution_id, flow_id)) if execution_id else None
+    execution = get_whatsapp_flow_execution(conn, execution_id, flow_id=flow_id) if execution_id else None
     if not execution:
         raise ValueError("whatsapp_flow_execution_not_found")
-    version = fetch_one(conn, "SELECT * FROM whatsapp_flow_versions WHERE id = ?", (execution["version_id"],))
+    version = get_whatsapp_flow_version(conn, execution["version_id"])
     if not version:
         raise ValueError("whatsapp_flow_version_not_found")
     flow_json = _json(version, "flow_json", {})
@@ -641,7 +656,7 @@ def runtime_step(
     current_screen = screen_lookup.get(current_id) if current_id else None
     if execution.get("status") == "fallback":
         return {"execution_id": execution["id"], "status": "fallback", "fallback": _json(flow, "fallback_json", DEFAULT_FALLBACK)}
-    step_index = len(fetch_all(conn, "SELECT id FROM whatsapp_flow_events WHERE execution_id = ?", (execution["id"],))) + 1
+    step_index = count_whatsapp_flow_execution_events(conn, execution["id"]) + 1
     next_screen_id = current_id
     completed = False
     if action in {"submit", "complete"}:
@@ -655,17 +670,14 @@ def runtime_step(
             else:
                 completed = True
     now = utcnow_iso()
-    execute(
+    update_whatsapp_flow_execution_progress(
         conn,
-        "UPDATE whatsapp_flow_executions SET current_screen_id = ?, status = ?, result_json = ?, completed_at = ?, last_event_at = ? WHERE id = ?",
-        (
-            None if completed else next_screen_id,
-            "completed" if completed else "running",
-            to_json({"last_action": action, "submitted_data": submitted_data or {}, "client_capabilities": client_capabilities or {}}),
-            now if completed else None,
-            now,
-            execution["id"],
-        ),
+        execution_id=execution["id"],
+        current_screen_id=None if completed else next_screen_id,
+        status="completed" if completed else "running",
+        result_json=to_json({"last_action": action, "submitted_data": submitted_data or {}, "client_capabilities": client_capabilities or {}}),
+        completed_at=now if completed else None,
+        last_event_at=now,
     )
     _record_flow_event(conn, flow=flow, version_id=version["id"], execution_id=execution["id"], event_type="step_completed" if completed else "screen_view", screen_id=current_id, step_index=step_index, variant=execution.get("assigned_variant"), payload={"action": action, "submitted_data": submitted_data or {}, "next_screen_id": next_screen_id, "client_capabilities": client_capabilities or {}})
     response_screen = None if completed else screen_lookup.get(next_screen_id)
@@ -688,18 +700,18 @@ def record_whatsapp_flow_event(
     step_index: int | None,
     payload: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    flow = fetch_one(conn, "SELECT * FROM whatsapp_flows WHERE id = ?", (flow_id,))
+    flow = get_whatsapp_flow(conn, flow_id)
     if not flow:
         raise ValueError("whatsapp_flow_not_found")
-    execution = fetch_one(conn, "SELECT * FROM whatsapp_flow_executions WHERE id = ?", (execution_id,)) if execution_id else None
+    execution = get_whatsapp_flow_execution(conn, execution_id) if execution_id else None
     row = _record_flow_event(conn, flow=flow, version_id=execution.get("version_id") if execution else flow.get("published_version_id"), execution_id=execution_id, event_type=event_type, screen_id=screen_id, step_index=step_index, variant=execution.get("assigned_variant") if execution else None, payload=payload)
     if execution:
-        execute(conn, "UPDATE whatsapp_flow_executions SET last_event_at = ? WHERE id = ?", (utcnow_iso(), execution_id))
+        touch_whatsapp_flow_execution(conn, execution_id=execution_id, last_event_at=utcnow_iso())
     return {**row, "payload": _json(row, "payload_json", {})}
 
 
 def whatsapp_flow_analytics(conn, *, flow_id: str, since: str | None = None, until: str | None = None, include_remote_metric: bool = True) -> dict[str, Any]:
-    flow = fetch_one(conn, "SELECT * FROM whatsapp_flows WHERE id = ?", (flow_id,))
+    flow = get_whatsapp_flow(conn, flow_id)
     if not flow:
         raise ValueError("whatsapp_flow_not_found")
     where = "WHERE flow_id = ?"
@@ -710,9 +722,10 @@ def whatsapp_flow_analytics(conn, *, flow_id: str, since: str | None = None, unt
     if until:
         where += " AND created_at <= ?"
         params.append(until)
-    event_rows = fetch_all(conn, f"SELECT event_type, screen_id, variant, COUNT(*) AS total FROM whatsapp_flow_events {where} GROUP BY event_type, screen_id, variant ORDER BY total DESC", params)
-    execution_rows = fetch_all(conn, f"SELECT status, assigned_variant, fallback_reason, COUNT(*) AS total FROM whatsapp_flow_executions WHERE flow_id = ? GROUP BY status, assigned_variant, fallback_reason ORDER BY total DESC", (flow_id,))
-    version_rows = fetch_all(conn, "SELECT version_id, event_type, COUNT(*) AS total FROM whatsapp_flow_events WHERE flow_id = ? GROUP BY version_id, event_type ORDER BY total DESC", (flow_id,))
+    analytics = summarize_whatsapp_flow_analytics(conn, flow_id=flow_id, where_clause=where, params=params)
+    event_rows = analytics["events"]
+    execution_rows = analytics["executions"]
+    version_rows = analytics["versions"]
     summary = {
         "flow": serialize_flow(conn, flow, include_versions=True, include_publications=True),
         "events": [{**row} for row in event_rows],

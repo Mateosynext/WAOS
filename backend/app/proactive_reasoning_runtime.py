@@ -1,11 +1,30 @@
 from __future__ import annotations
 
+from .schema_sql import apply_migration_sql
+
 import datetime as dt
 from dataclasses import dataclass
 from typing import Any
 
 from .agent_policy_runtime import get_policy_profile_for_specialist, serialize_policy_profile
 from .db import execute, fetch_all, fetch_one, table_exists
+from .repositories.proactive_reasoning import (
+    attach_exposure_to_run as repo_attach_exposure_to_run,
+    find_preferred_conversation as repo_find_preferred_conversation,
+    get_candidate_by_id as repo_get_candidate_by_id,
+    get_latest_run_for_candidate as repo_get_latest_run_for_candidate,
+    get_outcome_exposure_by_id as repo_get_outcome_exposure_by_id,
+    insert_outcome_exposure_for_playbook as repo_insert_outcome_exposure_for_playbook,
+    insert_playbook_run as repo_insert_playbook_run,
+    insert_proactive_signal as repo_insert_proactive_signal,
+    list_candidate_rows as repo_list_candidate_rows,
+    list_proactive_run_rows,
+    load_contact_context as repo_load_contact_context,
+    mark_candidate_materialized as repo_mark_candidate_materialized,
+    recent_run_counts as repo_recent_run_counts,
+    select_contacts as repo_select_contacts,
+    upsert_proactive_candidate as repo_upsert_proactive_candidate,
+)
 from .optimizer_runtime import load_optimizer_runtime_context, proactive_override
 from .utils import from_json, hash_value, new_id, parse_iso, to_json, utcnow, utcnow_iso
 
@@ -122,102 +141,7 @@ PLAYBOOKS: dict[str, ProactivePlaybookDefinition] = {
 
 
 def ensure_proactive_reasoning_schema(conn) -> None:
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS proactive_signal_events (
-            id TEXT PRIMARY KEY,
-            organization_id TEXT NOT NULL,
-            bot_id TEXT NOT NULL,
-            contact_id TEXT NOT NULL,
-            conversation_id TEXT,
-            appointment_id TEXT,
-            payment_id TEXT,
-            lead_id TEXT,
-            signal_key TEXT NOT NULL,
-            signal_family TEXT NOT NULL,
-            strength_score REAL NOT NULL DEFAULT 0,
-            facts_json TEXT NOT NULL DEFAULT '{}',
-            event_at TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_proactive_signal_events_contact ON proactive_signal_events(organization_id, bot_id, contact_id, event_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_proactive_signal_events_signal ON proactive_signal_events(signal_key, event_at DESC);
-
-        CREATE TABLE IF NOT EXISTS proactive_contact_candidates (
-            id TEXT PRIMARY KEY,
-            organization_id TEXT NOT NULL,
-            bot_id TEXT NOT NULL,
-            contact_id TEXT NOT NULL,
-            conversation_id TEXT,
-            appointment_id TEXT,
-            payment_id TEXT,
-            lead_id TEXT,
-            signal_event_id TEXT,
-            signal_key TEXT NOT NULL,
-            signal_family TEXT NOT NULL,
-            playbook_id TEXT NOT NULL,
-            playbook_version_id TEXT NOT NULL,
-            specialist_agent_key TEXT NOT NULL,
-            policy_profile_key TEXT,
-            policy_profile_version TEXT,
-            objective TEXT NOT NULL,
-            recommended_action TEXT,
-            channel TEXT NOT NULL DEFAULT 'whatsapp',
-            priority_score REAL NOT NULL DEFAULT 0,
-            priority_band TEXT NOT NULL DEFAULT 'medium',
-            eligible INTEGER NOT NULL DEFAULT 1,
-            suppression_reason TEXT,
-            suggested_send_at TEXT,
-            title TEXT,
-            message_text TEXT,
-            timing_policy_id TEXT,
-            nba_policy_id TEXT,
-            policy_json TEXT NOT NULL DEFAULT '{}',
-            reasoning_json TEXT NOT NULL DEFAULT '{}',
-            metadata_json TEXT NOT NULL DEFAULT '{}',
-            candidate_key TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'open',
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            UNIQUE(candidate_key),
-            FOREIGN KEY (signal_event_id) REFERENCES proactive_signal_events(id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_proactive_contact_candidates_org ON proactive_contact_candidates(organization_id, bot_id, status, priority_score DESC, updated_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_proactive_contact_candidates_contact ON proactive_contact_candidates(contact_id, updated_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_proactive_contact_candidates_specialist ON proactive_contact_candidates(specialist_agent_key, priority_score DESC);
-
-        CREATE TABLE IF NOT EXISTS proactive_playbook_runs (
-            id TEXT PRIMARY KEY,
-            organization_id TEXT NOT NULL,
-            bot_id TEXT NOT NULL,
-            candidate_id TEXT NOT NULL,
-            contact_id TEXT NOT NULL,
-            conversation_id TEXT,
-            appointment_id TEXT,
-            payment_id TEXT,
-            lead_id TEXT,
-            specialist_agent_key TEXT NOT NULL,
-            playbook_id TEXT NOT NULL,
-            playbook_version_id TEXT NOT NULL,
-            objective TEXT NOT NULL,
-            recommended_action TEXT,
-            channel TEXT NOT NULL DEFAULT 'whatsapp',
-            status TEXT NOT NULL DEFAULT 'materialized',
-            scheduled_for TEXT,
-            message_text TEXT,
-            action_payload_json TEXT NOT NULL DEFAULT '{}',
-            outcome_exposure_id TEXT,
-            tool_execution_run_id TEXT,
-            metadata_json TEXT NOT NULL DEFAULT '{}',
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY (candidate_id) REFERENCES proactive_contact_candidates(id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_proactive_playbook_runs_org ON proactive_playbook_runs(organization_id, bot_id, created_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_proactive_playbook_runs_contact ON proactive_playbook_runs(contact_id, created_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_proactive_playbook_runs_playbook ON proactive_playbook_runs(playbook_id, created_at DESC);
-        """
-    )
+    apply_migration_sql(conn, '010_proactive_reasoning_engine.sql')
 
 
 def _iso(dt_value: dt.datetime) -> str:
@@ -253,111 +177,11 @@ def _contact_name(contact: dict[str, Any] | None) -> str:
 
 
 def _select_contacts(conn, *, organization_id: str, bot_id: str, contact_ids: list[str] | None, conversation_ids: list[str] | None, limit: int) -> list[dict[str, Any]]:
-    scoped_ids = [str(item) for item in (contact_ids or []) if str(item).strip()]
-    if scoped_ids:
-        placeholders = ", ".join("?" for _ in scoped_ids)
-        return fetch_all(
-            conn,
-            f"SELECT * FROM contacts WHERE organization_id = ? AND id IN ({placeholders}) ORDER BY updated_at DESC LIMIT ?",
-            (organization_id, *scoped_ids, limit),
-        )
-    if conversation_ids:
-        conv_placeholders = ", ".join("?" for _ in conversation_ids)
-        return fetch_all(
-            conn,
-            f"SELECT DISTINCT c.* FROM contacts c JOIN conversations v ON v.contact_id = c.id WHERE c.organization_id = ? AND v.bot_id = ? AND v.id IN ({conv_placeholders}) ORDER BY c.updated_at DESC LIMIT ?",
-            (organization_id, bot_id, *conversation_ids, limit),
-        )
-    return fetch_all(
-        conn,
-        """
-        SELECT c.*
-        FROM contacts c
-        JOIN (
-            SELECT c0.id,
-                   (
-                       SELECT MAX(activity.ts)
-                       FROM (
-                           SELECT v.updated_at AS ts
-                           FROM conversations v
-                           WHERE v.contact_id = c0.id AND v.bot_id = ?
-                           UNION ALL
-                           SELECT p.updated_at AS ts
-                           FROM commerce_payments p
-                           WHERE p.contact_id = c0.id AND p.bot_id = ?
-                           UNION ALL
-                           SELECT a.updated_at AS ts
-                           FROM appointments a
-                           WHERE a.contact_id = c0.id AND a.bot_id = ?
-                           UNION ALL
-                           SELECT c0.updated_at AS ts
-                       ) activity
-                   ) AS sort_updated
-            FROM contacts c0
-            WHERE c0.organization_id = ?
-        ) ranked ON ranked.id = c.id
-        ORDER BY ranked.sort_updated DESC, c.updated_at DESC, c.id DESC
-        LIMIT ?
-        """,
-        (bot_id, bot_id, bot_id, organization_id, limit),
-    )
+    return repo_select_contacts(conn, organization_id=organization_id, bot_id=bot_id, contact_ids=contact_ids, conversation_ids=conversation_ids, limit=limit)
 
 
 def _contact_context(conn, *, organization_id: str, bot_id: str, contact_id: str, preferred_conversation_id: str | None) -> dict[str, Any]:
-    contact = fetch_one(conn, "SELECT * FROM contacts WHERE id = ?", (contact_id,)) or {}
-    conversation = None
-    if preferred_conversation_id:
-        conversation = fetch_one(conn, "SELECT * FROM conversations WHERE id = ?", (preferred_conversation_id,))
-    if conversation is None:
-        conversation = fetch_one(
-            conn,
-            "SELECT * FROM conversations WHERE organization_id = ? AND bot_id = ? AND contact_id = ? ORDER BY updated_at DESC LIMIT 1",
-            (organization_id, bot_id, contact_id),
-        ) or {}
-    lead = fetch_one(
-        conn,
-        "SELECT * FROM crm_leads WHERE organization_id = ? AND bot_id = ? AND contact_id = ? ORDER BY updated_at DESC LIMIT 1",
-        (organization_id, bot_id, contact_id),
-    ) or {}
-    appointment = fetch_one(
-        conn,
-        "SELECT * FROM appointments WHERE organization_id = ? AND bot_id = ? AND contact_id = ? AND status IN ('scheduled', 'confirmed') ORDER BY scheduled_for ASC LIMIT 1",
-        (organization_id, bot_id, contact_id),
-    ) or {}
-    payment = fetch_one(
-        conn,
-        "SELECT * FROM commerce_payments WHERE organization_id = ? AND bot_id = ? AND contact_id = ? ORDER BY updated_at DESC LIMIT 1",
-        (organization_id, bot_id, contact_id),
-    ) or {}
-    memory = fetch_one(
-        conn,
-        "SELECT * FROM contact_memory WHERE organization_id = ? AND bot_id = ? AND contact_id = ? ORDER BY last_updated_at DESC LIMIT 1",
-        (organization_id, bot_id, contact_id),
-    ) or {}
-    last_positive = fetch_one(
-        conn,
-        """
-        SELECT * FROM outcome_events
-        WHERE organization_id = ? AND contact_id = ? AND event_name IN ('appointment_attended', 'attended', 'sale_closed', 'payment_completed')
-        ORDER BY event_timestamp DESC, created_at DESC LIMIT 1
-        """,
-        (organization_id, contact_id),
-    ) or {}
-    completed_payments = fetch_one(
-        conn,
-        "SELECT COUNT(*) AS total, COALESCE(SUM(value_number), 0) AS revenue_sum FROM outcome_events WHERE organization_id = ? AND contact_id = ? AND event_name = 'payment_completed'",
-        (organization_id, contact_id),
-    ) or {"total": 0, "revenue_sum": 0}
-    return {
-        "contact": contact,
-        "conversation": conversation,
-        "lead": lead,
-        "appointment": appointment,
-        "payment": payment,
-        "memory": {**memory, **from_json(memory.get("memory_json"), {})},
-        "last_positive": last_positive,
-        "completed_payments": completed_payments,
-    }
+    return repo_load_contact_context(conn, organization_id=organization_id, bot_id=bot_id, contact_id=contact_id, preferred_conversation_id=preferred_conversation_id)
 
 
 def _signal_family(signal_key: str) -> str:
@@ -549,26 +373,7 @@ def _candidate_key(*, organization_id: str, bot_id: str, contact_id: str, playbo
 
 
 def _recent_run_counts(conn, *, contact_id: str, objective: str, candidate_key: str, now: dt.datetime) -> dict[str, int]:
-    since_24h = _hours_ago(now, 24)
-    since_7d = _days_ago(now, 7)
-    objective_24h = 0
-    if table_exists(conn, "proactive_playbook_runs"):
-        objective_24h_row = fetch_one(
-            conn,
-            "SELECT COUNT(*) AS total FROM proactive_playbook_runs WHERE contact_id = ? AND objective = ? AND created_at >= ?",
-            (contact_id, objective, since_24h),
-        ) or {"total": 0}
-        objective_24h = int(objective_24h_row.get("total") or 0)
-        total_7d_row = fetch_one(
-            conn,
-            "SELECT COUNT(*) AS total FROM proactive_playbook_runs WHERE contact_id = ? AND created_at >= ?",
-            (contact_id, since_7d),
-        ) or {"total": 0}
-        total_7d = int(total_7d_row.get("total") or 0)
-    else:
-        total_7d = 0
-    existing_candidate = fetch_one(conn, "SELECT status FROM proactive_contact_candidates WHERE candidate_key = ?", (candidate_key,)) or {}
-    return {"objective_24h": objective_24h, "total_7d": total_7d, "existing_materialized": 1 if existing_candidate.get("status") == "materialized" else 0}
+    return repo_recent_run_counts(conn, contact_id=contact_id, objective=objective, candidate_key=candidate_key, since_24h=_hours_ago(now, 24), since_7d=_days_ago(now, 7))
 
 
 def _policy_for_candidate(conn, *, playbook: ProactivePlaybookDefinition, contact: dict[str, Any], conversation: dict[str, Any], candidate_key: str, now: dt.datetime) -> dict[str, Any]:
@@ -620,33 +425,15 @@ def _priority_score(playbook: ProactivePlaybookDefinition, *, signal_strength: f
 
 
 def _persist_signal(conn, *, organization_id: str, bot_id: str, contact_id: str, signal: dict[str, Any], event_at: str) -> dict[str, Any]:
-    row_id = new_id("psig")
-    execute(
+    return repo_insert_proactive_signal(
         conn,
-        """
-        INSERT INTO proactive_signal_events (
-            id, organization_id, bot_id, contact_id, conversation_id, appointment_id, payment_id, lead_id,
-            signal_key, signal_family, strength_score, facts_json, event_at, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            row_id,
-            organization_id,
-            bot_id,
-            contact_id,
-            signal.get("conversation_id"),
-            signal.get("appointment_id"),
-            signal.get("payment_id"),
-            signal.get("lead_id"),
-            signal["signal_key"],
-            _signal_family(signal["signal_key"]),
-            float(signal.get("strength_score") or 0),
-            to_json(signal.get("facts") or {}),
-            event_at,
-            utcnow_iso(),
-        ),
+        organization_id=organization_id,
+        bot_id=bot_id,
+        contact_id=contact_id,
+        signal=signal,
+        signal_family=_signal_family(signal["signal_key"]),
+        event_at=event_at,
     )
-    return fetch_one(conn, "SELECT * FROM proactive_signal_events WHERE id = ?", (row_id,)) or {}
 
 
 def _upsert_candidate(
@@ -665,72 +452,36 @@ def _upsert_candidate(
     candidate_key: str,
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
-    now = utcnow_iso()
     policy_profile = policy["profile"]
     decision = policy["decision"]
-    existing = fetch_one(conn, "SELECT * FROM proactive_contact_candidates WHERE candidate_key = ?", (candidate_key,))
-    payload = (
-        organization_id,
-        bot_id,
-        contact_id,
-        signal_row.get("conversation_id"),
-        signal_row.get("appointment_id"),
-        signal_row.get("payment_id"),
-        signal_row.get("lead_id"),
-        signal_row.get("id"),
-        signal_row.get("signal_key"),
-        signal_row.get("signal_family"),
-        playbook.key,
-        playbook.version,
-        playbook.specialist_agent_key,
-        policy_profile.get("key"),
-        policy_profile.get("version"),
-        playbook.objective,
-        playbook.recommended_action,
-        "whatsapp",
-        priority_score,
-        _priority_band(priority_score),
-        1 if decision.get("eligible") else 0,
-        decision.get("suppression_reason"),
-        suggested_send_at,
-        title,
-        message_text,
-        playbook.timing_policy_id,
-        playbook.nba_policy_id,
-        to_json(policy),
-        to_json({"signal": from_json(signal_row.get("facts_json"), {}), "warnings": decision.get("warnings") or []}),
-        to_json(metadata),
+    return repo_upsert_proactive_candidate(
+        conn,
+        candidate_key=candidate_key,
+        organization_id=organization_id,
+        bot_id=bot_id,
+        contact_id=contact_id,
+        signal_row=signal_row,
+        playbook_id=playbook.key,
+        playbook_version_id=playbook.version,
+        specialist_agent_key=playbook.specialist_agent_key,
+        policy_profile_key=policy_profile.get("key"),
+        policy_profile_version=policy_profile.get("version"),
+        objective=playbook.objective,
+        recommended_action=playbook.recommended_action,
+        channel="whatsapp",
+        priority_score=priority_score,
+        priority_band=_priority_band(priority_score),
+        eligible=bool(decision.get("eligible")),
+        suppression_reason=decision.get("suppression_reason"),
+        suggested_send_at=suggested_send_at,
+        title=title,
+        message_text=message_text,
+        timing_policy_id=playbook.timing_policy_id,
+        nba_policy_id=playbook.nba_policy_id,
+        policy=policy,
+        reasoning={"signal": from_json(signal_row.get("facts_json"), {}), "warnings": decision.get("warnings") or []},
+        metadata=metadata,
     )
-    if existing:
-        execute(
-            conn,
-            """
-            UPDATE proactive_contact_candidates
-            SET organization_id = ?, bot_id = ?, contact_id = ?, conversation_id = ?, appointment_id = ?, payment_id = ?, lead_id = ?,
-                signal_event_id = ?, signal_key = ?, signal_family = ?, playbook_id = ?, playbook_version_id = ?,
-                specialist_agent_key = ?, policy_profile_key = ?, policy_profile_version = ?, objective = ?, recommended_action = ?,
-                channel = ?, priority_score = ?, priority_band = ?, eligible = ?, suppression_reason = ?, suggested_send_at = ?,
-                title = ?, message_text = ?, timing_policy_id = ?, nba_policy_id = ?, policy_json = ?, reasoning_json = ?, metadata_json = ?, updated_at = ?
-            WHERE candidate_key = ?
-            """,
-            (*payload, now, candidate_key),
-        )
-    else:
-        execute(
-            conn,
-            """
-            INSERT INTO proactive_contact_candidates (
-                id, organization_id, bot_id, contact_id, conversation_id, appointment_id, payment_id, lead_id,
-                signal_event_id, signal_key, signal_family, playbook_id, playbook_version_id, specialist_agent_key,
-                policy_profile_key, policy_profile_version, objective, recommended_action, channel,
-                priority_score, priority_band, eligible, suppression_reason, suggested_send_at,
-                title, message_text, timing_policy_id, nba_policy_id, policy_json, reasoning_json, metadata_json,
-                candidate_key, status, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
-            """,
-            (new_id("pcand"), *payload, candidate_key, now, now),
-        )
-    return fetch_one(conn, "SELECT * FROM proactive_contact_candidates WHERE candidate_key = ?", (candidate_key,)) or {}
 
 
 def _serialize_candidate(row: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -777,12 +528,7 @@ def evaluate_proactive_candidates(
     for contact in contacts:
         pref_conv = None
         if conversation_ids:
-            pref_conv = fetch_one(
-                conn,
-                "SELECT id FROM conversations WHERE contact_id = ? AND id IN (%s) LIMIT 1" % ", ".join("?" for _ in conversation_ids),
-                (contact["id"], *conversation_ids),
-            )
-            pref_conv = (pref_conv or {}).get("id")
+            pref_conv = (repo_find_preferred_conversation(conn, contact_id=contact["id"], conversation_ids=conversation_ids) or {}).get("id")
         context = _contact_context(conn, organization_id=organization_id, bot_id=bot_id, contact_id=contact["id"], preferred_conversation_id=pref_conv)
         for signal in _build_signals(conn, organization_id=organization_id, bot_id=bot_id, contact_id=contact["id"], preferred_conversation_id=pref_conv, as_of=_iso(now)):
             playbook = PLAYBOOKS.get(signal["signal_key"])
@@ -892,25 +638,14 @@ def list_proactive_candidates(
     limit: int = 100,
 ) -> list[dict[str, Any]]:
     ensure_proactive_reasoning_schema(conn)
-    conditions = ["organization_id = ?"]
-    params: list[Any] = [organization_id]
-    if bot_id:
-        conditions.append("bot_id = ?")
-        params.append(bot_id)
-    if status:
-        conditions.append("status = ?")
-        params.append(status)
-    if specialist_agent_key:
-        conditions.append("specialist_agent_key = ?")
-        params.append(specialist_agent_key)
-    if eligible is not None:
-        conditions.append("eligible = ?")
-        params.append(1 if eligible else 0)
-    where = " AND ".join(conditions)
-    rows = fetch_all(
+    rows = repo_list_candidate_rows(
         conn,
-        f"SELECT * FROM proactive_contact_candidates WHERE {where} ORDER BY priority_score DESC, updated_at DESC LIMIT ?",
-        (*params, limit),
+        organization_id=organization_id,
+        bot_id=bot_id,
+        status=status,
+        specialist_agent_key=specialist_agent_key,
+        eligible=eligible,
+        limit=limit,
     )
     return [_serialize_candidate(item) for item in rows]
 
@@ -918,68 +653,7 @@ def list_proactive_candidates(
 def _record_outcome_exposure(conn, *, candidate: dict[str, Any], run_id: str, actor_user_id: str | None) -> dict[str, Any] | None:
     if not table_exists(conn, "outcome_exposures"):
         return None
-    now = utcnow_iso()
-    profile = (candidate.get("policy") or {}).get("profile") or {}
-    row_id = new_id("outcome_exposure")
-    execute(
-        conn,
-        """
-        INSERT INTO outcome_exposures (
-            id, organization_id, bot_id, conversation_id, contact_id, lead_id, appointment_id, payment_id,
-            message_id, source_type, channel, prompt_run_id, prompt_version_id, flow_id, flow_version_id,
-            template_id, template_version_id, routing_rule_id, decision_path_id, timing_policy_id,
-            tone_policy_id, nba_policy_id, escalation_policy_id, playbook_id, playbook_version_id,
-            handoff_id, handoff_kind, specialist_agent_key, specialist_agent_version, specialist_prompt_id,
-            intent_family, agent_routing_run_id, policy_profile_key, policy_profile_version, policy_evaluation_id, operator_user_id, assigned_variant, vertical, funnel_stage,
-            metadata_json, sent_at, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            row_id,
-            candidate.get("organization_id"),
-            candidate.get("bot_id"),
-            candidate.get("conversation_id"),
-            candidate.get("contact_id"),
-            candidate.get("lead_id"),
-            candidate.get("appointment_id"),
-            candidate.get("payment_id"),
-            None,
-            "proactive_playbook",
-            candidate.get("channel") or "whatsapp",
-            run_id,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            candidate.get("timing_policy_id"),
-            None,
-            candidate.get("nba_policy_id"),
-            None,
-            candidate.get("playbook_id"),
-            candidate.get("playbook_version_id"),
-            None,
-            None,
-            candidate.get("specialist_agent_key"),
-            None,
-            None,
-            candidate.get("specialist_agent_key"),
-            None,
-            profile.get("key"),
-            profile.get("version"),
-            None,
-            actor_user_id,
-            None,
-            None,
-            candidate.get("objective") or candidate.get("signal_family"),
-            to_json({"candidate_id": candidate.get("id"), "run_id": run_id, "reasoning": candidate.get("reasoning")}),
-            now,
-            now,
-        ),
-    )
-    return fetch_one(conn, "SELECT * FROM outcome_exposures WHERE id = ?", (row_id,))
+    return repo_insert_outcome_exposure_for_playbook(conn, candidate=candidate, run_id=run_id, actor_user_id=actor_user_id)
 
 
 def materialize_proactive_candidate(
@@ -992,15 +666,15 @@ def materialize_proactive_candidate(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     ensure_proactive_reasoning_schema(conn)
-    candidate = _serialize_candidate(fetch_one(conn, "SELECT * FROM proactive_contact_candidates WHERE id = ?", (candidate_id,)))
+    candidate = _serialize_candidate(repo_get_candidate_by_id(conn, candidate_id))
     if not candidate:
         raise ValueError("candidate_not_found")
-    existing = fetch_one(conn, "SELECT * FROM proactive_playbook_runs WHERE candidate_id = ? ORDER BY created_at DESC LIMIT 1", (candidate_id,))
+    existing = repo_get_latest_run_for_candidate(conn, candidate_id)
     if existing:
         return {
             "candidate": candidate,
             "run": _serialize_run(existing),
-            "exposure": fetch_one(conn, "SELECT * FROM outcome_exposures WHERE id = ?", (existing.get("outcome_exposure_id"),)) if existing.get("outcome_exposure_id") else None,
+            "exposure": repo_get_outcome_exposure_by_id(conn, existing.get("outcome_exposure_id")),
             "deduped": True,
         }
     now = utcnow_iso()
@@ -1013,57 +687,21 @@ def materialize_proactive_candidate(
         "lead_id": candidate.get("lead_id"),
         "objective": candidate.get("objective"),
     }
-    run_id = new_id("prun")
-    execute(
+    run = repo_insert_playbook_run(
         conn,
-        """
-        INSERT INTO proactive_playbook_runs (
-            id, organization_id, bot_id, candidate_id, contact_id, conversation_id, appointment_id, payment_id, lead_id,
-            specialist_agent_key, playbook_id, playbook_version_id, objective, recommended_action, channel,
-            status, scheduled_for, message_text, action_payload_json, outcome_exposure_id, tool_execution_run_id,
-            metadata_json, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'materialized', ?, ?, ?, NULL, NULL, ?, ?, ?)
-        """,
-        (
-            run_id,
-            candidate.get("organization_id"),
-            candidate.get("bot_id"),
-            candidate.get("id"),
-            candidate.get("contact_id"),
-            candidate.get("conversation_id"),
-            candidate.get("appointment_id"),
-            candidate.get("payment_id"),
-            candidate.get("lead_id"),
-            candidate.get("specialist_agent_key"),
-            candidate.get("playbook_id"),
-            candidate.get("playbook_version_id"),
-            candidate.get("objective"),
-            candidate.get("recommended_action"),
-            candidate.get("channel") or "whatsapp",
-            scheduled_for,
-            candidate.get("message_text"),
-            to_json(action_payload),
-            to_json({**(metadata or {}), "materialized_by": actor_user_id}),
-            now,
-            now,
-        ),
+        candidate=candidate,
+        scheduled_for=scheduled_for,
+        action_payload=action_payload,
+        metadata={**(metadata or {}), "materialized_by": actor_user_id},
     )
+    run_id = run.get("id")
     exposure = _record_outcome_exposure(conn, candidate=candidate, run_id=run_id, actor_user_id=actor_user_id) if record_exposure else None
     if exposure:
-        execute(conn, "UPDATE proactive_playbook_runs SET outcome_exposure_id = ?, updated_at = ? WHERE id = ?", (exposure.get("id"), now, run_id))
-    execute(conn, "UPDATE proactive_contact_candidates SET status = 'materialized', updated_at = ? WHERE id = ?", (now, candidate_id))
-    run = fetch_one(conn, "SELECT * FROM proactive_playbook_runs WHERE id = ?", (run_id,)) or {}
-    return {"candidate": _serialize_candidate(fetch_one(conn, "SELECT * FROM proactive_contact_candidates WHERE id = ?", (candidate_id,))), "run": _serialize_run(run), "exposure": exposure, "deduped": False}
+        run = repo_attach_exposure_to_run(conn, run_id=run_id, exposure_id=exposure.get("id"), updated_at=now) or run
+    candidate_row = repo_mark_candidate_materialized(conn, candidate_id=candidate_id, updated_at=now)
+    return {"candidate": _serialize_candidate(candidate_row), "run": _serialize_run(run), "exposure": exposure, "deduped": False}
 
 
 def list_proactive_runs(conn, *, organization_id: str, bot_id: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
     ensure_proactive_reasoning_schema(conn)
-    if bot_id:
-        rows = fetch_all(
-            conn,
-            "SELECT * FROM proactive_playbook_runs WHERE organization_id = ? AND bot_id = ? ORDER BY created_at DESC LIMIT ?",
-            (organization_id, bot_id, limit),
-        )
-    else:
-        rows = fetch_all(conn, "SELECT * FROM proactive_playbook_runs WHERE organization_id = ? ORDER BY created_at DESC LIMIT ?", (organization_id, limit))
-    return [_serialize_run(item) for item in rows]
+    return [_serialize_run(item) for item in list_proactive_run_rows(conn, organization_id=organization_id, bot_id=bot_id, limit=limit)]

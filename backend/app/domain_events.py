@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .db import execute, table_exists
-from .observability import log_event
+from .platform.observability import log_event
 from .utils import new_id, to_json, utcnow_iso
 
 

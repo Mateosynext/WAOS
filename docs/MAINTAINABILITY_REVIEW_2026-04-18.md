@@ -1,65 +1,41 @@
-# WAOS Maintainability Review — 2026-04-18
+# Maintainability review — 2026-04-18
 
-## Objetivo
-Reducir riesgo de crecimiento desordenado en módulos runtime muy grandes y dejar un criterio explícito para próximas iteraciones.
+## Context
+This review captures the remaining architectural hotspots after the backend application split, AI runtime separation, schema ownership cleanup, frontend app-shell reduction, and Bot Studio feature migration.
 
-## Hallazgos principales
-Los módulos más grandes y sensibles en este corte son:
+## Highest-priority remaining fronts
 
-- `backend/app/ai.py`
-- `backend/worker.py`
-- `backend/app/application/tool_execution_service.py`
-- `backend/app/application/operational_control_service.py`
+### 1. Frontend vertical fallback dataset
+- The fallback catalog must not keep growing as a single TypeScript blob.
+- The dataset is now split by vertical under `frontend/app/lib/vertical-fallback/profiles/` with an indexed loader.
+- Remaining follow-up: move the source-of-truth build step closer to backend/catalog publishing so the frontend fallback is purely a resilience artifact.
 
-### Riesgos observados
-- mezcla de responsabilidades de dominio, persistencia, serialización y control de flujo en un mismo archivo
-- alto costo de lectura para cambios pequeños
-- mayor superficie de regresión al tocar lógica transversal
-- pruebas con cobertura amplia, pero con módulos difíciles de aislar por unidad
+### 2. Contracts and compatibility discipline
+- Keep `response_model` and DTO enforcement as the default in touched backend endpoints.
+- Prevent new legacy shims from leaking back to backend/app root.
+- Keep frontend data modules consuming normalized contracts instead of re-embedding response shaping in route components.
 
-## Mejora aplicada en este paquete
-Se extrajo la capa de adapters y políticas de `tool_execution_service.py` hacia:
+### 3. Repo hygiene and release discipline
+- Source hygiene, release gate, and release build must enforce the same forbidden artifacts.
+- README/document references must stay machine-verifiable.
+- Local databases, test artifacts, bytecode, and generated reports should fail before packaging, not during handoff.
 
-- `backend/app/application/tool_execution_adapters.py`
+## Medium-priority follow-up
 
-Con esto:
-- el archivo principal de servicio queda más enfocado en coordinación del caso de uso
-- los adapters quedan aislados por responsabilidad operacional
-- futuras integraciones nuevas pueden entrar sin seguir inflando el servicio principal
+### Frontend app shell
+- Keep route shells thin.
+- Push snapshot/context composition into view-models and focused subcomponents.
+- Avoid re-centralizing cross-mode branching in `shell.tsx`.
 
-## Siguientes candidatos recomendados
-### `operational_control_service.py`
-Separar en módulos por responsabilidad:
-- resolución de filtros / query params
-- scorecards y métricas
-- serialización de vistas API
-- reglas de alertas y handoff
+### Backend domains
+- Continue moving SQL, schema bootstrap, and operational audit helpers out of `backend/app/domains/*`.
+- Preserve the domain layer for business rules, invariants, and transformations.
 
-### `worker.py`
-Separar por pipeline:
-- jobs operativos
-- outbox / delivery
-- reglas de alertas
-- report generation / publication
-- scheduler loop
+### Repositories
+- Finish consolidating direct SQL paths behind repositories per bounded context.
+- Keep policy, handler, presenter, and repository responsibilities split.
 
-### `ai.py`
-Separar por capas:
-- clasificación
-- generación
-- tono / idioma / voice layer
-- memory updates
-- orchestration pipeline
-
-## Criterio sugerido de refactor
-Cuando un archivo mezcle 3 o más de estas categorías, debe dividirse:
-- acceso a datos
-- lógica de negocio
-- serialización / respuesta
-- integración externa
-- control de flujo / jobs
-
-## Impacto esperado
-- menor tiempo de onboarding para cambios en runtime
-- diffs más pequeños y revisables
-- menor probabilidad de side effects al evolucionar features enterprise
+## Guardrails
+- No new runtime-owned DDL outside `backend/db/migrations/*.sql`.
+- No new root-level historical compatibility files.
+- No new frontend monoliths that mix fallback data + accessors + composition in one file.

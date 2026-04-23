@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import os
-import sqlite3
 from typing import Any
+
+from .base import ConnectionLike
 
 from ..db import execute, fetch_all, fetch_one
 from ..defaults import default_bot_config
 from ..utils import from_json, hash_password, new_id, slugify, to_json, utcnow_iso
 from ..verticals import build_organization_settings
 
-def create_or_update_knowledge_items(conn: sqlite3.Connection, *, organization_id: str, bot_id: str, config: dict) -> None:
+def create_or_update_knowledge_items(conn: ConnectionLike, *, organization_id: str, bot_id: str, config: dict) -> None:
     execute(conn, "DELETE FROM knowledge_items WHERE bot_id = ?", (bot_id,))
     knowledge = config.get("business_knowledge", {})
     items: list[tuple] = []

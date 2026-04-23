@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .db import execute, fetch_all, fetch_one, table_exists
+from .db import fetch_all, fetch_one, table_exists
+from .repositories.optimizer import insert_runtime_optimizer_audit, list_active_experiments, list_control_rows, proposal_target_name
 from .utils import from_json, new_id, to_json, utcnow_iso
 from .world_class_ext import create_shadow_run
 
@@ -22,15 +23,7 @@ _TARGETS = {
 
 
 def _load_control_rows(conn, *, organization_id: str, bot_id: str | None) -> list[dict[str, Any]]:
-    if not organization_id or not table_exists(conn, "optimizer_control_states"):
-        return []
-    sql = "SELECT * FROM optimizer_control_states WHERE organization_id = ?"
-    params: list[Any] = [organization_id]
-    if bot_id:
-        sql += " AND COALESCE(bot_id, '') = COALESCE(?, '')"
-        params.append(bot_id)
-    sql += " ORDER BY updated_at DESC"
-    return fetch_all(conn, sql, tuple(params))
+    return list_control_rows(conn, organization_id=organization_id, bot_id=bot_id)
 
 
 def load_optimizer_runtime_context(conn, *, organization_id: str | None, bot_id: str | None) -> dict[str, Any]:
@@ -53,9 +46,8 @@ def load_optimizer_runtime_context(conn, *, organization_id: str | None, bot_id:
         if bot_id:
             sql = sql.replace(" ORDER BY", " AND COALESCE(bot_id, '') = COALESCE(?, '') ORDER BY")
             params.append(bot_id)
-        for row in fetch_all(conn, sql, tuple(params)):
-            proposal = fetch_one(conn, "SELECT target_name FROM optimizer_proposals WHERE id = ?", (row.get("proposal_id"),)) or {}
-            target_name = str(proposal.get("target_name") or "").strip()
+        for row in list_active_experiments(conn, organization_id=organization_id, bot_id=bot_id):
+            target_name = proposal_target_name(conn, row.get("proposal_id"))
             if target_name and target_name not in experiments:
                 experiments[target_name] = {**row, "guardrails": from_json(row.get("guardrails_json"), {})}
     return {"targets": targets, "experiments": experiments}
@@ -239,10 +231,4 @@ def create_runtime_optimizer_audit(
     event_type: str,
     payload: dict[str, Any],
 ) -> None:
-    if conn is None or not organization_id or not table_exists(conn, "optimizer_change_audits"):
-        return
-    execute(
-        conn,
-        "INSERT INTO optimizer_change_audits (id, organization_id, bot_id, proposal_id, experiment_id, decision_id, event_type, payload_json, created_by, created_at) VALUES (?, ?, ?, NULL, NULL, NULL, ?, ?, NULL, ?)",
-        (new_id("optimizer_audit"), organization_id, bot_id, f"runtime_{target_name}_{event_type}", to_json(payload), utcnow_iso()),
-    )
+    insert_runtime_optimizer_audit(conn, organization_id=organization_id, bot_id=bot_id, target_name=target_name, event_type=event_type, payload=payload)

@@ -1,0 +1,1362 @@
+{
+  "id": "beauty",
+  "name": "WAOS Beauty",
+  "short_name": "Belleza personal & self-care",
+  "description": "Sistema operativo conversacional para belleza personal y self-care.",
+  "problem": "Beauty vive en el caos del inbox: mucha pregunta repetitiva, mucha disponibilidad manual, mucho no-show, poco anticipo y poca recompra estructurada.",
+  "subverticals": [
+    "salón",
+    "barbería",
+    "uñas",
+    "lashes",
+    "brows",
+    "maquillaje",
+    "peinado social",
+    "bridal beauty",
+    "hair color",
+    "skincare studio"
+  ],
+  "objects": [
+    "especialista",
+    "servicio",
+    "duración",
+    "cabina",
+    "silla",
+    "sucursal",
+    "anticipo",
+    "paquete",
+    "historial",
+    "frecuencia ideal",
+    "rebook",
+    "cliente beauty",
+    "preferencias de servicio",
+    "especialista preferido",
+    "historial de servicios",
+    "frecuencia recomendada",
+    "paquetes",
+    "membresías"
+  ],
+  "flows": [
+    "consulta -> agenda",
+    "agenda -> anticipo",
+    "cita -> asistencia",
+    "asistencia -> rebook",
+    "rebook -> recurrencia"
+  ],
+  "kpis": [
+    "ocupación",
+    "no-show",
+    "anticipo cobrado",
+    "rebook rate",
+    "add-on rate",
+    "cliente recurrente",
+    "recompra",
+    "retención por especialista",
+    "upgrade de ticket"
+  ],
+  "recommended_integrations": [
+    "whatsapp",
+    "calendar",
+    "payments",
+    "crm",
+    "promotions"
+  ],
+  "default_services": [
+    "corte",
+    "color",
+    "unas",
+    "lashes",
+    "facial"
+  ],
+  "default_faqs": [
+    {
+      "q": "¿Que servicio me recomiendan?",
+      "a": "Podemos orientarte segun resultado deseado y tiempo disponible."
+    },
+    {
+      "q": "¿Como veo horarios?",
+      "a": "Si, podemos mostrar disponibilidad por servicio o especialista."
+    },
+    {
+      "q": "¿Piden anticipo?",
+      "a": "Si, si tu negocio lo requiere, el bot puede cobrar anticipo y confirmar cita."
+    },
+    {
+      "q": "¿Puedo reagendar?",
+      "a": "Si, podemos aplicar politica de cancelacion o rebook segun tus reglas."
+    }
+  ],
+  "behavior": {
+    "tone": "cercano y aspiracional",
+    "response_length": "corta",
+    "use_emojis": false,
+    "sales_intensity": "alta",
+    "offer_promotions_when": "after_service_interest_detected",
+    "escalate_when": [
+      "queja de servicio",
+      "tema sensible de imagen"
+    ],
+    "insistence_policy": "respectful",
+    "can_share_price_directly": true,
+    "can_negotiate": false,
+    "can_mention_stock": false,
+    "auto_send_images": true,
+    "bot_mode": "agenda_y_rebook",
+    "active_channels": [
+      "whatsapp",
+      "instagram_dm"
+    ],
+    "forbidden_topics": [
+      "promesas esteticas absolutas"
+    ],
+    "required_phrases": [
+      "te ayudo a elegir servicio y horario",
+      "puedo reservar con tu especialista ideal",
+      "te sigo",
+      "si la pregunta viene rara, igual te la aterrizo",
+      "te lo aterrizo a tu caso"
+    ],
+    "fallback_message": "Te ayudo a elegir servicio, ver disponibilidad y dejar confirmada tu cita. Si la pregunta viene rara, en broma o medio fuera de tema, igual te sigo y la aterrizamos al negocio.",
+    "humor_policy": "light_contextual",
+    "strange_question_policy": "respond_validate_reframe_sell_move"
+  },
+  "followup_rules": [
+    {
+      "type": "no_response",
+      "delay_minutes": 60,
+      "max_attempts": 2,
+      "message_template": "¿Quieres que te comparta horarios o te recomiende el servicio ideal?"
+    },
+    {
+      "type": "post_quote",
+      "delay_minutes": 720,
+      "max_attempts": 2,
+      "message_template": "Todavia puedo ayudarte a reservar tu cita o a elegir add-ons para tu servicio."
+    },
+    {
+      "type": "reactivation",
+      "delay_minutes": 20160,
+      "max_attempts": 1,
+      "message_template": "Ya podria tocar tu siguiente cita ideal. ¿Quieres que te comparta disponibilidad?"
+    }
+  ],
+  "templates": [
+    {
+      "template_key": "service_match",
+      "title": "Recomendacion de servicio",
+      "content": "Cuentame que resultado buscas y te recomiendo servicio, especialista y tiempo estimado.",
+      "variables": []
+    },
+    {
+      "template_key": "appointment_hold",
+      "title": "Apartado de cita",
+      "content": "Tengo espacio para {{service_name}} el {{date}} a las {{time}}. ¿Quieres que lo deje apartado?",
+      "variables": [
+        "service_name",
+        "date",
+        "time"
+      ]
+    },
+    {
+      "template_key": "deposit",
+      "title": "Cobro de anticipo",
+      "content": "Para confirmar tu cita, te comparto el link de anticipo ahora mismo.",
+      "variables": []
+    },
+    {
+      "template_key": "rebook",
+      "title": "Rebook sugerido",
+      "content": "Para mantener tu resultado ideal, te sugiero reservar tu siguiente cita desde ahora. ¿Quieres que te muestre horarios?",
+      "variables": []
+    },
+    {
+      "template_key": "inactive_client",
+      "title": "Cliente inactivo",
+      "content": "Hace tiempo que no te vemos. Si quieres, te recomiendo servicio ideal y disponibilidad actual.",
+      "variables": []
+    }
+  ],
+  "config_overrides": {
+    "objective_secondary": [
+      "agendar",
+      "upsell",
+      "reactivar"
+    ],
+    "policies": [
+      "No prometer resultados absolutos",
+      "Escalar reclamos o casos sensibles"
+    ],
+    "can_say": [
+      "servicios",
+      "especialista",
+      "duracion",
+      "anticipo",
+      "rebook"
+    ],
+    "cannot_say": [
+      "garantias absolutas de resultado"
+    ],
+    "whatsapp_flows": [
+      "recomendacion_servicio",
+      "anticipo_cita",
+      "rebook_sugerido",
+      "reactivacion_cliente"
+    ],
+    "appointment_duration_minutes": 60,
+    "handoff_keywords": [
+      "queja",
+      "alergia",
+      "inconformidad"
+    ],
+    "high_score_threshold": 72
+  },
+  "portfolio_tier": "tier_2",
+  "master_thesis": "Sistema operativo conversacional para belleza personal y self-care que llena agenda, cobra anticipos, reduce no-show y multiplica rebook.",
+  "buyer": {
+    "primary": "Dueño de salón/beauty lounge o gerente operativo",
+    "secondary": [
+      "recepción",
+      "especialistas",
+      "coordinación bridal"
+    ]
+  },
+  "one_pager": {
+    "headline": "WAOS Beauty",
+    "thesis": "WhatsApp deja de ser chat de disponibilidad y se convierte en agenda comercial con anticipos y rebook.",
+    "problem": "Se responde mucho pero se monetiza poco por no-show y falta de seguimiento posterior.",
+    "promise": "Cada conversación debe cerrar en cita, anticipo, add-on o siguiente visita.",
+    "monetizes": [
+      "cita",
+      "anticipo",
+      "add-ons",
+      "paquetes",
+      "frecuencia ideal",
+      "eventos especiales"
+    ],
+    "packaging": [
+      "setup beauty",
+      "agenda + anticipos",
+      "rebook por especialista",
+      "campañas pre-evento y winback"
+    ],
+    "strategic_care": "Vertical de gran volumen y fácil demostración; ideal para demos rápidas y cierres consultivos simples."
+  },
+  "demo_flow": [
+    "La clienta entra preguntando por servicio, precio o disponibilidad.",
+    "WAOS recomienda servicio y especialista.",
+    "Muestra espacios disponibles y cobra anticipo.",
+    "Confirma cita y manda recordatorio.",
+    "Después del servicio propone add-ons y siguiente cita ideal.",
+    "Si la clienta desaparece, activa winback por frecuencia recomendada."
+  ],
+  "native_objects": {
+    "core": [
+      "cliente",
+      "servicio",
+      "especialista",
+      "duración",
+      "cabina/silla",
+      "sede",
+      "cliente beauty"
+    ],
+    "commercial": [
+      "anticipo",
+      "paquete",
+      "add-on",
+      "promoción"
+    ],
+    "operations": [
+      "historial de servicio",
+      "no-show",
+      "rebook",
+      "frecuencia ideal"
+    ]
+  },
+  "pipeline": {
+    "primary": {
+      "name": "Agenda y recurrencia",
+      "states": [
+        "lead nuevo",
+        "servicio identificado",
+        "cita ofrecida",
+        "cita agendada",
+        "anticipo pendiente",
+        "confirmada",
+        "asistida",
+        "post servicio",
+        "rebook sugerido",
+        "rebook agendado",
+        "inactiva",
+        "reactivada"
+      ]
+    },
+    "secondary": [
+      {
+        "name": "Eventos especiales",
+        "states": [
+          "consulta",
+          "cotización",
+          "reserva",
+          "confirmación",
+          "servicio realizado"
+        ]
+      }
+    ]
+  },
+  "bot_playbook": {
+    "must_do": [
+      "recomendar servicio",
+      "mostrar disponibilidad",
+      "asignar especialista",
+      "cobrar anticipo",
+      "confirmar",
+      "reprogramar",
+      "vender add-ons",
+      "sugerir siguiente cita",
+      "nunca quedarse seco ante bromas, preguntas raras o cambios bruscos de tema",
+      "usar humor ligero cuando sume, sin sonar payaso ni poco serio",
+      "validar el momento y luego reencauzar la conversacion al negocio",
+      "cerrar siempre con una pregunta util o siguiente paso"
+    ],
+    "must_ask": [
+      "servicio buscado",
+      "fecha deseada",
+      "especialista preferida",
+      "sede",
+      "si es primera vez",
+      "objetivo o estilo buscado",
+      "que parte del negocio se esta atorando mas",
+      "si quiere que se lo aterrice a su caso"
+    ],
+    "objections": [
+      "precio",
+      "disponibilidad",
+      "duración",
+      "quiero pensarlo",
+      "no sé qué servicio me conviene"
+    ],
+    "escalate_when": [
+      "cambio técnico complejo",
+      "bridal o evento grande",
+      "reclamo",
+      "caso muy personalizado"
+    ],
+    "forbidden": [
+      "prometer disponibilidad no confirmada",
+      "recomendaciones técnicas fuera de protocolo"
+    ],
+    "success_signals": [
+      "quiero cita",
+      "mándame horarios",
+      "apártamela",
+      "¿cómo pago el anticipo?",
+      "quiero con esa especialista"
+    ],
+    "style": [
+      "humor ligero",
+      "manejo de preguntas raras",
+      "reencuadre comercial"
+    ]
+  },
+  "automation_sequences": [
+    {
+      "key": "beauty_confirmation",
+      "name": "Confirmación y anticipo",
+      "trigger": "cita agendada",
+      "goal": "reducir no-show",
+      "steps": [
+        "recordar anticipo",
+        "confirmar cita",
+        "recordatorio 24h"
+      ]
+    },
+    {
+      "key": "beauty_post_service",
+      "name": "Post servicio",
+      "trigger": "servicio realizado",
+      "goal": "elevar experiencia y add-ons",
+      "steps": [
+        "pedir feedback",
+        "sugerir add-on",
+        "proponer siguiente cita"
+      ]
+    },
+    {
+      "key": "beauty_rebook",
+      "name": "Rebook por frecuencia ideal",
+      "trigger": "ventana ideal cumplida",
+      "goal": "recurrencia",
+      "steps": [
+        "recordatorio",
+        "mostrar horarios",
+        "cerrar cita"
+      ]
+    },
+    {
+      "key": "beauty_winback",
+      "name": "Winback beauty",
+      "trigger": "cliente inactiva",
+      "goal": "reactivar",
+      "steps": [
+        "mensaje personalizado",
+        "oferta relevante",
+        "agenda rápida"
+      ]
+    }
+  ],
+  "dashboard": {
+    "north_star": "Asistencia que convierte en rebook.",
+    "sections": [
+      {
+        "name": "Operación",
+        "metrics": [
+          "ocupación",
+          "no-show",
+          "anticipos cobrados",
+          "huecos llenados"
+        ]
+      },
+      {
+        "name": "Revenue",
+        "metrics": [
+          "ticket promedio",
+          "add-ons",
+          "revenue por especialista",
+          "revenue por categoría"
+        ]
+      },
+      {
+        "name": "Retención",
+        "metrics": [
+          "rebook rate",
+          "frecuencia promedio",
+          "cliente recurrente",
+          "winback rate"
+        ]
+      },
+      {
+        "name": "Funnel",
+        "metrics": [
+          "lead a cita",
+          "cita a asistencia",
+          "asistencia a rebook",
+          "rebook a recurrencia"
+        ]
+      }
+    ]
+  },
+  "hardening_model": {
+    "goal": "Pasar de preset inteligente a sistema especialista",
+    "wave": "ola_2",
+    "entity_queen": "cliente beauty",
+    "core_common": true,
+    "domain_by_vertical": true,
+    "playbooks_by_subvertical": true,
+    "kpis_by_vertical": true,
+    "pricing_by_vertical": true,
+    "journeys_by_vertical": true,
+    "reusable_modules": [
+      "intake / calificación",
+      "agenda / recursos",
+      "cotización / propuesta",
+      "pago / anticipo / membresía",
+      "seguimiento / recurrencia",
+      "reporting vertical"
+    ],
+    "minimum_viable_hardening": [
+      "1 entidad reina",
+      "1 pipeline propio",
+      "1 cotización propia",
+      "1 recurrencia propia",
+      "1 dashboard propio"
+    ],
+    "hard_checklist": [
+      "tiene entidad principal propia",
+      "tiene pipeline específico",
+      "tiene cotización o pricing del nicho",
+      "tiene agenda o recursos del nicho",
+      "tiene postventa o recurrencia del nicho",
+      "tiene documentos o compliance del nicho",
+      "tiene KPIs del nicho",
+      "tiene 3 automatizaciones que mueven dinero",
+      "tiene 2 pruebas e2e de negocio",
+      "tiene subplaybooks por subvertical",
+      "entidad principal propia",
+      "pipeline específico",
+      "pricing del nicho",
+      "agenda y recursos del nicho",
+      "postventa o recurrencia del nicho",
+      "documentos o compliance del nicho",
+      "KPIs del nicho",
+      "3 automatizaciones que mueven dinero",
+      "2 pruebas e2e de negocio",
+      "subplaybooks por subvertical",
+      "runtime ejecutable por vertical"
+    ]
+  },
+  "specialist_layers": {
+    "persistent_entities": [
+      "cliente beauty",
+      "preferencias de servicio",
+      "especialista preferido",
+      "historial de servicios",
+      "frecuencia recomendada",
+      "paquetes",
+      "membresías",
+      "rebook"
+    ],
+    "business_pipeline": {
+      "primary_entity": "cliente beauty",
+      "primary_pipeline": {
+        "name": "Agenda y recurrencia",
+        "states": [
+          "lead nuevo",
+          "servicio identificado",
+          "cita ofrecida",
+          "cita agendada",
+          "anticipo pendiente",
+          "confirmada",
+          "asistida",
+          "post servicio",
+          "rebook sugerido",
+          "rebook agendado",
+          "inactiva",
+          "reactivada"
+        ]
+      },
+      "secondary_pipelines": [
+        {
+          "name": "Eventos especiales",
+          "states": [
+            "consulta",
+            "cotización",
+            "reserva",
+            "confirmación",
+            "servicio realizado"
+          ]
+        }
+      ]
+    },
+    "pricing_and_quotes": [
+      "cotización por servicio y especialista",
+      "membresías",
+      "upsell de ticket"
+    ],
+    "agenda_and_resources": [
+      "cabina",
+      "estilista",
+      "especialista",
+      "silla",
+      "agenda por recurso"
+    ],
+    "post_sale_and_recurrence": [
+      "rebook post-servicio",
+      "fidelidad / puntos",
+      "mantenimiento por frecuencia recomendada"
+    ],
+    "documents_compliance": [
+      "ficha de cliente",
+      "consentimiento opcional",
+      "antes / después",
+      "políticas de cancelación"
+    ],
+    "kpis_that_matter": [
+      "ocupación",
+      "no-show",
+      "anticipo cobrado",
+      "rebook rate",
+      "add-on rate",
+      "cliente recurrente",
+      "recompra",
+      "retención por especialista",
+      "upgrade de ticket"
+    ],
+    "money_automations": [
+      "recordatorio de rebook",
+      "upgrade a membresía",
+      "winback por no-show o caída de frecuencia"
+    ]
+  },
+  "domain_contract": {
+    "vertical_entity_types": [
+      "cliente beauty",
+      "preferencias de servicio",
+      "especialista preferido",
+      "historial de servicios",
+      "frecuencia recomendada",
+      "paquetes",
+      "membresías",
+      "rebook"
+    ],
+    "vertical_pipeline_stages": {
+      "primary": [
+        "lead nuevo",
+        "servicio identificado",
+        "cita ofrecida",
+        "cita agendada",
+        "anticipo pendiente",
+        "confirmada",
+        "asistida",
+        "post servicio",
+        "rebook sugerido",
+        "rebook agendado",
+        "inactiva",
+        "reactivada"
+      ],
+      "secondary": [
+        [
+          "consulta",
+          "cotización",
+          "reserva",
+          "confirmación",
+          "servicio realizado"
+        ]
+      ]
+    },
+    "vertical_quote_types": [
+      "servicio individual",
+      "paquete",
+      "membresía",
+      "upgrade",
+      "rebook prepagado"
+    ],
+    "vertical_resource_types": [
+      "cabina",
+      "estilista",
+      "especialista",
+      "silla",
+      "agenda por recurso"
+    ],
+    "vertical_followup_policies": [
+      "rebook post-servicio",
+      "fidelidad / puntos",
+      "mantenimiento por frecuencia recomendada"
+    ],
+    "vertical_kpi_definitions": [
+      "ocupación",
+      "no-show",
+      "anticipo cobrado",
+      "rebook rate",
+      "add-on rate",
+      "cliente recurrente",
+      "recompra",
+      "retención por especialista",
+      "upgrade de ticket"
+    ],
+    "vertical_playbooks": [
+      "uñas",
+      "cabello",
+      "brows",
+      "lashes",
+      "skin bar",
+      "spa"
+    ],
+    "vertical_document_types": [
+      "ficha de cliente",
+      "consentimiento opcional",
+      "antes / después",
+      "políticas de cancelación"
+    ]
+  },
+  "subvertical_playbooks": [
+    {
+      "name": "uñas",
+      "focus": "Playbook operativo y comercial para uñas"
+    },
+    {
+      "name": "cabello",
+      "focus": "Playbook operativo y comercial para cabello"
+    },
+    {
+      "name": "brows",
+      "focus": "Playbook operativo y comercial para brows"
+    },
+    {
+      "name": "lashes",
+      "focus": "Playbook operativo y comercial para lashes"
+    },
+    {
+      "name": "skin bar",
+      "focus": "Playbook operativo y comercial para skin bar"
+    },
+    {
+      "name": "spa",
+      "focus": "Playbook operativo y comercial para spa"
+    }
+  ],
+  "business_e2e_tests": [
+    {
+      "name": "lead agenda servicio, asiste y deja rebook programado",
+      "status": "designed"
+    },
+    {
+      "name": "cliente frecuente sube a membresía tras tercer servicio",
+      "status": "designed"
+    }
+  ],
+  "vertical_runtime": {
+    "pipeline_machine": {
+      "primary_pipeline": "Agenda y recurrencia",
+      "entity": "cliente beauty",
+      "states": [
+        "lead nuevo",
+        "servicio identificado",
+        "cita ofrecida",
+        "cita agendada",
+        "anticipo pendiente",
+        "confirmada",
+        "asistida",
+        "post servicio",
+        "rebook sugerido",
+        "rebook agendado",
+        "inactiva",
+        "reactivada"
+      ],
+      "transitions": [
+        {
+          "from": "lead nuevo",
+          "to": "servicio identificado",
+          "trigger": "qualification_complete",
+          "business_effect": "advance opportunity"
+        },
+        {
+          "from": "servicio identificado",
+          "to": "cita ofrecida",
+          "trigger": "membership_offer",
+          "business_effect": "open commercial step"
+        },
+        {
+          "from": "inactiva",
+          "to": "reactivada",
+          "trigger": "successful_outcome",
+          "business_effect": "realize revenue or continuity"
+        },
+        {
+          "from": "inactiva",
+          "to": "at_risk",
+          "trigger": "visit_completed",
+          "business_effect": "activate retention sequence"
+        }
+      ],
+      "at_risk_state": "at_risk",
+      "closed_states": [
+        "reactivada"
+      ]
+    },
+    "pricing_engine": {
+      "quote_types": [
+        "servicio",
+        "paquete",
+        "membresia",
+        "upgrade premium"
+      ],
+      "pricing_basis": "service + stylist tier + add-ons + membership",
+      "rules": [
+        {
+          "rule": "base price by servicio type",
+          "effect": "set base_price"
+        },
+        {
+          "rule": "premium or urgent add-ons increase quote",
+          "effect": "add surcharge"
+        },
+        {
+          "rule": "bundle, membership or financing can lower immediate friction",
+          "effect": "recommend package or installments"
+        }
+      ],
+      "deposit_policy": "request advance when capacity, specialist time or inventory must be secured"
+    },
+    "resource_capacity": {
+      "resource_types": [
+        "estilista",
+        "cabina",
+        "silla",
+        "room",
+        "franja de pico"
+      ],
+      "capacity_basis": "chair/cabin availability, stylist schedule and service duration",
+      "constraints": [
+        "avoid double booking of critical resources",
+        "respect service duration and cleanup/buffer time",
+        "prioritize higher urgency and higher close probability cases"
+      ],
+      "priority_queue": "especialista preferido, cabina y rebook"
+    },
+    "recurrence_engine": {
+      "policies": [
+        {
+          "type": "rebook_cycle",
+          "interval_days": 28,
+          "anchor": "cliente beauty"
+        },
+        {
+          "type": "membership_renewal",
+          "interval_days": 30,
+          "anchor": "cliente beauty"
+        },
+        {
+          "type": "loyalty_nudge",
+          "interval_days": 45,
+          "anchor": "cliente beauty"
+        }
+      ],
+      "reactivation_window_days": 45,
+      "goal": "protect retention, repeat revenue and continuity"
+    },
+    "kpi_engine": {
+      "north_star": "Asistencia que convierte en rebook.",
+      "definitions": [
+        {
+          "name": "rebook_rate",
+          "formula": "rebooked_visits / completed_visits"
+        },
+        {
+          "name": "retention_by_specialist",
+          "formula": "repeat_clients / clients_by_specialist"
+        },
+        {
+          "name": "ticket_upgrade",
+          "formula": "upsold_tickets / completed_visits"
+        }
+      ],
+      "leading_indicators": [
+        "visit_completed",
+        "rebook_missing",
+        "no_response_7d"
+      ]
+    },
+    "automation_engine": {
+      "money_automation_policies": [
+        {
+          "trigger": "visit_completed",
+          "actions": [
+            "send_followup",
+            "escalate_owner",
+            "offer_relevant_next_step"
+          ],
+          "goal": "save conversion or retention"
+        },
+        {
+          "trigger": "rebook_missing",
+          "actions": [
+            "send_quote_or_payment_link",
+            "remind_deadline",
+            "notify_human"
+          ],
+          "goal": "move revenue forward"
+        },
+        {
+          "trigger": "high_value_client_idle",
+          "actions": [
+            "schedule_recurrence",
+            "cross_sell_next_best_offer",
+            "create_task"
+          ],
+          "goal": "increase LTV"
+        }
+      ],
+      "quiet_hours": "21:00-08:00"
+    },
+    "document_flow": {
+      "required_documents": [
+        "ficha de preferencias",
+        "consentimiento basico",
+        "before_after opcional",
+        "membresia"
+      ],
+      "lifecycle_rules": [
+        {
+          "document": "ficha de preferencias",
+          "required_before": "first committed step",
+          "signature_required": true
+        },
+        {
+          "document": "membresia",
+          "required_before": "handoff or continuity step",
+          "signature_required": false
+        }
+      ]
+    },
+    "matching_engine": {
+      "entity": "cliente beauty",
+      "rules": [
+        "service_preference == specialist.skill",
+        "preferred_staff_match",
+        "time_window_match",
+        "branch_match"
+      ],
+      "next_best_match_outputs": [
+        "best_owner",
+        "best_resource_slot",
+        "best_offer"
+      ]
+    }
+  },
+  "transactional_motor_v12": {
+    "version": "v12_full_transactional",
+    "aggregate_root": "beauty_client_journey",
+    "main_business_entity": "cliente beauty",
+    "transaction_unit": "service_rebook_cycle",
+    "system_of_record": {
+      "write_model": [
+        "commands",
+        "events",
+        "ledger",
+        "aggregate_snapshots"
+      ],
+      "read_models": [
+        "commercial_board",
+        "operations_board",
+        "finance_board",
+        "continuity_board",
+        "resource_load_board",
+        "document_readiness_board",
+        "revenue_levers_board"
+      ],
+      "idempotency_scope": [
+        "organization_id",
+        "vertical_id",
+        "external_reference",
+        "command_key"
+      ],
+      "audit_mode": "append_only_with_snapshots"
+    },
+    "transaction_primitives": {
+      "commands": [
+        "capture_intent",
+        "qualify_record",
+        "create_quote",
+        "request_deposit",
+        "reserve_capacity",
+        "confirm_booking",
+        "start_case",
+        "approve_quote",
+        "collect_payment",
+        "start_fulfillment",
+        "close_fulfillment",
+        "schedule_recurrence",
+        "issue_refund",
+        "reactivate_customer",
+        "reserve_specialist",
+        "sell_membership",
+        "rebook_post_service",
+        "issue_loyalty_reward"
+      ],
+      "events": [
+        "intent_captured",
+        "record_qualified",
+        "quote_created",
+        "deposit_requested",
+        "capacity_reserved",
+        "booking_confirmed",
+        "case_started",
+        "quote_approved",
+        "payment_collected",
+        "fulfillment_started",
+        "fulfillment_closed",
+        "recurrence_scheduled",
+        "refund_issued",
+        "customer_reactivated",
+        "specialist_reserved",
+        "membership_sold",
+        "post_service_rebooked",
+        "loyalty_reward_issued"
+      ],
+      "ledger_event_types": [
+        "charge_opened",
+        "deposit_collected",
+        "installment_due",
+        "payment_applied",
+        "credit_issued",
+        "refund_issued",
+        "write_off_registered"
+      ],
+      "invariants": [
+        "no confirmar cita sin recurso libre",
+        "no aplicar paquete sin especialista compatible",
+        "no cerrar visita sin rebook sugerido",
+        "todo pago debe referenciar quote, order o case activo",
+        "todo cambio crítico debe emitir evento y renglón de auditoría",
+        "ningún recurso se confirma dos veces en la misma ventana"
+      ],
+      "idempotency_keys": [
+        "command_key",
+        "payment_reference",
+        "booking_reference",
+        "external_message_id"
+      ]
+    },
+    "aggregates": {
+      "primary_record": {
+        "name": "cliente beauty",
+        "status_axis": [
+          "commercial",
+          "operations",
+          "finance",
+          "continuity"
+        ]
+      },
+      "quote": {
+        "name": "beauty_package_quote",
+        "states": [
+          "draft",
+          "sent",
+          "accepted",
+          "expired",
+          "lost"
+        ]
+      },
+      "booking": {
+        "name": "beauty_appointment",
+        "states": [
+          "proposed",
+          "reserved",
+          "confirmed",
+          "attended_or_executed",
+          "missed_or_canceled"
+        ]
+      },
+      "execution": {
+        "name": "service_visit",
+        "states": [
+          "pending",
+          "ready",
+          "in_progress",
+          "blocked",
+          "completed",
+          "closed"
+        ]
+      },
+      "payment_account": {
+        "name": "payment_account",
+        "states": [
+          "open",
+          "partially_paid",
+          "paid",
+          "overdue",
+          "refunded"
+        ]
+      },
+      "continuity": {
+        "name": "rebook_membership_plan",
+        "states": [
+          "not_started",
+          "active",
+          "at_risk",
+          "recovered",
+          "closed"
+        ]
+      }
+    },
+    "orchestration": {
+      "command_handlers": [
+        "handle_capture_intent",
+        "handle_qualify_record",
+        "handle_create_quote",
+        "handle_request_deposit",
+        "handle_reserve_capacity",
+        "handle_confirm_booking",
+        "handle_start_case",
+        "handle_approve_quote",
+        "handle_reserve_specialist",
+        "handle_sell_membership",
+        "handle_rebook_post_service",
+        "handle_issue_loyalty_reward"
+      ],
+      "sagas": [
+        "first_visit_to_rebook",
+        "rebook_to_membership",
+        "no_show_recovery"
+      ],
+      "money_guards": [
+        "quote_before_payment",
+        "capacity_before_confirmation",
+        "documents_before_execution",
+        "balance_before_close"
+      ],
+      "read_model_refresh": [
+        "on_every_event",
+        "nightly_reconciliation",
+        "pre_dashboard_cache"
+      ]
+    },
+    "finance": {
+      "money_objects": [
+        "booking_deposit",
+        "service_charge",
+        "membership_charge",
+        "upgrade_charge"
+      ],
+      "collection_modes": [
+        "anticipo",
+        "contra servicio",
+        "membresía"
+      ],
+      "refund_modes": [
+        "service_credit",
+        "loyalty_adjustment"
+      ],
+      "reconciliation_views": [
+        "expected_vs_collected",
+        "aging_balance",
+        "refund_exposure",
+        "cash_by_stage"
+      ]
+    },
+    "operations": {
+      "fulfillment_unit": "service_rebook_cycle",
+      "resource_locking": [
+        "specialist",
+        "chair_or_cabin",
+        "time_block"
+      ],
+      "dispatch_or_schedule_board": [
+        "queued",
+        "ready",
+        "assigned",
+        "in_progress",
+        "blocked",
+        "done"
+      ],
+      "handoff_rules": [
+        "human_handoff_on_exception",
+        "supervisor_handoff_on_money_risk",
+        "operator_handoff_on_compliance_gap"
+      ]
+    },
+    "audit_compliance": {
+      "timeline_entities": [
+        "cliente beauty",
+        "beauty_package_quote",
+        "beauty_appointment",
+        "service_visit",
+        "payment_account"
+      ],
+      "consent_gates": [
+        "service_preference_card",
+        "consentimiento_imagen",
+        "membership_terms"
+      ],
+      "required_evidence": [
+        "timeline_event",
+        "actor",
+        "timestamp",
+        "before_after_snapshot"
+      ],
+      "retention_rules": [
+        "audit_log_append_only",
+        "documents_linked_to_primary_record",
+        "payment_trace_non_destructive"
+      ]
+    },
+    "transaction_views": {
+      "commercial": [
+        "booking",
+        "upsell",
+        "membership"
+      ],
+      "operations": [
+        "agenda",
+        "rebook",
+        "specialist_retention"
+      ],
+      "finance": [
+        "ticket_upgrade",
+        "membership_mrr",
+        "no_show_loss"
+      ],
+      "continuity": [
+        "service_frequency",
+        "loyalty",
+        "recompra"
+      ]
+    },
+    "command_catalog": [
+      {
+        "command": "capture_intent",
+        "writes": "cliente beauty",
+        "emits": "intent_captured",
+        "guard": "no confirmar cita sin recurso libre"
+      },
+      {
+        "command": "qualify_record",
+        "writes": "cliente beauty",
+        "emits": "record_qualified",
+        "guard": "no aplicar paquete sin especialista compatible"
+      },
+      {
+        "command": "create_quote",
+        "writes": "cliente beauty",
+        "emits": "quote_created",
+        "guard": "no cerrar visita sin rebook sugerido"
+      },
+      {
+        "command": "request_deposit",
+        "writes": "cliente beauty",
+        "emits": "deposit_requested",
+        "guard": "no confirmar cita sin recurso libre"
+      },
+      {
+        "command": "reserve_capacity",
+        "writes": "cliente beauty",
+        "emits": "capacity_reserved",
+        "guard": "no aplicar paquete sin especialista compatible"
+      },
+      {
+        "command": "confirm_booking",
+        "writes": "cliente beauty",
+        "emits": "booking_confirmed",
+        "guard": "no cerrar visita sin rebook sugerido"
+      },
+      {
+        "command": "start_case",
+        "writes": "cliente beauty",
+        "emits": "case_started",
+        "guard": "no confirmar cita sin recurso libre"
+      },
+      {
+        "command": "approve_quote",
+        "writes": "cliente beauty",
+        "emits": "quote_approved",
+        "guard": "no aplicar paquete sin especialista compatible"
+      },
+      {
+        "command": "reserve_specialist",
+        "writes": "cliente beauty",
+        "emits": "payment_collected",
+        "guard": "no cerrar visita sin rebook sugerido"
+      },
+      {
+        "command": "sell_membership",
+        "writes": "cliente beauty",
+        "emits": "fulfillment_started",
+        "guard": "no confirmar cita sin recurso libre"
+      },
+      {
+        "command": "rebook_post_service",
+        "writes": "cliente beauty",
+        "emits": "fulfillment_closed",
+        "guard": "no aplicar paquete sin especialista compatible"
+      },
+      {
+        "command": "issue_loyalty_reward",
+        "writes": "cliente beauty",
+        "emits": "recurrence_scheduled",
+        "guard": "no cerrar visita sin rebook sugerido"
+      }
+    ],
+    "event_catalog": [
+      {
+        "event": "intent_captured",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "first_visit_to_rebook"
+      },
+      {
+        "event": "record_qualified",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "rebook_to_membership"
+      },
+      {
+        "event": "quote_created",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "no_show_recovery"
+      },
+      {
+        "event": "deposit_requested",
+        "updates": [
+          "timeline",
+          "boards",
+          "ledger"
+        ],
+        "next_action": "first_visit_to_rebook"
+      },
+      {
+        "event": "capacity_reserved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "rebook_to_membership"
+      },
+      {
+        "event": "booking_confirmed",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "no_show_recovery"
+      },
+      {
+        "event": "case_started",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "first_visit_to_rebook"
+      },
+      {
+        "event": "quote_approved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "rebook_to_membership"
+      },
+      {
+        "event": "specialist_reserved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "no_show_recovery"
+      },
+      {
+        "event": "membership_sold",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "first_visit_to_rebook"
+      },
+      {
+        "event": "post_service_rebooked",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "rebook_to_membership"
+      },
+      {
+        "event": "loyalty_reward_issued",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "no_show_recovery"
+      }
+    ]
+  },
+  "subvertical_profiles": [],
+  "recommended_subverticals": []
+}

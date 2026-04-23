@@ -1,0 +1,2232 @@
+{
+  "id": "auto-service",
+  "name": "WAOS Auto Service",
+  "short_name": "Automotriz service & aftermarket",
+  "description": "Sistema operativo conversacional para talleres, servicio automotriz y aftermarket.",
+  "problem": "Auto service pierde confianza y dinero por intake desordenado, cotización tardía, falta de visibilidad del avance y ausencia de seguimiento al siguiente mantenimiento.",
+  "subverticals": [
+    "taller mecánico",
+    "centro de servicio",
+    "servicio eléctrico",
+    "llantera",
+    "hojalatería y pintura",
+    "detailing",
+    "PPF",
+    "wraps",
+    "lavado premium",
+    "accesorios"
+  ],
+  "objects": [
+    "vehículo",
+    "placa/VIN",
+    "servicio",
+    "diagnóstico",
+    "presupuesto",
+    "aprobación",
+    "refacción",
+    "estatus",
+    "técnico",
+    "bahía",
+    "entrega",
+    "siguiente mantenimiento",
+    "cliente multi-vehículo",
+    "placa / VIN",
+    "modelo / año",
+    "motivo de servicio",
+    "diagnóstico preliminar",
+    "orden de trabajo",
+    "mantenimiento periódico"
+  ],
+  "flows": [
+    "solicitud -> intake",
+    "intake -> revisión",
+    "revisión -> cotización",
+    "cotización -> aprobación",
+    "trabajo -> entrega",
+    "entrega -> siguiente mantenimiento"
+  ],
+  "kpis": [
+    "ingreso agendado",
+    "cotización aprobada",
+    "tiempo a aprobación",
+    "tiempo de ciclo",
+    "retorno por mantenimiento",
+    "ticket promedio",
+    "aprobación de presupuesto",
+    "recompra",
+    "tiempo de entrega"
+  ],
+  "recommended_integrations": [
+    "whatsapp",
+    "calendar",
+    "payments",
+    "crm",
+    "operations"
+  ],
+  "default_services": [
+    "revision inicial",
+    "mantenimiento",
+    "diagnostico electrico",
+    "detailing",
+    "llantas y frenos"
+  ],
+  "default_faqs": [
+    {
+      "q": "¿Que datos del vehiculo necesitan?",
+      "a": "El bot puede capturar placa o VIN, modelo, kilometraje y descripcion del problema."
+    },
+    {
+      "q": "¿Pueden cotizar por WhatsApp?",
+      "a": "Si, podemos iniciar una cotizacion preliminar y luego pedir aprobacion del cliente."
+    },
+    {
+      "q": "¿Me avisan el avance?",
+      "a": "Si, el bot puede comunicar estatus, refacciones y entrega."
+    },
+    {
+      "q": "¿Recuerdan el siguiente servicio?",
+      "a": "Si, configuramos recordatorios segun mantenimiento recomendado."
+    }
+  ],
+  "behavior": {
+    "tone": "tecnico y claro",
+    "response_length": "media",
+    "use_emojis": false,
+    "sales_intensity": "media",
+    "offer_promotions_when": "after_problem_classified",
+    "escalate_when": [
+      "seguro",
+      "choque",
+      "queja fuerte",
+      "riesgo mecanico"
+    ],
+    "insistence_policy": "respectful",
+    "can_share_price_directly": true,
+    "can_negotiate": false,
+    "can_mention_stock": true,
+    "auto_send_images": true,
+    "bot_mode": "intake_y_estatus",
+    "active_channels": [
+      "whatsapp",
+      "webchat"
+    ],
+    "forbidden_topics": [
+      "garantias no autorizadas",
+      "diagnosticos definitivos sin revision"
+    ],
+    "required_phrases": [
+      "te ayudo a registrar tu vehiculo",
+      "si quieres iniciamos revision o cotizacion preliminar",
+      "te sigo",
+      "si la pregunta viene rara, igual te la aterrizo",
+      "te lo aterrizo a tu caso"
+    ],
+    "fallback_message": "Te ayudo a registrar tu vehiculo, clasificar el problema y avanzar con revision o servicio. Si la pregunta viene rara, en broma o medio fuera de tema, igual te sigo y la aterrizamos al negocio.",
+    "humor_policy": "light_contextual",
+    "strange_question_policy": "respond_validate_reframe_sell_move"
+  },
+  "followup_rules": [
+    {
+      "type": "no_response",
+      "delay_minutes": 120,
+      "max_attempts": 2,
+      "message_template": "¿Quieres que retomemos tu revision, cotizacion o siguiente servicio del vehiculo?"
+    },
+    {
+      "type": "post_quote",
+      "delay_minutes": 1440,
+      "max_attempts": 2,
+      "message_template": "Quedo atento por si quieres aprobar la cotizacion o revisar alguna partida antes de avanzar."
+    },
+    {
+      "type": "reactivation",
+      "delay_minutes": 43200,
+      "max_attempts": 1,
+      "message_template": "Segun tu historial, ya podria tocar el siguiente mantenimiento. ¿Quieres que te comparta opciones?"
+    }
+  ],
+  "templates": [
+    {
+      "template_key": "vehicle_intake",
+      "title": "Intake vehicular",
+      "content": "Comparteme placa o VIN, modelo, kilometraje y el problema que notas para orientarte mejor.",
+      "variables": []
+    },
+    {
+      "template_key": "diagnostic_booking",
+      "title": "Agendar revision",
+      "content": "Podemos agendar ingreso o revision diagnostica para {{date}}. ¿Te funciona?",
+      "variables": [
+        "date"
+      ]
+    },
+    {
+      "template_key": "quote_approval",
+      "title": "Solicitud de aprobacion",
+      "content": "Ya tenemos la cotizacion inicial. Si te parece, te comparto detalle y avanzamos con tu aprobacion.",
+      "variables": []
+    },
+    {
+      "template_key": "status_update",
+      "title": "Actualizacion de estatus",
+      "content": "Tu vehiculo esta en etapa de {{job_status}}. Si surge alguna refaccion o cambio, te avisamos de inmediato.",
+      "variables": [
+        "job_status"
+      ]
+    },
+    {
+      "template_key": "next_service",
+      "title": "Siguiente servicio",
+      "content": "Tu siguiente servicio recomendado se acerca. ¿Quieres que te proponga fecha de ingreso?",
+      "variables": []
+    }
+  ],
+  "config_overrides": {
+    "objective_secondary": [
+      "calificar",
+      "agendar",
+      "reactivar"
+    ],
+    "policies": [
+      "No prometer diagnosticos definitivos sin revision",
+      "Escalar riesgos mecanicos y reclamos"
+    ],
+    "can_say": [
+      "revision",
+      "cotizacion",
+      "estatus",
+      "entrega",
+      "mantenimiento"
+    ],
+    "cannot_say": [
+      "garantias no autorizadas",
+      "diagnostico final sin inspeccion"
+    ],
+    "whatsapp_flows": [
+      "intake_vehicular",
+      "agenda_revision",
+      "aprobacion_cotizacion",
+      "recordatorio_mantenimiento"
+    ],
+    "appointment_duration_minutes": 30,
+    "handoff_keywords": [
+      "seguro",
+      "choque",
+      "grua",
+      "garantia"
+    ],
+    "high_score_threshold": 80
+  },
+  "portfolio_tier": "tier_2",
+  "master_thesis": "Sistema operativo conversacional para talleres, servicio automotriz y aftermarket que ordena intake, cotización, aprobación, estatus y mantenimiento futuro.",
+  "buyer": {
+    "primary": "Dueño o gerente de taller/centro de servicio",
+    "secondary": [
+      "recepción",
+      "jefe de taller",
+      "asesores de servicio"
+    ]
+  },
+  "one_pager": {
+    "headline": "WAOS Auto Service",
+    "thesis": "WhatsApp pasa de ser chat de cotización a sistema de intake, autorización, estatus y mantenimiento futuro.",
+    "problem": "El cliente no entiende el proceso, la cotización tarda y las aprobaciones quedan dispersas.",
+    "promise": "Cada solicitud se vuelve una orden clara con próximo paso visible.",
+    "monetizes": [
+      "revisión",
+      "servicio",
+      "reparación",
+      "aprobación extra",
+      "entrega",
+      "mantenimiento recurrente"
+    ],
+    "packaging": [
+      "setup automotriz",
+      "intake por vehículo",
+      "autorizaciones y estatus",
+      "campañas de siguiente servicio"
+    ],
+    "strategic_care": "Muy buena vertical si se vende como experiencia operativa y de confianza; conviene evitar diagnósticos técnicos automatizados demasiado profundos."
+  },
+  "demo_flow": [
+    "El cliente entra por falla, mantenimiento o servicio de estética.",
+    "WAOS captura vehículo y síntoma o necesidad.",
+    "Agenda revisión o ingreso y confirma.",
+    "Después de revisar, envía cotización inicial y pide autorización.",
+    "Actualiza estatus del trabajo y avisa cambios o refacciones.",
+    "Coordina entrega, cobro y próxima fecha de mantenimiento."
+  ],
+  "native_objects": {
+    "core": [
+      "cliente",
+      "vehículo",
+      "placa/VIN",
+      "síntoma",
+      "tipo de servicio"
+    ],
+    "commercial": [
+      "revisión",
+      "cotización",
+      "aprobación",
+      "refacción",
+      "adicional"
+    ],
+    "operations": [
+      "técnico",
+      "bahía",
+      "estatus de trabajo",
+      "entrega",
+      "siguiente mantenimiento"
+    ]
+  },
+  "pipeline": {
+    "primary": {
+      "name": "Servicio e ingreso",
+      "states": [
+        "lead nuevo",
+        "vehículo registrado",
+        "intake completado",
+        "revisión agendada",
+        "revisión realizada",
+        "cotización enviada",
+        "aprobación pendiente",
+        "aprobado",
+        "en trabajo",
+        "listo para entrega",
+        "entregado",
+        "mantenimiento próximo"
+      ]
+    },
+    "secondary": [
+      {
+        "name": "Winback de mantenimiento",
+        "states": [
+          "sin retorno",
+          "recordatorio enviado",
+          "reactivado",
+          "servicio completado"
+        ]
+      }
+    ]
+  },
+  "bot_playbook": {
+    "must_do": [
+      "recibir solicitud",
+      "capturar vehículo",
+      "guiar diagnóstico preliminar",
+      "agendar revisión",
+      "enviar cotización base",
+      "pedir autorización",
+      "informar estatus",
+      "recordar siguiente servicio",
+      "nunca quedarse seco ante bromas, preguntas raras o cambios bruscos de tema",
+      "usar humor ligero cuando sume, sin sonar payaso ni poco serio",
+      "validar el momento y luego reencauzar la conversacion al negocio",
+      "cerrar siempre con una pregunta util o siguiente paso"
+    ],
+    "must_ask": [
+      "marca/modelo/año",
+      "tipo de problema o servicio",
+      "urgencia",
+      "fecha deseada",
+      "si ya había asistido",
+      "evidencia o síntomas",
+      "que parte del negocio se esta atorando mas",
+      "si quiere que se lo aterrice a su caso"
+    ],
+    "objections": [
+      "precio",
+      "tiempo",
+      "confianza",
+      "quiero otra opinión",
+      "solo quiero saber cuánto"
+    ],
+    "escalate_when": [
+      "diagnóstico técnico complejo",
+      "reclamo",
+      "retrabajo",
+      "flotillas",
+      "negociación extraordinaria"
+    ],
+    "forbidden": [
+      "prometer reparación definitiva sin revisión",
+      "dar diagnóstico técnico final por chat"
+    ],
+    "success_signals": [
+      "quiero llevarlo",
+      "¿cuándo lo revisan?",
+      "mándame cotización",
+      "autorizo",
+      "¿cuándo me lo entregan?"
+    ],
+    "style": [
+      "humor ligero",
+      "manejo de preguntas raras",
+      "reencuadre comercial"
+    ]
+  },
+  "automation_sequences": [
+    {
+      "key": "auto_intake",
+      "name": "Confirmación de ingreso",
+      "trigger": "revisión o ingreso agendado",
+      "goal": "reducir ausencias",
+      "steps": [
+        "confirmar cita",
+        "recordatorio",
+        "pedir evidencia si falta"
+      ]
+    },
+    {
+      "key": "auto_approval",
+      "name": "Aprobación pendiente",
+      "trigger": "cotización enviada",
+      "goal": "acelerar aprobación",
+      "steps": [
+        "resumen de trabajo",
+        "resolver objeciones",
+        "cerrar autorización"
+      ]
+    },
+    {
+      "key": "auto_status",
+      "name": "Estatus de trabajo",
+      "trigger": "cambio de estatus",
+      "goal": "dar visibilidad y confianza",
+      "steps": [
+        "en taller",
+        "esperando refacción",
+        "listo para entrega"
+      ]
+    },
+    {
+      "key": "auto_maintenance",
+      "name": "Siguiente mantenimiento",
+      "trigger": "ciclo de servicio cumplido",
+      "goal": "retorno recurrente",
+      "steps": [
+        "recordatorio",
+        "propuesta de servicio",
+        "agenda"
+      ]
+    }
+  ],
+  "dashboard": {
+    "north_star": "Cotización aprobada con retorno al siguiente mantenimiento.",
+    "sections": [
+      {
+        "name": "Funnel",
+        "metrics": [
+          "solicitudes nuevas",
+          "revisión agendada",
+          "cotización enviada",
+          "cotización aprobada"
+        ]
+      },
+      {
+        "name": "Operación",
+        "metrics": [
+          "tiempo a cotización",
+          "tiempo a aprobación",
+          "tiempo de ciclo",
+          "entregas a tiempo"
+        ]
+      },
+      {
+        "name": "Revenue",
+        "metrics": [
+          "ticket promedio",
+          "aprobaciones adicionales",
+          "mantenimiento recurrente",
+          "revenue por tipo de servicio"
+        ]
+      },
+      {
+        "name": "Retención",
+        "metrics": [
+          "clientes reactivados",
+          "retorno a siguiente mantenimiento",
+          "satisfacción post servicio",
+          "frecuencia por vehículo"
+        ]
+      }
+    ]
+  },
+  "hardening_model": {
+    "goal": "Pasar de preset inteligente a sistema especialista",
+    "wave": "ola_1",
+    "entity_queen": "vehículo",
+    "core_common": true,
+    "domain_by_vertical": true,
+    "playbooks_by_subvertical": true,
+    "kpis_by_vertical": true,
+    "pricing_by_vertical": true,
+    "journeys_by_vertical": true,
+    "reusable_modules": [
+      "intake / calificación",
+      "agenda / recursos",
+      "cotización / propuesta",
+      "pago / anticipo / membresía",
+      "seguimiento / recurrencia",
+      "reporting vertical"
+    ],
+    "minimum_viable_hardening": [
+      "1 entidad reina",
+      "1 pipeline propio",
+      "1 cotización propia",
+      "1 recurrencia propia",
+      "1 dashboard propio"
+    ],
+    "hard_checklist": [
+      "tiene entidad principal propia",
+      "tiene pipeline específico",
+      "tiene cotización o pricing del nicho",
+      "tiene agenda o recursos del nicho",
+      "tiene postventa o recurrencia del nicho",
+      "tiene documentos o compliance del nicho",
+      "tiene KPIs del nicho",
+      "tiene 3 automatizaciones que mueven dinero",
+      "tiene 2 pruebas e2e de negocio",
+      "tiene subplaybooks por subvertical",
+      "entidad principal propia",
+      "pipeline específico",
+      "pricing del nicho",
+      "agenda y recursos del nicho",
+      "postventa o recurrencia del nicho",
+      "documentos o compliance del nicho",
+      "KPIs del nicho",
+      "3 automatizaciones que mueven dinero",
+      "2 pruebas e2e de negocio",
+      "subplaybooks por subvertical",
+      "runtime ejecutable por vertical"
+    ]
+  },
+  "specialist_layers": {
+    "persistent_entities": [
+      "vehículo",
+      "cliente multi-vehículo",
+      "placa / VIN",
+      "modelo / año",
+      "motivo de servicio",
+      "diagnóstico preliminar",
+      "orden de trabajo",
+      "mantenimiento periódico"
+    ],
+    "business_pipeline": {
+      "primary_entity": "vehículo",
+      "primary_pipeline": {
+        "name": "Servicio e ingreso",
+        "states": [
+          "lead nuevo",
+          "vehículo registrado",
+          "intake completado",
+          "revisión agendada",
+          "revisión realizada",
+          "cotización enviada",
+          "aprobación pendiente",
+          "aprobado",
+          "en trabajo",
+          "listo para entrega",
+          "entregado",
+          "mantenimiento próximo"
+        ]
+      },
+      "secondary_pipelines": [
+        {
+          "name": "Winback de mantenimiento",
+          "states": [
+            "sin retorno",
+            "recordatorio enviado",
+            "reactivado",
+            "servicio completado"
+          ]
+        }
+      ]
+    },
+    "pricing_and_quotes": [
+      "cotización por diagnóstico",
+      "aprobación de presupuesto",
+      "próximo mantenimiento sugerido"
+    ],
+    "agenda_and_resources": [
+      "bahía",
+      "técnico",
+      "elevador",
+      "equipo de diagnóstico",
+      "agenda por tipo de servicio"
+    ],
+    "post_sale_and_recurrence": [
+      "recordatorios por kilometraje o tiempo",
+      "seguimiento post-servicio",
+      "winback de mantenimiento"
+    ],
+    "documents_compliance": [
+      "orden de trabajo",
+      "aprobación de presupuesto",
+      "checklist de entrega",
+      "historial de mantenimiento"
+    ],
+    "kpis_that_matter": [
+      "ingreso agendado",
+      "cotización aprobada",
+      "tiempo a aprobación",
+      "tiempo de ciclo",
+      "retorno por mantenimiento",
+      "ticket promedio",
+      "aprobación de presupuesto",
+      "recompra",
+      "tiempo de entrega"
+    ],
+    "money_automations": [
+      "recuperación de cotización no aprobada",
+      "post-servicio con próxima visita",
+      "mantenimiento periódico automático"
+    ]
+  },
+  "domain_contract": {
+    "vertical_entity_types": [
+      "vehículo",
+      "cliente multi-vehículo",
+      "placa / VIN",
+      "modelo / año",
+      "motivo de servicio",
+      "diagnóstico preliminar",
+      "orden de trabajo",
+      "mantenimiento periódico"
+    ],
+    "vertical_pipeline_stages": {
+      "primary": [
+        "lead nuevo",
+        "vehículo registrado",
+        "intake completado",
+        "revisión agendada",
+        "revisión realizada",
+        "cotización enviada",
+        "aprobación pendiente",
+        "aprobado",
+        "en trabajo",
+        "listo para entrega",
+        "entregado",
+        "mantenimiento próximo"
+      ],
+      "secondary": [
+        [
+          "sin retorno",
+          "recordatorio enviado",
+          "reactivado",
+          "servicio completado"
+        ]
+      ]
+    },
+    "vertical_quote_types": [
+      "cotización por servicio",
+      "presupuesto aprobado",
+      "paquete de mantenimiento",
+      "servicio por kilometraje"
+    ],
+    "vertical_resource_types": [
+      "bahía",
+      "técnico",
+      "elevador",
+      "equipo de diagnóstico",
+      "agenda por tipo de servicio"
+    ],
+    "vertical_followup_policies": [
+      "recordatorios por kilometraje o tiempo",
+      "seguimiento post-servicio",
+      "winback de mantenimiento"
+    ],
+    "vertical_kpi_definitions": [
+      "ingreso agendado",
+      "cotización aprobada",
+      "tiempo a aprobación",
+      "tiempo de ciclo",
+      "retorno por mantenimiento",
+      "ticket promedio",
+      "aprobación de presupuesto",
+      "recompra",
+      "tiempo de entrega"
+    ],
+    "vertical_playbooks": [
+      "llantas",
+      "mecánica general",
+      "detailing",
+      "mantenimiento",
+      "body shop"
+    ],
+    "vertical_document_types": [
+      "orden de trabajo",
+      "aprobación de presupuesto",
+      "checklist de entrega",
+      "historial de mantenimiento"
+    ]
+  },
+  "subvertical_playbooks": [
+    {
+      "name": "llantas",
+      "focus": "Playbook operativo y comercial para llantas"
+    },
+    {
+      "name": "mecánica general",
+      "focus": "Playbook operativo y comercial para mecánica general"
+    },
+    {
+      "name": "detailing",
+      "focus": "Playbook operativo y comercial para detailing"
+    },
+    {
+      "name": "mantenimiento",
+      "focus": "Playbook operativo y comercial para mantenimiento"
+    },
+    {
+      "name": "body shop",
+      "focus": "Playbook operativo y comercial para body shop"
+    }
+  ],
+  "business_e2e_tests": [
+    {
+      "name": "vehículo entra por diagnóstico, aprueba presupuesto y se entrega el servicio",
+      "status": "designed"
+    },
+    {
+      "name": "cliente recibe recordatorio por kilometraje y agenda mantenimiento",
+      "status": "designed"
+    }
+  ],
+  "vertical_runtime": {
+    "pipeline_machine": {
+      "primary_pipeline": "Servicio e ingreso",
+      "entity": "vehículo",
+      "states": [
+        "lead nuevo",
+        "vehículo registrado",
+        "intake completado",
+        "revisión agendada",
+        "revisión realizada",
+        "cotización enviada",
+        "aprobación pendiente",
+        "aprobado",
+        "en trabajo",
+        "listo para entrega",
+        "entregado",
+        "mantenimiento próximo"
+      ],
+      "transitions": [
+        {
+          "from": "lead nuevo",
+          "to": "vehículo registrado",
+          "trigger": "qualification_complete",
+          "business_effect": "advance opportunity"
+        },
+        {
+          "from": "vehículo registrado",
+          "to": "intake completado",
+          "trigger": "service_completed",
+          "business_effect": "open commercial step"
+        },
+        {
+          "from": "entregado",
+          "to": "mantenimiento próximo",
+          "trigger": "successful_outcome",
+          "business_effect": "realize revenue or continuity"
+        },
+        {
+          "from": "entregado",
+          "to": "at_risk",
+          "trigger": "inspection_done",
+          "business_effect": "activate retention sequence"
+        }
+      ],
+      "at_risk_state": "at_risk",
+      "closed_states": [
+        "mantenimiento próximo"
+      ]
+    },
+    "pricing_engine": {
+      "quote_types": [
+        "diagnostico",
+        "cotizacion de servicio",
+        "upgrades",
+        "proximo mantenimiento"
+      ],
+      "pricing_basis": "service_type + parts + labor_hours + vehicle_segment",
+      "rules": [
+        {
+          "rule": "base price by servicio type",
+          "effect": "set base_price"
+        },
+        {
+          "rule": "premium or urgent add-ons increase quote",
+          "effect": "add surcharge"
+        },
+        {
+          "rule": "bundle, membership or financing can lower immediate friction",
+          "effect": "recommend package or installments"
+        }
+      ],
+      "deposit_policy": "request advance when capacity, specialist time or inventory must be secured"
+    },
+    "resource_capacity": {
+      "resource_types": [
+        "tecnico",
+        "bahia",
+        "elevador",
+        "equipo de alineacion",
+        "advisor"
+      ],
+      "capacity_basis": "bay count, lift type, technician skill and service duration",
+      "constraints": [
+        "avoid double booking of critical resources",
+        "respect service duration and cleanup/buffer time",
+        "prioritize higher urgency and higher close probability cases"
+      ],
+      "priority_queue": "bahia, técnico y orden de trabajo"
+    },
+    "recurrence_engine": {
+      "policies": [
+        {
+          "type": "maintenance_by_time",
+          "interval_days": 180,
+          "anchor": "vehículo"
+        },
+        {
+          "type": "maintenance_by_mileage",
+          "interval_days": 180,
+          "anchor": "vehículo"
+        },
+        {
+          "type": "post_service_nps",
+          "interval_days": 3,
+          "anchor": "vehículo"
+        }
+      ],
+      "reactivation_window_days": 180,
+      "goal": "protect retention, repeat revenue and continuity"
+    },
+    "kpi_engine": {
+      "north_star": "Cotización aprobada con retorno al siguiente mantenimiento.",
+      "definitions": [
+        {
+          "name": "quote_approval",
+          "formula": "approved_quotes / issued_quotes"
+        },
+        {
+          "name": "avg_ticket",
+          "formula": "service_revenue / completed_orders"
+        },
+        {
+          "name": "on_time_delivery",
+          "formula": "orders_on_time / completed_orders"
+        }
+      ],
+      "leading_indicators": [
+        "inspection_done",
+        "quote_pending_approval",
+        "no_response_7d"
+      ]
+    },
+    "automation_engine": {
+      "money_automation_policies": [
+        {
+          "trigger": "inspection_done",
+          "actions": [
+            "send_followup",
+            "escalate_owner",
+            "offer_relevant_next_step"
+          ],
+          "goal": "save conversion or retention"
+        },
+        {
+          "trigger": "quote_pending_approval",
+          "actions": [
+            "send_quote_or_payment_link",
+            "remind_deadline",
+            "notify_human"
+          ],
+          "goal": "move revenue forward"
+        },
+        {
+          "trigger": "maintenance_due",
+          "actions": [
+            "schedule_recurrence",
+            "cross_sell_next_best_offer",
+            "create_task"
+          ],
+          "goal": "increase LTV"
+        }
+      ],
+      "quiet_hours": "21:00-08:00"
+    },
+    "document_flow": {
+      "required_documents": [
+        "orden de trabajo",
+        "aprobacion de presupuesto",
+        "checklist de entrega",
+        "historial de mantenimiento"
+      ],
+      "lifecycle_rules": [
+        {
+          "document": "orden de trabajo",
+          "required_before": "first committed step",
+          "signature_required": true
+        },
+        {
+          "document": "historial de mantenimiento",
+          "required_before": "handoff or continuity step",
+          "signature_required": false
+        }
+      ]
+    },
+    "matching_engine": {
+      "entity": "vehículo",
+      "rules": [
+        "vehicle_type -> technician_skill",
+        "service_type -> bay_type",
+        "branch_match",
+        "urgency_priority"
+      ],
+      "next_best_match_outputs": [
+        "best_owner",
+        "best_resource_slot",
+        "best_offer"
+      ]
+    }
+  },
+  "transactional_motor_v12": {
+    "version": "v12_full_transactional",
+    "aggregate_root": "vehicle_service_account",
+    "main_business_entity": "vehículo",
+    "transaction_unit": "service_order_cycle",
+    "system_of_record": {
+      "write_model": [
+        "commands",
+        "events",
+        "ledger",
+        "aggregate_snapshots"
+      ],
+      "read_models": [
+        "commercial_board",
+        "operations_board",
+        "finance_board",
+        "continuity_board",
+        "resource_load_board",
+        "document_readiness_board",
+        "revenue_levers_board"
+      ],
+      "idempotency_scope": [
+        "organization_id",
+        "vertical_id",
+        "external_reference",
+        "command_key"
+      ],
+      "audit_mode": "append_only_with_snapshots"
+    },
+    "transaction_primitives": {
+      "commands": [
+        "capture_intent",
+        "qualify_record",
+        "create_quote",
+        "request_deposit",
+        "reserve_capacity",
+        "confirm_booking",
+        "start_case",
+        "approve_quote",
+        "collect_payment",
+        "start_fulfillment",
+        "close_fulfillment",
+        "schedule_recurrence",
+        "issue_refund",
+        "reactivate_customer",
+        "open_work_order",
+        "approve_repair_estimate",
+        "reserve_parts",
+        "schedule_next_service"
+      ],
+      "events": [
+        "intent_captured",
+        "record_qualified",
+        "quote_created",
+        "deposit_requested",
+        "capacity_reserved",
+        "booking_confirmed",
+        "case_started",
+        "quote_approved",
+        "payment_collected",
+        "fulfillment_started",
+        "fulfillment_closed",
+        "recurrence_scheduled",
+        "refund_issued",
+        "customer_reactivated",
+        "work_order_opened",
+        "repair_estimate_approved",
+        "parts_reserved",
+        "next_service_scheduled"
+      ],
+      "ledger_event_types": [
+        "charge_opened",
+        "deposit_collected",
+        "installment_due",
+        "payment_applied",
+        "credit_issued",
+        "refund_issued",
+        "write_off_registered"
+      ],
+      "invariants": [
+        "no iniciar trabajo sin autorización",
+        "no entregar vehículo con pago pendiente",
+        "no prometer fecha sin bahía disponible",
+        "todo pago debe referenciar quote, order o case activo",
+        "todo cambio crítico debe emitir evento y renglón de auditoría",
+        "ningún recurso se confirma dos veces en la misma ventana"
+      ],
+      "idempotency_keys": [
+        "command_key",
+        "payment_reference",
+        "booking_reference",
+        "external_message_id"
+      ]
+    },
+    "aggregates": {
+      "primary_record": {
+        "name": "vehículo",
+        "status_axis": [
+          "commercial",
+          "operations",
+          "finance",
+          "continuity"
+        ]
+      },
+      "quote": {
+        "name": "repair_estimate",
+        "states": [
+          "draft",
+          "sent",
+          "accepted",
+          "expired",
+          "lost"
+        ]
+      },
+      "booking": {
+        "name": "service_booking",
+        "states": [
+          "proposed",
+          "reserved",
+          "confirmed",
+          "attended_or_executed",
+          "missed_or_canceled"
+        ]
+      },
+      "execution": {
+        "name": "work_order_execution",
+        "states": [
+          "pending",
+          "ready",
+          "in_progress",
+          "blocked",
+          "completed",
+          "closed"
+        ]
+      },
+      "payment_account": {
+        "name": "payment_account",
+        "states": [
+          "open",
+          "partially_paid",
+          "paid",
+          "overdue",
+          "refunded"
+        ]
+      },
+      "continuity": {
+        "name": "maintenance_plan",
+        "states": [
+          "not_started",
+          "active",
+          "at_risk",
+          "recovered",
+          "closed"
+        ]
+      }
+    },
+    "orchestration": {
+      "command_handlers": [
+        "handle_capture_intent",
+        "handle_qualify_record",
+        "handle_create_quote",
+        "handle_request_deposit",
+        "handle_reserve_capacity",
+        "handle_confirm_booking",
+        "handle_start_case",
+        "handle_approve_quote",
+        "handle_open_work_order",
+        "handle_approve_repair_estimate",
+        "handle_reserve_parts",
+        "handle_schedule_next_service"
+      ],
+      "sagas": [
+        "inspection_to_estimate",
+        "estimate_to_work_order",
+        "next_service_reactivation"
+      ],
+      "money_guards": [
+        "quote_before_payment",
+        "capacity_before_confirmation",
+        "documents_before_execution",
+        "balance_before_close"
+      ],
+      "read_model_refresh": [
+        "on_every_event",
+        "nightly_reconciliation",
+        "pre_dashboard_cache"
+      ]
+    },
+    "finance": {
+      "money_objects": [
+        "diagnostic_charge",
+        "estimate_deposit",
+        "service_collection",
+        "maintenance_reminder_charge"
+      ],
+      "collection_modes": [
+        "anticipo",
+        "contra entrega",
+        "plan periódico"
+      ],
+      "refund_modes": [
+        "service_credit",
+        "partial_refund"
+      ],
+      "reconciliation_views": [
+        "expected_vs_collected",
+        "aging_balance",
+        "refund_exposure",
+        "cash_by_stage"
+      ]
+    },
+    "operations": {
+      "fulfillment_unit": "service_order_cycle",
+      "resource_locking": [
+        "technician",
+        "service_bay",
+        "parts_hold"
+      ],
+      "dispatch_or_schedule_board": [
+        "queued",
+        "ready",
+        "assigned",
+        "in_progress",
+        "blocked",
+        "done"
+      ],
+      "handoff_rules": [
+        "human_handoff_on_exception",
+        "supervisor_handoff_on_money_risk",
+        "operator_handoff_on_compliance_gap"
+      ]
+    },
+    "audit_compliance": {
+      "timeline_entities": [
+        "vehículo",
+        "repair_estimate",
+        "service_booking",
+        "work_order_execution",
+        "payment_account"
+      ],
+      "consent_gates": [
+        "vehicle_check_in",
+        "repair_authorization",
+        "delivery_checklist"
+      ],
+      "required_evidence": [
+        "timeline_event",
+        "actor",
+        "timestamp",
+        "before_after_snapshot"
+      ],
+      "retention_rules": [
+        "audit_log_append_only",
+        "documents_linked_to_primary_record",
+        "payment_trace_non_destructive"
+      ]
+    },
+    "transaction_views": {
+      "commercial": [
+        "inspection",
+        "estimate_approval",
+        "upsell"
+      ],
+      "operations": [
+        "work_order_status",
+        "bay_load",
+        "delivery_eta"
+      ],
+      "finance": [
+        "approval_rate",
+        "ticket_average",
+        "outstanding_balance"
+      ],
+      "continuity": [
+        "next_service",
+        "rebuy",
+        "post_service_nps"
+      ]
+    },
+    "command_catalog": [
+      {
+        "command": "capture_intent",
+        "writes": "vehículo",
+        "emits": "intent_captured",
+        "guard": "no iniciar trabajo sin autorización"
+      },
+      {
+        "command": "qualify_record",
+        "writes": "vehículo",
+        "emits": "record_qualified",
+        "guard": "no entregar vehículo con pago pendiente"
+      },
+      {
+        "command": "create_quote",
+        "writes": "vehículo",
+        "emits": "quote_created",
+        "guard": "no prometer fecha sin bahía disponible"
+      },
+      {
+        "command": "request_deposit",
+        "writes": "vehículo",
+        "emits": "deposit_requested",
+        "guard": "no iniciar trabajo sin autorización"
+      },
+      {
+        "command": "reserve_capacity",
+        "writes": "vehículo",
+        "emits": "capacity_reserved",
+        "guard": "no entregar vehículo con pago pendiente"
+      },
+      {
+        "command": "confirm_booking",
+        "writes": "vehículo",
+        "emits": "booking_confirmed",
+        "guard": "no prometer fecha sin bahía disponible"
+      },
+      {
+        "command": "start_case",
+        "writes": "vehículo",
+        "emits": "case_started",
+        "guard": "no iniciar trabajo sin autorización"
+      },
+      {
+        "command": "approve_quote",
+        "writes": "vehículo",
+        "emits": "quote_approved",
+        "guard": "no entregar vehículo con pago pendiente"
+      },
+      {
+        "command": "open_work_order",
+        "writes": "vehículo",
+        "emits": "payment_collected",
+        "guard": "no prometer fecha sin bahía disponible"
+      },
+      {
+        "command": "approve_repair_estimate",
+        "writes": "vehículo",
+        "emits": "fulfillment_started",
+        "guard": "no iniciar trabajo sin autorización"
+      },
+      {
+        "command": "reserve_parts",
+        "writes": "vehículo",
+        "emits": "fulfillment_closed",
+        "guard": "no entregar vehículo con pago pendiente"
+      },
+      {
+        "command": "schedule_next_service",
+        "writes": "vehículo",
+        "emits": "recurrence_scheduled",
+        "guard": "no prometer fecha sin bahía disponible"
+      }
+    ],
+    "event_catalog": [
+      {
+        "event": "intent_captured",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "inspection_to_estimate"
+      },
+      {
+        "event": "record_qualified",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "estimate_to_work_order"
+      },
+      {
+        "event": "quote_created",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "next_service_reactivation"
+      },
+      {
+        "event": "deposit_requested",
+        "updates": [
+          "timeline",
+          "boards",
+          "ledger"
+        ],
+        "next_action": "inspection_to_estimate"
+      },
+      {
+        "event": "capacity_reserved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "estimate_to_work_order"
+      },
+      {
+        "event": "booking_confirmed",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "next_service_reactivation"
+      },
+      {
+        "event": "case_started",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "inspection_to_estimate"
+      },
+      {
+        "event": "quote_approved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "estimate_to_work_order"
+      },
+      {
+        "event": "work_order_opened",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "next_service_reactivation"
+      },
+      {
+        "event": "repair_estimate_approved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "inspection_to_estimate"
+      },
+      {
+        "event": "parts_reserved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "estimate_to_work_order"
+      },
+      {
+        "event": "next_service_scheduled",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "next_service_reactivation"
+      }
+    ]
+  },
+  "is_strongest_vertical": true,
+  "strongest_rank": 5,
+  "ten_x_score": 92,
+  "ten_x_narrative": "WAOS Auto Service gana cuando ordena intake, cotizacion, aprobacion, estatus y mantenimiento futuro sin caos operativo.",
+  "ten_x_growth_loops": [
+    "intake a orden",
+    "cotizacion a aprobacion",
+    "servicio a mantenimiento",
+    "entrega a siguiente visita"
+  ],
+  "recommended_subverticals": [
+    "taller mecánico",
+    "centro de servicio",
+    "servicio eléctrico",
+    "llantera"
+  ],
+  "subvertical_profiles": [
+    {
+      "id": "taller-mecánico",
+      "name": "taller mecánico",
+      "strength_score": 92,
+      "promise": "Convertir WhatsApp en intake claro, aprobacion rapida y seguimiento sin friccion.",
+      "growth_motion": "intake_to_approval",
+      "buyer": "Dueño o gerente de taller/centro de servicio",
+      "monetizes": [
+        "revisión",
+        "servicio",
+        "reparación",
+        "aprobación extra"
+      ],
+      "service_bundle": [
+        "diagnostico",
+        "servicio preventivo",
+        "reparacion correctiva",
+        "recordatorio de mantenimiento"
+      ],
+      "qualification_questions": [
+        "que le notas al vehiculo",
+        "es preventivo o falla",
+        "cuando lo puedes traer",
+        "necesitas cotizacion o cita"
+      ],
+      "objections": [
+        "solo quiero cotizar",
+        "no confio en talleres",
+        "cuanto tarda",
+        "lo pensare"
+      ],
+      "automation_priorities": [
+        "seguimiento taller mecánico",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "ingreso agendado",
+        "cotización aprobada",
+        "tiempo a aprobación",
+        "tiempo de ciclo",
+        "conversion taller mecánico",
+        "revenue taller mecánico"
+      ],
+      "recommended_commands": [
+        "avisar entregas del dia",
+        "bloquear taller",
+        "pausar bot por contingencia",
+        "reactivar mantenimiento de 6 meses"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "taller-mecánico-lead",
+          "title": "Captacion taller mecánico",
+          "content": "Hola, te ayudo con taller mecánico. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "taller-mecánico-followup",
+          "title": "Seguimiento taller mecánico",
+          "content": "Te sigo con taller mecánico. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "taller-mecánico-reactivation",
+          "title": "Reactivacion taller mecánico",
+          "content": "Te escribo porque todavia podemos mover taller mecánico a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "tecnico y claro",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de taller mecánico",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con taller mecánico. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "centro-de-servicio",
+      "name": "centro de servicio",
+      "strength_score": 90,
+      "promise": "Convertir conversaciones de centro de servicio en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño o gerente de taller/centro de servicio",
+      "monetizes": [
+        "revisión",
+        "servicio",
+        "reparación",
+        "aprobación extra"
+      ],
+      "service_bundle": [
+        "diagnostico centro de servicio",
+        "servicio centro de servicio",
+        "autorizacion extra",
+        "mantenimiento siguiente"
+      ],
+      "qualification_questions": [
+        "que le notas al vehiculo",
+        "es preventivo o falla",
+        "cuando lo puedes traer",
+        "necesitas cotizacion o cita"
+      ],
+      "objections": [
+        "precio",
+        "tiempo",
+        "confianza",
+        "quiero otra opinión"
+      ],
+      "automation_priorities": [
+        "seguimiento centro de servicio",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "ingreso agendado",
+        "cotización aprobada",
+        "tiempo a aprobación",
+        "tiempo de ciclo",
+        "conversion centro de servicio",
+        "revenue centro de servicio"
+      ],
+      "recommended_commands": [
+        "avisar entregas del dia",
+        "bloquear taller",
+        "pausar bot por contingencia",
+        "reactivar mantenimiento de 6 meses"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "centro-de-servicio-lead",
+          "title": "Captacion centro de servicio",
+          "content": "Hola, te ayudo con centro de servicio. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "centro-de-servicio-followup",
+          "title": "Seguimiento centro de servicio",
+          "content": "Te sigo con centro de servicio. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "centro-de-servicio-reactivation",
+          "title": "Reactivacion centro de servicio",
+          "content": "Te escribo porque todavia podemos mover centro de servicio a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "tecnico y claro",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de centro de servicio",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con centro de servicio. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "servicio-eléctrico",
+      "name": "servicio eléctrico",
+      "strength_score": 88,
+      "promise": "Convertir conversaciones de servicio eléctrico en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño o gerente de taller/centro de servicio",
+      "monetizes": [
+        "revisión",
+        "servicio",
+        "reparación",
+        "aprobación extra"
+      ],
+      "service_bundle": [
+        "diagnostico servicio eléctrico",
+        "servicio servicio eléctrico",
+        "autorizacion extra",
+        "mantenimiento siguiente"
+      ],
+      "qualification_questions": [
+        "que le notas al vehiculo",
+        "es preventivo o falla",
+        "cuando lo puedes traer",
+        "necesitas cotizacion o cita"
+      ],
+      "objections": [
+        "precio",
+        "tiempo",
+        "confianza",
+        "quiero otra opinión"
+      ],
+      "automation_priorities": [
+        "seguimiento servicio eléctrico",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "ingreso agendado",
+        "cotización aprobada",
+        "tiempo a aprobación",
+        "tiempo de ciclo",
+        "conversion servicio eléctrico",
+        "revenue servicio eléctrico"
+      ],
+      "recommended_commands": [
+        "avisar entregas del dia",
+        "bloquear taller",
+        "pausar bot por contingencia",
+        "reactivar mantenimiento de 6 meses"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "servicio-eléctrico-lead",
+          "title": "Captacion servicio eléctrico",
+          "content": "Hola, te ayudo con servicio eléctrico. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "servicio-eléctrico-followup",
+          "title": "Seguimiento servicio eléctrico",
+          "content": "Te sigo con servicio eléctrico. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "servicio-eléctrico-reactivation",
+          "title": "Reactivacion servicio eléctrico",
+          "content": "Te escribo porque todavia podemos mover servicio eléctrico a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "tecnico y claro",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de servicio eléctrico",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con servicio eléctrico. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "llantera",
+      "name": "llantera",
+      "strength_score": 86,
+      "promise": "Mover cotizacion inmediata a cita o visita con stock y tiempos claros.",
+      "growth_motion": "quote_to_visit",
+      "buyer": "Dueño o gerente de taller/centro de servicio",
+      "monetizes": [
+        "revisión",
+        "servicio",
+        "reparación",
+        "aprobación extra"
+      ],
+      "service_bundle": [
+        "cotizacion llantas",
+        "alineacion",
+        "balanceo",
+        "revision express"
+      ],
+      "qualification_questions": [
+        "que le notas al vehiculo",
+        "es preventivo o falla",
+        "cuando lo puedes traer",
+        "necesitas cotizacion o cita"
+      ],
+      "objections": [
+        "quiero comparar",
+        "solo una llanta",
+        "esta caro",
+        "voy despues"
+      ],
+      "automation_priorities": [
+        "seguimiento llantera",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "ingreso agendado",
+        "cotización aprobada",
+        "tiempo a aprobación",
+        "tiempo de ciclo",
+        "conversion llantera",
+        "revenue llantera"
+      ],
+      "recommended_commands": [
+        "avisar entregas del dia",
+        "bloquear taller",
+        "pausar bot por contingencia",
+        "reactivar mantenimiento de 6 meses"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "llantera-lead",
+          "title": "Captacion llantera",
+          "content": "Hola, te ayudo con llantera. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "llantera-followup",
+          "title": "Seguimiento llantera",
+          "content": "Te sigo con llantera. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "llantera-reactivation",
+          "title": "Reactivacion llantera",
+          "content": "Te escribo porque todavia podemos mover llantera a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "tecnico y claro",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de llantera",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con llantera. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "hojalatería-y-pintura",
+      "name": "hojalatería y pintura",
+      "strength_score": 84,
+      "promise": "Ordenar intake con evidencia, avance y aprobaciones complementarias.",
+      "growth_motion": "estimate_to_authorization",
+      "buyer": "Dueño o gerente de taller/centro de servicio",
+      "monetizes": [
+        "revisión",
+        "servicio",
+        "reparación",
+        "aprobación extra"
+      ],
+      "service_bundle": [
+        "valuacion inicial",
+        "diagnostico visual",
+        "autorizacion extra",
+        "entrega"
+      ],
+      "qualification_questions": [
+        "que le notas al vehiculo",
+        "es preventivo o falla",
+        "cuando lo puedes traer",
+        "necesitas cotizacion o cita"
+      ],
+      "objections": [
+        "quiero saber si conviene",
+        "cuanto tarda",
+        "puedo pagarlo despues",
+        "quiero comparar"
+      ],
+      "automation_priorities": [
+        "seguimiento hojalatería y pintura",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "ingreso agendado",
+        "cotización aprobada",
+        "tiempo a aprobación",
+        "tiempo de ciclo",
+        "conversion hojalatería y pintura",
+        "revenue hojalatería y pintura"
+      ],
+      "recommended_commands": [
+        "avisar entregas del dia",
+        "bloquear taller",
+        "pausar bot por contingencia",
+        "reactivar mantenimiento de 6 meses"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "hojalatería-y-pintura-lead",
+          "title": "Captacion hojalatería y pintura",
+          "content": "Hola, te ayudo con hojalatería y pintura. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "hojalatería-y-pintura-followup",
+          "title": "Seguimiento hojalatería y pintura",
+          "content": "Te sigo con hojalatería y pintura. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "hojalatería-y-pintura-reactivation",
+          "title": "Reactivacion hojalatería y pintura",
+          "content": "Te escribo porque todavia podemos mover hojalatería y pintura a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "tecnico y claro",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de hojalatería y pintura",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con hojalatería y pintura. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "detailing",
+      "name": "detailing",
+      "strength_score": 82,
+      "promise": "Llenar agenda premium y convertir cada visita en frecuencia o paquete.",
+      "growth_motion": "premium_recurrence",
+      "buyer": "Dueño o gerente de taller/centro de servicio",
+      "monetizes": [
+        "revisión",
+        "servicio",
+        "reparación",
+        "aprobación extra"
+      ],
+      "service_bundle": [
+        "detailing basico",
+        "detailing premium",
+        "mantenimiento mensual",
+        "add-on interior"
+      ],
+      "qualification_questions": [
+        "que le notas al vehiculo",
+        "es preventivo o falla",
+        "cuando lo puedes traer",
+        "necesitas cotizacion o cita"
+      ],
+      "objections": [
+        "solo queria precio",
+        "me da igual hoy",
+        "esta caro",
+        "no se que incluye"
+      ],
+      "automation_priorities": [
+        "seguimiento detailing",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "ingreso agendado",
+        "cotización aprobada",
+        "tiempo a aprobación",
+        "tiempo de ciclo",
+        "conversion detailing",
+        "revenue detailing"
+      ],
+      "recommended_commands": [
+        "avisar entregas del dia",
+        "bloquear taller",
+        "pausar bot por contingencia",
+        "reactivar mantenimiento de 6 meses"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "detailing-lead",
+          "title": "Captacion detailing",
+          "content": "Hola, te ayudo con detailing. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "detailing-followup",
+          "title": "Seguimiento detailing",
+          "content": "Te sigo con detailing. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "detailing-reactivation",
+          "title": "Reactivacion detailing",
+          "content": "Te escribo porque todavia podemos mover detailing a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "tecnico y claro",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de detailing",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con detailing. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "ppf",
+      "name": "PPF",
+      "strength_score": 80,
+      "promise": "Convertir conversaciones de PPF en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño o gerente de taller/centro de servicio",
+      "monetizes": [
+        "revisión",
+        "servicio",
+        "reparación",
+        "aprobación extra"
+      ],
+      "service_bundle": [
+        "diagnostico PPF",
+        "servicio PPF",
+        "autorizacion extra",
+        "mantenimiento siguiente"
+      ],
+      "qualification_questions": [
+        "que le notas al vehiculo",
+        "es preventivo o falla",
+        "cuando lo puedes traer",
+        "necesitas cotizacion o cita"
+      ],
+      "objections": [
+        "precio",
+        "tiempo",
+        "confianza",
+        "quiero otra opinión"
+      ],
+      "automation_priorities": [
+        "seguimiento PPF",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "ingreso agendado",
+        "cotización aprobada",
+        "tiempo a aprobación",
+        "tiempo de ciclo",
+        "conversion PPF",
+        "revenue PPF"
+      ],
+      "recommended_commands": [
+        "avisar entregas del dia",
+        "bloquear taller",
+        "pausar bot por contingencia",
+        "reactivar mantenimiento de 6 meses"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "ppf-lead",
+          "title": "Captacion PPF",
+          "content": "Hola, te ayudo con PPF. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "ppf-followup",
+          "title": "Seguimiento PPF",
+          "content": "Te sigo con PPF. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "ppf-reactivation",
+          "title": "Reactivacion PPF",
+          "content": "Te escribo porque todavia podemos mover PPF a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "tecnico y claro",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de PPF",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con PPF. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "wraps",
+      "name": "wraps",
+      "strength_score": 78,
+      "promise": "Convertir conversaciones de wraps en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño o gerente de taller/centro de servicio",
+      "monetizes": [
+        "revisión",
+        "servicio",
+        "reparación",
+        "aprobación extra"
+      ],
+      "service_bundle": [
+        "diagnostico wraps",
+        "servicio wraps",
+        "autorizacion extra",
+        "mantenimiento siguiente"
+      ],
+      "qualification_questions": [
+        "que le notas al vehiculo",
+        "es preventivo o falla",
+        "cuando lo puedes traer",
+        "necesitas cotizacion o cita"
+      ],
+      "objections": [
+        "precio",
+        "tiempo",
+        "confianza",
+        "quiero otra opinión"
+      ],
+      "automation_priorities": [
+        "seguimiento wraps",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "ingreso agendado",
+        "cotización aprobada",
+        "tiempo a aprobación",
+        "tiempo de ciclo",
+        "conversion wraps",
+        "revenue wraps"
+      ],
+      "recommended_commands": [
+        "avisar entregas del dia",
+        "bloquear taller",
+        "pausar bot por contingencia",
+        "reactivar mantenimiento de 6 meses"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "wraps-lead",
+          "title": "Captacion wraps",
+          "content": "Hola, te ayudo con wraps. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "wraps-followup",
+          "title": "Seguimiento wraps",
+          "content": "Te sigo con wraps. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "wraps-reactivation",
+          "title": "Reactivacion wraps",
+          "content": "Te escribo porque todavia podemos mover wraps a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "tecnico y claro",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de wraps",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con wraps. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "lavado-premium",
+      "name": "lavado premium",
+      "strength_score": 76,
+      "promise": "Convertir conversaciones de lavado premium en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño o gerente de taller/centro de servicio",
+      "monetizes": [
+        "revisión",
+        "servicio",
+        "reparación",
+        "aprobación extra"
+      ],
+      "service_bundle": [
+        "diagnostico lavado premium",
+        "servicio lavado premium",
+        "autorizacion extra",
+        "mantenimiento siguiente"
+      ],
+      "qualification_questions": [
+        "que le notas al vehiculo",
+        "es preventivo o falla",
+        "cuando lo puedes traer",
+        "necesitas cotizacion o cita"
+      ],
+      "objections": [
+        "precio",
+        "tiempo",
+        "confianza",
+        "quiero otra opinión"
+      ],
+      "automation_priorities": [
+        "seguimiento lavado premium",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "ingreso agendado",
+        "cotización aprobada",
+        "tiempo a aprobación",
+        "tiempo de ciclo",
+        "conversion lavado premium",
+        "revenue lavado premium"
+      ],
+      "recommended_commands": [
+        "avisar entregas del dia",
+        "bloquear taller",
+        "pausar bot por contingencia",
+        "reactivar mantenimiento de 6 meses"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "lavado-premium-lead",
+          "title": "Captacion lavado premium",
+          "content": "Hola, te ayudo con lavado premium. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "lavado-premium-followup",
+          "title": "Seguimiento lavado premium",
+          "content": "Te sigo con lavado premium. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "lavado-premium-reactivation",
+          "title": "Reactivacion lavado premium",
+          "content": "Te escribo porque todavia podemos mover lavado premium a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "tecnico y claro",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de lavado premium",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con lavado premium. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "accesorios",
+      "name": "accesorios",
+      "strength_score": 74,
+      "promise": "Convertir conversaciones de accesorios en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño o gerente de taller/centro de servicio",
+      "monetizes": [
+        "revisión",
+        "servicio",
+        "reparación",
+        "aprobación extra"
+      ],
+      "service_bundle": [
+        "diagnostico accesorios",
+        "servicio accesorios",
+        "autorizacion extra",
+        "mantenimiento siguiente"
+      ],
+      "qualification_questions": [
+        "que le notas al vehiculo",
+        "es preventivo o falla",
+        "cuando lo puedes traer",
+        "necesitas cotizacion o cita"
+      ],
+      "objections": [
+        "precio",
+        "tiempo",
+        "confianza",
+        "quiero otra opinión"
+      ],
+      "automation_priorities": [
+        "seguimiento accesorios",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "ingreso agendado",
+        "cotización aprobada",
+        "tiempo a aprobación",
+        "tiempo de ciclo",
+        "conversion accesorios",
+        "revenue accesorios"
+      ],
+      "recommended_commands": [
+        "avisar entregas del dia",
+        "bloquear taller",
+        "pausar bot por contingencia",
+        "reactivar mantenimiento de 6 meses"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "accesorios-lead",
+          "title": "Captacion accesorios",
+          "content": "Hola, te ayudo con accesorios. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "accesorios-followup",
+          "title": "Seguimiento accesorios",
+          "content": "Te sigo con accesorios. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "accesorios-reactivation",
+          "title": "Reactivacion accesorios",
+          "content": "Te escribo porque todavia podemos mover accesorios a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "tecnico y claro",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de accesorios",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con accesorios. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    }
+  ],
+  "ten_x_operational_pack": {
+    "recommended_commands": [
+      "avisar entregas del dia",
+      "bloquear taller",
+      "pausar bot por contingencia",
+      "reactivar mantenimiento de 6 meses"
+    ],
+    "launch_sequence": [
+      "escoger subvertical",
+      "aplicar pack",
+      "simular conversaciones",
+      "publicar y medir"
+    ],
+    "why_this_vertical": "WAOS Auto Service gana cuando ordena intake, cotizacion, aprobacion, estatus y mantenimiento futuro sin caos operativo."
+  }
+}

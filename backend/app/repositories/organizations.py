@@ -1,20 +1,21 @@
 from __future__ import annotations
 
 import os
-import sqlite3
 from typing import Any
+
+from .base import ConnectionLike
 
 from ..db import execute, fetch_all, fetch_one
 from ..defaults import default_bot_config
 from ..utils import from_json, hash_password, new_id, slugify, to_json, utcnow_iso
 from ..verticals import build_organization_settings
 
-def get_org(conn: sqlite3.Connection, organization_id: str) -> dict | None:
+def get_org(conn: ConnectionLike, organization_id: str) -> dict | None:
     return fetch_one(conn, "SELECT * FROM organizations WHERE id = ?", (organization_id,))
 
 
 def create_audit_log(
-    conn: sqlite3.Connection,
+    conn: ConnectionLike,
     *,
     organization_id: str | None,
     actor_user_id: str | None,
@@ -59,7 +60,7 @@ def create_audit_log(
     )
 
 
-def _unique_org_slug(conn: sqlite3.Connection, base_slug: str) -> str:
+def _unique_org_slug(conn: ConnectionLike, base_slug: str) -> str:
     slug = base_slug
     suffix = 2
     while fetch_one(conn, "SELECT id FROM organizations WHERE slug = ?", (slug,)):
@@ -68,7 +69,7 @@ def _unique_org_slug(conn: sqlite3.Connection, base_slug: str) -> str:
     return slug
 
 
-def create_organization(conn: sqlite3.Connection, *, name: str, vertical: str, timezone: str, created_by: dict) -> dict:
+def create_organization(conn: ConnectionLike, *, name: str, vertical: str, timezone: str, created_by: dict) -> dict:
     organization_id = new_id("org")
     now = utcnow_iso()
     slug = _unique_org_slug(conn, slugify(name))

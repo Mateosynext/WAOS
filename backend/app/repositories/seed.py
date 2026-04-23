@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import os
-import sqlite3
 from typing import Any
+
+from .base import ConnectionLike
 
 from ..db import execute, fetch_all, fetch_one
 from ..defaults import default_bot_config
@@ -14,7 +15,7 @@ from .contacts import get_contact, get_contact_memory
 from .conversations import get_conversation
 
 def create_bot(
-    conn: sqlite3.Connection,
+    conn: ConnectionLike,
     *,
     organization_id: str,
     business_name: str,
@@ -102,7 +103,7 @@ def create_bot(
     return get_bot(conn, bot_id)
 
 
-def create_or_update_knowledge_items(conn: sqlite3.Connection, *, organization_id: str, bot_id: str, config: dict) -> None:
+def create_or_update_knowledge_items(conn: ConnectionLike, *, organization_id: str, bot_id: str, config: dict) -> None:
     execute(conn, "DELETE FROM knowledge_items WHERE bot_id = ?", (bot_id,))
     knowledge = config.get("business_knowledge", {})
     items: list[tuple] = []
@@ -132,7 +133,7 @@ def create_or_update_knowledge_items(conn: sqlite3.Connection, *, organization_i
         conn.commit()
 
 
-def upsert_contact(conn: sqlite3.Connection, *, organization_id: str, phone: str, name: str | None = None) -> dict:
+def upsert_contact(conn: ConnectionLike, *, organization_id: str, phone: str, name: str | None = None) -> dict:
     existing = fetch_one(conn, "SELECT * FROM contacts WHERE organization_id = ? AND phone = ?", (organization_id, phone))
     now = utcnow_iso()
     if existing:
@@ -151,7 +152,7 @@ def upsert_contact(conn: sqlite3.Connection, *, organization_id: str, phone: str
     return get_contact(conn, contact_id)
 
 
-def upsert_conversation(conn: sqlite3.Connection, *, organization_id: str, bot_id: str, contact_id: str) -> dict:
+def upsert_conversation(conn: ConnectionLike, *, organization_id: str, bot_id: str, contact_id: str) -> dict:
     existing = fetch_one(
         conn,
         "SELECT * FROM conversations WHERE organization_id = ? AND bot_id = ? AND contact_id = ?",
@@ -174,7 +175,7 @@ def upsert_conversation(conn: sqlite3.Connection, *, organization_id: str, bot_i
     return get_conversation(conn, conversation_id)
 
 
-def upsert_memory(conn: sqlite3.Connection, *, organization_id: str, contact_id: str, bot_id: str) -> dict:
+def upsert_memory(conn: ConnectionLike, *, organization_id: str, contact_id: str, bot_id: str) -> dict:
     existing = get_contact_memory(conn, contact_id, bot_id)
     now = utcnow_iso()
     if existing:
@@ -193,7 +194,7 @@ def upsert_memory(conn: sqlite3.Connection, *, organization_id: str, contact_id:
 
 
 def create_message(
-    conn: sqlite3.Connection,
+    conn: ConnectionLike,
     *,
     organization_id: str,
     conversation_id: str,
@@ -244,7 +245,7 @@ def create_message(
     return fetch_one(conn, "SELECT * FROM messages WHERE id = ?", (message_id,))
 
 
-def ensure_seed_data(conn: sqlite3.Connection) -> None:
+def ensure_seed_data(conn: ConnectionLike) -> None:
     admin_email = os.getenv("BOOTSTRAP_ADMIN_EMAIL", "").strip().lower()
     admin_password = os.getenv("BOOTSTRAP_ADMIN_PASSWORD", "")
     admin_name = os.getenv("BOOTSTRAP_ADMIN_NAME", "WAOS Bootstrap Admin").strip() or "WAOS Bootstrap Admin"

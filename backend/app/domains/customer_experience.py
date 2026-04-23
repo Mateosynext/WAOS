@@ -416,21 +416,6 @@ def create_service_request(conn, *, organization_id: str, bot_id: str, contact_i
     return fetch_one(conn, "SELECT * FROM service_requests WHERE id = ?", (request_id,))
 
 
-def fetch_one(conn, sql: str, params=()):
-    row = conn.execute(sql, tuple(params)).fetchone()
-    return dict(row) if row else None
-
-
-def fetch_all(conn, sql: str, params=()):
-    rows = conn.execute(sql, tuple(params)).fetchall()
-    return [dict(row) for row in rows]
-
-
-def execute(conn, sql: str, params=()):
-    conn.execute(sql, tuple(params))
-    conn.commit()
-
-
 def _parse_row(row: dict, mapping: dict[str, Any]) -> dict:
     parsed = dict(row)
     for key, default in mapping.items():

@@ -55,38 +55,43 @@ test("critical chrome uses tokenized surfaces in refactored screens", () => {
 
 test("wizard reactive loader is centralized in a shared module", () => {
   const shared = read("app/bot-studio/wizardReactiveData.ts");
-  const wizard = read("app/bot-studio/BotStudioWizard.tsx");
-  const wizardClient = read("app/bot-studio/BotStudioWizardClient.tsx");
+  const flowClient = read("app/bot-studio/BotStudioFlowClient.tsx");
   const reactiveConfigurator = read("app/components/ReactiveVerticalConfigurator.tsx");
 
   assert.match(shared, /WIZARD_BLUEPRINT_ENDPOINT/);
   assert.match(shared, /WIZARD_VERTICAL_PROFILE_ENDPOINT/);
   assert.match(shared, /loadWizardReactiveSelection/);
 
-  assert.match(wizard, /loadWizardReactiveSelection/);
+  assert.match(flowClient, /createLatestWizardReactiveSelectionLoader/);
   assert.match(reactiveConfigurator, /loadWizardReactiveSelection/);
-  assert.match(wizardClient, /(loadWizardReactiveSelection|createLatestWizardReactiveSelectionLoader)/);
 
-  for (const source of [wizard, wizardClient, reactiveConfigurator]) {
+  for (const source of [flowClient, reactiveConfigurator]) {
     assert.doesNotMatch(source, /\/api\/onboarding\/wizard\/blueprint\?/);
     assert.doesNotMatch(source, /\/api\/onboarding\/wizard\/vertical-profile\?/);
   }
 });
 
-test("wizard payload builders and review sections live outside BotStudioWizardClient", () => {
+test("bot studio app routes delegate implementation to feature modules while route shims stay thin", () => {
   const wizardClient = read("app/bot-studio/BotStudioWizardClient.tsx");
-  const payloadBuilders = read("app/bot-studio/wizardPayloadBuilders.ts");
-  const reviewSections = read("app/bot-studio/wizardReviewSections.tsx");
+  const flowClient = read("app/bot-studio/BotStudioFlowClient.tsx");
+  const createScreensShim = read("app/bot-studio/createScreens.tsx");
+  const reviewSectionsShim = read("app/bot-studio/wizardReviewSections.tsx");
+  const stateShim = read("app/bot-studio/useBotStudioWizardState.ts");
+  const featureCreateScreens = read("features/bot-studio/context/createScreens.tsx");
+  const featureReviewSections = read("features/bot-studio/review/wizardReviewSections.tsx");
+  const featureState = read("features/bot-studio/context/useBotStudioWizardState.ts");
 
-  assert.match(payloadBuilders, /export function buildWizardPayloads/);
-  assert.match(reviewSections, /export function ValidationSnapshotPanel/);
-  assert.match(reviewSections, /export function StickySummaryRail/);
-
-  assert.match(wizardClient, /from "\.\/wizardPayloadBuilders"/);
-  assert.match(wizardClient, /from "\.\/wizardReviewSections"/);
-  assert.doesNotMatch(wizardClient, /function buildStartPayload\(/);
-  assert.doesNotMatch(wizardClient, /function ValidationSnapshotPanel\(/);
-  assert.doesNotMatch(wizardClient, /function StickySummaryRail\(/);
+  assert.match(createScreensShim, /features\/bot-studio\/context\/createScreens/);
+  assert.match(reviewSectionsShim, /features\/bot-studio\/review\/wizardReviewSections/);
+  assert.match(stateShim, /features\/bot-studio\/context\/useBotStudioWizardState/);
+  assert.match(featureCreateScreens, /export function CreateContextScreen/);
+  assert.match(featureReviewSections, /export function ValidationSnapshotPanel/);
+  assert.match(featureReviewSections, /export function StickySummaryRail/);
+  assert.match(featureState, /export function useBotStudioWizardState/);
+  assert.match(flowClient, /features\/bot-studio\/context\/createScreens/);
+  assert.match(flowClient, /features\/bot-studio\/review\/wizardReviewSections/);
+  assert.match(flowClient, /features\/bot-studio\/context\/useBotStudioWizardState/);
+  assert.doesNotMatch(wizardClient, /wizardReviewSections/);
 });
 
 
@@ -233,9 +238,9 @@ test("client portal operations use typed data access instead of inline any-shape
   assert.equal(portalContent.includes("apiFetchOrDefault(`/api/v1/client/operations/"), false);
 });
 
-test("bot studio routes and client share wizard gateway modules instead of hand-rolled proxy duplication", () => {
+test("bot studio routes and flow client share wizard gateway modules instead of hand-rolled proxy duplication", () => {
   const page = read("app/bot-studio/page.tsx");
-  const client = read("app/bot-studio/BotStudioWizardClient.tsx");
+  const flowClient = read("app/bot-studio/BotStudioFlowClient.tsx");
   const wizardApi = read("app/bot-studio/wizardApi.ts");
   const wizardData = read("app/lib/data/wizard.ts");
   const routeHelpers = read("app/api/onboarding/wizard/route-helpers.ts");
@@ -243,12 +248,28 @@ test("bot studio routes and client share wizard gateway modules instead of hand-
   const blueprintRoute = read("app/api/onboarding/wizard/blueprint/route.ts");
 
   assert.match(page, /from "\.\.\/lib\/data\/wizard"/);
-  assert.match(client, /from "\.\/wizardApi"/);
+  assert.match(flowClient, /from "\.\/wizardApi"/);
   assert.match(wizardApi, /export function startWizardRequest/);
   assert.match(wizardData, /export async function getWizardBlueprint/);
   assert.match(routeHelpers, /export async function wizardRouteResponse/);
   assert.match(startRoute, /wizardRouteResponse/);
   assert.match(blueprintRoute, /getWizardBlueprint/);
-  assert.doesNotMatch(client, /"\/api\/onboarding\/wizard\/start"/);
-  assert.doesNotMatch(client, /steps\/\$\{stepKey\}/);
+  assert.doesNotMatch(flowClient, /"\/api\/onboarding\/wizard\/start"/);
+  assert.doesNotMatch(flowClient, /steps\/\$\{stepKey\}/);
+});
+
+test("vertical fallback catalog is modularized behind indexed loaders instead of one giant TypeScript blob", () => {
+  const verticalsData = read("app/lib/data/verticals.ts");
+  const fallbackIndex = read("app/lib/vertical-fallback/index.ts");
+  const fallbackCatalog = read("app/lib/vertical-fallback/index.json");
+  const legacyBlob = path.join(root, "app/lib/vertical-fallback.ts");
+
+  assert.match(verticalsData, /await getFallbackVerticalCatalog/);
+  assert.match(verticalsData, /await getFallbackVerticalProfile/);
+  assert.match(fallbackIndex, /import indexData from "\.\/index\.json"/);
+  assert.match(fallbackIndex, /const profileLoaders:/);
+  assert.match(fallbackIndex, /loadProfileById/);
+  assert.match(fallbackIndex, /normalizeVerticalProfile/);
+  assert.match(fallbackCatalog, /"file": "profiles\//);
+  assert.equal(fs.existsSync(legacyBlob), false);
 });

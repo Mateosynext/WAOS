@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import os
-import sqlite3
 from typing import Any
+
+from .base import ConnectionLike
 
 from ..db import execute, fetch_all, fetch_one
 from ..defaults import default_bot_config
 from ..utils import from_json, hash_password, new_id, slugify, to_json, utcnow_iso
 from ..verticals import build_organization_settings
 
-def get_contact_memory(conn: sqlite3.Connection, contact_id: str, bot_id: str) -> dict | None:
+def get_contact_memory(conn: ConnectionLike, contact_id: str, bot_id: str) -> dict | None:
     return fetch_one(
         conn,
         "SELECT * FROM contact_memory WHERE contact_id = ? AND bot_id = ?",
@@ -17,11 +18,11 @@ def get_contact_memory(conn: sqlite3.Connection, contact_id: str, bot_id: str) -
     )
 
 
-def get_contact(conn: sqlite3.Connection, contact_id: str) -> dict | None:
+def get_contact(conn: ConnectionLike, contact_id: str) -> dict | None:
     return fetch_one(conn, "SELECT * FROM contacts WHERE id = ?", (contact_id,))
 
 
-def upsert_contact(conn: sqlite3.Connection, *, organization_id: str, phone: str, name: str | None = None) -> dict:
+def upsert_contact(conn: ConnectionLike, *, organization_id: str, phone: str, name: str | None = None) -> dict:
     existing = fetch_one(conn, "SELECT * FROM contacts WHERE organization_id = ? AND phone = ?", (organization_id, phone))
     now = utcnow_iso()
     if existing:
@@ -40,7 +41,7 @@ def upsert_contact(conn: sqlite3.Connection, *, organization_id: str, phone: str
     return get_contact(conn, contact_id)
 
 
-def upsert_memory(conn: sqlite3.Connection, *, organization_id: str, contact_id: str, bot_id: str) -> dict:
+def upsert_memory(conn: ConnectionLike, *, organization_id: str, contact_id: str, bot_id: str) -> dict:
     existing = get_contact_memory(conn, contact_id, bot_id)
     now = utcnow_iso()
     if existing:

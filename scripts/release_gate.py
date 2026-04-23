@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
+sys.dont_write_bytecode = True
+
 import argparse
 import json
 import shutil
 import tempfile
 import zipfile
 from pathlib import Path
+
+from repo_policy import scan_source_tree
 
 FORBIDDEN_RUNTIME_PATTERNS = {
     'sqlite_databases': ['*.db', '*.sqlite', '*.sqlite3', '*.sqlite3-shm', '*.sqlite3-wal'],
@@ -80,6 +85,16 @@ def scan(base: Path, profile: str, root_name: str, expected_root_name: str | Non
         failures['runtime_docs_or_tests'] = runtime_only
     if naming:
         failures['root_name_mismatch'] = naming
+    if profile == "source":
+        source_scan = scan_source_tree(base)
+        if source_scan["forbidden_files"]:
+            failures["source_forbidden_files"] = source_scan["forbidden_files"]
+        if source_scan["missing_doc_refs"]:
+            failures["missing_doc_refs"] = [
+                f"{item['source']} -> {item['reference']}" for item in source_scan["missing_doc_refs"]
+            ]
+        if source_scan["legacy_root_leaks"]:
+            failures["legacy_root_leaks"] = source_scan["legacy_root_leaks"]
     return {
         'profile': profile,
         'root_name': root_name,

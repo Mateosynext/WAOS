@@ -5,18 +5,18 @@ from typing import Any
 from fastapi import APIRouter, Query
 
 from ...application.proactive_reasoning_service import proactive_reasoning_service
-from ...schemas import ProactiveEvaluateRequest, ProactiveMaterializeRequest
+from ...schemas import ApiEnvelope, FlexibleSchema, ProactiveEvaluateRequest, ProactiveMaterializeRequest
 from ..dependencies import CurrentUoW, CurrentUser
 
 router = APIRouter(tags=["proactive_reasoning"])
 
 
-@router.post("/api/v1/proactive-engine/evaluate")
+@router.post("/api/v1/proactive-engine/evaluate", response_model=ApiEnvelope[FlexibleSchema])
 def evaluate_proactive_engine(payload: ProactiveEvaluateRequest, user: CurrentUser, uow: CurrentUoW) -> dict[str, Any]:
     return proactive_reasoning_service.evaluate(uow, payload=payload, user=user)
 
 
-@router.get("/api/v1/proactive-engine/candidates")
+@router.get("/api/v1/proactive-engine/candidates", response_model=ApiEnvelope[FlexibleSchema])
 def list_proactive_engine_candidates(
     organization_id: str = Query(...),
     bot_id: str | None = Query(default=None),
@@ -39,12 +39,12 @@ def list_proactive_engine_candidates(
     )
 
 
-@router.post("/api/v1/proactive-engine/candidates/{candidate_id}/materialize")
+@router.post("/api/v1/proactive-engine/candidates/{candidate_id}/materialize", response_model=ApiEnvelope[FlexibleSchema])
 def materialize_proactive_engine_candidate(candidate_id: str, payload: ProactiveMaterializeRequest, user: CurrentUser, uow: CurrentUoW) -> dict[str, Any]:
     return proactive_reasoning_service.materialize(uow, candidate_id=candidate_id, payload=payload, user=user)
 
 
-@router.get("/api/v1/proactive-engine/runs")
+@router.get("/api/v1/proactive-engine/runs", response_model=ApiEnvelope[FlexibleSchema])
 def list_proactive_engine_runs(
     organization_id: str = Query(...),
     bot_id: str | None = Query(default=None),

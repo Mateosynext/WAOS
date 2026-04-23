@@ -1,7 +1,9 @@
 import type { NextRequest } from "next/server";
-import { normalizeSessionUser, type SessionUser } from "../contracts/auth.ts";
+import type { SessionUser } from "../contracts/auth.ts";
 import { getServerApiBase } from "../env.ts";
+import { requestSessionRefresh } from "./refresh.ts";
 import { ACCESS_COOKIE, ORG_COOKIE, REFRESH_COOKIE } from "./cookies.ts";
+import { fetchSessionUserFromApi, resolveSessionOrganizationId } from "./shared-session.ts";
 
 const API_BASE = getServerApiBase();
 
@@ -47,41 +49,11 @@ export function isExpiredJwt(claims: JwtClaims | null, nowSeconds = Math.floor(D
 }
 
 async function refreshSession(refreshToken: string) {
-  if (!API_BASE) return null;
-  try {
-    const response = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-      cache: "no-store",
-    });
-    if (!response.ok) return null;
-    const payload = await response.json().catch(() => null);
-    if (typeof payload?.access_token !== "string" || typeof payload?.refresh_token !== "string") return null;
-    return { accessToken: payload.access_token, refreshToken: payload.refresh_token };
-  } catch {
-    return null;
-  }
+  return requestSessionRefresh(refreshToken, API_BASE);
 }
 
 async function fetchSessionUser(accessToken: string, selectedOrganizationId: string | null) {
-  if (!API_BASE) return null;
-  const headers = new Headers({ Authorization: `Bearer ${accessToken}` });
-  if (selectedOrganizationId) {
-    headers.set("x-waos-org-id", selectedOrganizationId);
-    headers.set("x-organization-id", selectedOrganizationId);
-  }
-  try {
-    const response = await fetch(`${API_BASE}/api/v1/auth/me`, {
-      method: "GET",
-      headers,
-      cache: "no-store",
-    });
-    if (!response.ok) return null;
-    return normalizeSessionUser(await response.json());
-  } catch {
-    return null;
-  }
+  return fetchSessionUserFromApi(API_BASE, accessToken, selectedOrganizationId);
 }
 
 export async function verifyRequestSession(request: NextRequest): Promise<VerifiedSession | null> {
@@ -121,6 +93,6 @@ export async function verifyRequestSession(request: NextRequest): Promise<Verifi
     refreshToken: activeRefreshToken,
     user,
     organizationIds,
-    selectedOrganizationId,
+    selectedOrganizationId: resolveSessionOrganizationId(user, selectedOrganizationId),
   };
 }

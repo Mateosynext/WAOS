@@ -3,113 +3,41 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .agent_policy_runtime import evaluate_specialist_policy, get_policy_profile_for_specialist, serialize_policy_profile
-from .db import execute, fetch_all, fetch_one, table_exists
+from .agent_policy_runtime import evaluate_specialist_policy
 from .domains.customer_experience import ingest_voice_note
 from .multi_agent_runtime import build_shared_memory_context, route_intent_to_specialist
 from .repositories.conversations import create_message, get_conversation, upsert_conversation
+from .repositories.voice_channels import (
+    create_handoff as repo_create_handoff,
+    create_session as repo_create_session,
+    create_turn as repo_create_turn,
+    get_turn as repo_get_turn,
+    interrupt_active_assistant_turn as repo_interrupt_active_assistant_turn,
+    list_recent_conversation_messages as repo_list_recent_conversation_messages,
+    list_session_rows as repo_list_session_rows,
+    load_bot as repo_load_bot,
+    load_handoffs as repo_load_handoffs,
+    load_recent_contact_memory as repo_load_recent_contact_memory,
+    load_session as repo_load_session,
+    load_turns as repo_load_turns,
+    mark_session_handoff as repo_mark_session_handoff,
+    next_turn_index as repo_next_turn_index,
+    update_session_after_turn as repo_update_session_after_turn,
+    update_session_state as repo_update_session_state,
+    update_voice_note_urgency as repo_update_voice_note_urgency,
+)
 from .utils import from_json, new_id, to_json, utcnow_iso
 from .voice_pipeline import voice_pipeline_service
+from .runtime_schema_guards import assert_schema_ready
 
 VOICE_SURFACE_VERSION = "voice_channel_v1"
 
 
 def ensure_voice_channel_schema(conn) -> None:
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS voice_channel_sessions (
-            id TEXT PRIMARY KEY,
-            organization_id TEXT NOT NULL,
-            bot_id TEXT NOT NULL,
-            contact_id TEXT NOT NULL,
-            conversation_id TEXT NOT NULL,
-            channel TEXT NOT NULL,
-            state TEXT NOT NULL DEFAULT 'listening',
-            requested_modality TEXT NOT NULL DEFAULT 'voice',
-            active_modality TEXT NOT NULL DEFAULT 'voice',
-            turn_taking_mode TEXT NOT NULL DEFAULT 'full_duplex_guarded',
-            barge_in_enabled INTEGER NOT NULL DEFAULT 1,
-            continuity_mode TEXT NOT NULL DEFAULT 'shared_runtime_memory',
-            stt_provider TEXT,
-            tts_provider TEXT,
-            latest_intent_family TEXT,
-            latest_specialist_agent_key TEXT,
-            urgency_level TEXT NOT NULL DEFAULT 'normal',
-            urgency_score INTEGER NOT NULL DEFAULT 0,
-            policy_profile_key TEXT,
-            policy_profile_version TEXT,
-            handoff_channel TEXT,
-            handoff_state TEXT NOT NULL DEFAULT 'none',
-            shared_memory_json TEXT NOT NULL DEFAULT '{}',
-            metadata_json TEXT NOT NULL DEFAULT '{}',
-            started_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            ended_at TEXT,
-            FOREIGN KEY (organization_id) REFERENCES organizations(id),
-            FOREIGN KEY (bot_id) REFERENCES bots(id),
-            FOREIGN KEY (contact_id) REFERENCES contacts(id),
-            FOREIGN KEY (conversation_id) REFERENCES conversations(id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_voice_channel_sessions_org ON voice_channel_sessions(organization_id, bot_id, updated_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_voice_channel_sessions_contact ON voice_channel_sessions(contact_id, updated_at DESC);
-
-        CREATE TABLE IF NOT EXISTS voice_channel_turns (
-            id TEXT PRIMARY KEY,
-            session_id TEXT NOT NULL,
-            organization_id TEXT NOT NULL,
-            bot_id TEXT NOT NULL,
-            contact_id TEXT NOT NULL,
-            conversation_id TEXT NOT NULL,
-            message_id TEXT,
-            linked_voice_note_id TEXT,
-            turn_index INTEGER NOT NULL,
-            actor TEXT NOT NULL,
-            modality TEXT NOT NULL,
-            transcript_text TEXT,
-            normalized_text TEXT,
-            intent_family TEXT,
-            urgency_level TEXT,
-            urgency_score INTEGER NOT NULL DEFAULT 0,
-            requested_human INTEGER NOT NULL DEFAULT 0,
-            extracted_entities_json TEXT NOT NULL DEFAULT '{}',
-            route_json TEXT NOT NULL DEFAULT '{}',
-            policy_json TEXT NOT NULL DEFAULT '{}',
-            shared_memory_json TEXT NOT NULL DEFAULT '{}',
-            response_json TEXT NOT NULL DEFAULT '{}',
-            state TEXT NOT NULL DEFAULT 'completed',
-            interruption_reason TEXT,
-            audio_render_status TEXT,
-            metadata_json TEXT NOT NULL DEFAULT '{}',
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY (session_id) REFERENCES voice_channel_sessions(id),
-            FOREIGN KEY (message_id) REFERENCES messages(id),
-            FOREIGN KEY (linked_voice_note_id) REFERENCES voice_notes(id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_voice_channel_turns_session ON voice_channel_turns(session_id, turn_index ASC);
-        CREATE INDEX IF NOT EXISTS idx_voice_channel_turns_conversation ON voice_channel_turns(conversation_id, created_at DESC);
-
-        CREATE TABLE IF NOT EXISTS voice_channel_handoffs (
-            id TEXT PRIMARY KEY,
-            session_id TEXT NOT NULL,
-            organization_id TEXT NOT NULL,
-            bot_id TEXT NOT NULL,
-            contact_id TEXT NOT NULL,
-            conversation_id TEXT NOT NULL,
-            from_channel TEXT NOT NULL,
-            to_channel TEXT NOT NULL,
-            reason TEXT NOT NULL,
-            summary_text TEXT,
-            target_queue TEXT,
-            status TEXT NOT NULL DEFAULT 'completed',
-            metadata_json TEXT NOT NULL DEFAULT '{}',
-            created_at TEXT NOT NULL,
-            accepted_at TEXT,
-            completed_at TEXT,
-            FOREIGN KEY (session_id) REFERENCES voice_channel_sessions(id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_voice_channel_handoffs_session ON voice_channel_handoffs(session_id, created_at DESC);
-        """
+    assert_schema_ready(
+        conn,
+        owner="voice_channel_runtime",
+        tables=("voice_channel_sessions", "voice_channel_turns", "voice_channel_handoffs"),
     )
 
 
@@ -166,8 +94,7 @@ def _extract_entities(text: str) -> dict[str, Any]:
 
 
 def _next_turn_index(conn, session_id: str) -> int:
-    row = fetch_one(conn, "SELECT COALESCE(MAX(turn_index), 0) AS value FROM voice_channel_turns WHERE session_id = ?", (session_id,))
-    return int((row or {}).get("value") or 0) + 1
+    return repo_next_turn_index(conn, session_id)
 
 
 def _serialize_messages(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -180,60 +107,19 @@ def _serialize_messages(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _load_session(conn, session_id: str) -> dict[str, Any] | None:
-    session = fetch_one(conn, "SELECT * FROM voice_channel_sessions WHERE id = ?", (session_id,))
-    if not session:
-        return None
-    payload = dict(session) if not isinstance(session, dict) else dict(session)
-    payload["shared_memory"] = from_json(payload.get("shared_memory_json"), {})
-    payload["metadata"] = from_json(payload.get("metadata_json"), {})
-    return payload
+    return repo_load_session(conn, session_id)
 
 
 def _load_turns(conn, session_id: str) -> list[dict[str, Any]]:
-    rows = fetch_all(conn, "SELECT * FROM voice_channel_turns WHERE session_id = ? ORDER BY turn_index ASC", (session_id,))
-    items: list[dict[str, Any]] = []
-    for row in rows:
-        payload = dict(row) if not isinstance(row, dict) else dict(row)
-        payload["entities"] = from_json(payload.get("extracted_entities_json"), {})
-        payload["route"] = from_json(payload.get("route_json"), {})
-        payload["policy"] = from_json(payload.get("policy_json"), {})
-        payload["shared_memory"] = from_json(payload.get("shared_memory_json"), {})
-        payload["response"] = from_json(payload.get("response_json"), {})
-        payload["metadata"] = from_json(payload.get("metadata_json"), {})
-        items.append(payload)
-    return items
+    return repo_load_turns(conn, session_id)
 
 
 def _load_handoffs(conn, session_id: str) -> list[dict[str, Any]]:
-    rows = fetch_all(conn, "SELECT * FROM voice_channel_handoffs WHERE session_id = ? ORDER BY created_at ASC", (session_id,))
-    items: list[dict[str, Any]] = []
-    for row in rows:
-        payload = dict(row) if not isinstance(row, dict) else dict(row)
-        payload["metadata"] = from_json(payload.get("metadata_json"), {})
-        items.append(payload)
-    return items
+    return repo_load_handoffs(conn, session_id)
 
 
 def _interrupt_active_assistant_turn(conn, session: dict[str, Any], reason: str) -> dict[str, Any] | None:
-    active = fetch_one(
-        conn,
-        "SELECT * FROM voice_channel_turns WHERE session_id = ? AND actor = 'assistant' AND state IN ('queued_render', 'speaking', 'completed', 'delivered') ORDER BY turn_index DESC LIMIT 1",
-        (session["id"],),
-    )
-    if not active:
-        return None
-    metadata = from_json(active.get("metadata_json"), {})
-    if metadata.get("interrupted"):
-        return dict(active) if not isinstance(active, dict) else active
-    metadata["interrupted"] = True
-    metadata["interruption_reason"] = reason
-    execute(
-        conn,
-        "UPDATE voice_channel_turns SET state = 'interrupted', interruption_reason = ?, metadata_json = ?, updated_at = ? WHERE id = ?",
-        (reason, to_json(metadata), utcnow_iso(), active["id"]),
-    )
-    execute(conn, "UPDATE voice_channel_sessions SET state = 'listening', updated_at = ? WHERE id = ?", (utcnow_iso(), session["id"]))
-    return fetch_one(conn, "SELECT * FROM voice_channel_turns WHERE id = ?", (active["id"],))
+    return repo_interrupt_active_assistant_turn(conn, session=session, reason=reason)
 
 
 def _response_text_for_route(*, transcript: str, route: dict[str, Any], shared_memory: dict[str, Any], urgency_level: str) -> str:
@@ -310,8 +196,8 @@ def start_voice_channel_session(
         raise ValueError("contact_id is required when conversation_id cannot resolve it")
     if not conversation:
         conversation = upsert_conversation(conn, organization_id=organization_id, bot_id=bot_id, contact_id=resolved_contact_id)
-    memory = fetch_one(conn, "SELECT * FROM contact_memory WHERE organization_id = ? AND bot_id = ? AND contact_id = ? ORDER BY last_updated_at DESC LIMIT 1", (organization_id, bot_id, resolved_contact_id)) or {}
-    recent_messages = _serialize_messages(fetch_all(conn, "SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 6", (conversation["id"],)))
+    memory = repo_load_recent_contact_memory(conn, organization_id=organization_id, bot_id=bot_id, contact_id=resolved_contact_id)
+    recent_messages = _serialize_messages(repo_list_recent_conversation_messages(conn, conversation_id=conversation["id"], limit=6))
     shared_memory = build_shared_memory_context(
         conn=conn,
         organization_id=organization_id,
@@ -321,29 +207,18 @@ def start_voice_channel_session(
         memory=dict(memory) if not isinstance(memory, dict) else memory,
         recent_messages=list(reversed(recent_messages)),
     )
-    session_id = new_id("voice_session")
-    now = utcnow_iso()
-    execute(
+    session = repo_create_session(
         conn,
-        "INSERT INTO voice_channel_sessions (id, organization_id, bot_id, contact_id, conversation_id, channel, state, requested_modality, active_modality, turn_taking_mode, barge_in_enabled, continuity_mode, stt_provider, tts_provider, latest_intent_family, latest_specialist_agent_key, urgency_level, urgency_score, policy_profile_key, policy_profile_version, handoff_channel, handoff_state, shared_memory_json, metadata_json, started_at, updated_at, ended_at) VALUES (?, ?, ?, ?, ?, ?, 'listening', ?, ?, 'full_duplex_guarded', 1, 'shared_runtime_memory', ?, ?, NULL, NULL, 'normal', 0, NULL, NULL, NULL, 'none', ?, ?, ?, ?, NULL)",
-        (
-            session_id,
-            organization_id,
-            bot_id,
-            resolved_contact_id,
-            conversation["id"],
-            channel,
-            requested_modality,
-            requested_modality,
-            'voice_stt_runtime',
-            'voice_tts_runtime',
-            to_json(shared_memory),
-            to_json(metadata or {}),
-            now,
-            now,
-        ),
+        organization_id=organization_id,
+        bot_id=bot_id,
+        contact_id=resolved_contact_id,
+        conversation_id=conversation["id"],
+        channel=channel,
+        requested_modality=requested_modality,
+        shared_memory=shared_memory,
+        metadata=metadata,
     )
-    return get_voice_channel_session(conn, session_id=session_id)
+    return get_voice_channel_session(conn, session_id=session["id"])
 
 
 def get_voice_channel_session(conn, *, session_id: str) -> dict[str, Any] | None:
@@ -358,16 +233,7 @@ def get_voice_channel_session(conn, *, session_id: str) -> dict[str, Any] | None
 
 def list_voice_channel_sessions(conn, *, organization_id: str, bot_id: str | None = None, contact_id: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
     ensure_voice_channel_schema(conn)
-    clauses = ["organization_id = ?"]
-    params: list[Any] = [organization_id]
-    if bot_id:
-        clauses.append("bot_id = ?")
-        params.append(bot_id)
-    if contact_id:
-        clauses.append("contact_id = ?")
-        params.append(contact_id)
-    params.append(limit)
-    rows = fetch_all(conn, f"SELECT * FROM voice_channel_sessions WHERE {' AND '.join(clauses)} ORDER BY updated_at DESC LIMIT ?", tuple(params))
+    rows = repo_list_session_rows(conn, organization_id=organization_id, bot_id=bot_id, contact_id=contact_id, limit=limit)
     return [get_voice_channel_session(conn, session_id=row["id"]) for row in rows]
 
 
@@ -397,10 +263,10 @@ def ingest_voice_channel_turn(
         "requested_human": requested_human,
     }
     conversation = get_conversation(conn, session["conversation_id"]) or {"id": session["conversation_id"], "human_takeover": 0}
-    bot = fetch_one(conn, "SELECT * FROM bots WHERE id = ?", (session["bot_id"],)) or {}
+    bot = repo_load_bot(conn, bot_id=session["bot_id"])
     bot_config = from_json(bot.get("config_draft_json"), {})
-    memory = fetch_one(conn, "SELECT * FROM contact_memory WHERE organization_id = ? AND bot_id = ? AND contact_id = ? ORDER BY last_updated_at DESC LIMIT 1", (session["organization_id"], session["bot_id"], session["contact_id"])) or {}
-    recent_messages = _serialize_messages(fetch_all(conn, "SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 6", (session["conversation_id"],)))
+    memory = repo_load_recent_contact_memory(conn, organization_id=session["organization_id"], bot_id=session["bot_id"], contact_id=session["contact_id"])
+    recent_messages = _serialize_messages(repo_list_recent_conversation_messages(conn, conversation_id=session["conversation_id"], limit=6))
     shared_memory = build_shared_memory_context(
         conn=conn,
         organization_id=session["organization_id"],
@@ -471,62 +337,52 @@ def ingest_voice_channel_turn(
         )
         note_meta = from_json(linked_voice_note.get("metadata_json"), {})
         note_meta["voice_channel_session_id"] = session_id
-        execute(conn, "UPDATE voice_notes SET urgency_level = ?, metadata_json = ? WHERE id = ?", ("alta" if urgency_level == "high" else "media" if urgency_level == "medium" else "media", to_json(note_meta), linked_voice_note["id"]))
-    turn_id = new_id("voice_turn")
+        repo_update_voice_note_urgency(conn, voice_note_id=linked_voice_note["id"], urgency_level=urgency_level, metadata=note_meta)
     turn_index = _next_turn_index(conn, session_id)
     response_payload: dict[str, Any] = {}
     state = "completed"
     audio_render_status = None
     if actor == "assistant":
         response_payload = {"mode": requested_reply_mode}
-    execute(
+    input_turn = repo_create_turn(
         conn,
-        "INSERT INTO voice_channel_turns (id, session_id, organization_id, bot_id, contact_id, conversation_id, message_id, linked_voice_note_id, turn_index, actor, modality, transcript_text, normalized_text, intent_family, urgency_level, urgency_score, requested_human, extracted_entities_json, route_json, policy_json, shared_memory_json, response_json, state, interruption_reason, audio_render_status, metadata_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)",
-        (
-            turn_id,
-            session_id,
-            session["organization_id"],
-            session["bot_id"],
-            session["contact_id"],
-            session["conversation_id"],
-            message["id"],
-            linked_voice_note["id"] if linked_voice_note else None,
-            turn_index,
-            actor,
-            modality,
-            transcript,
-            _normalize(transcript),
-            route.get("intent_family"),
-            urgency_level,
-            urgency_score,
-            1 if requested_human else 0,
-            to_json(_extract_entities(transcript)),
-            to_json(route),
-            to_json(policy_evaluation),
-            to_json(shared_memory),
-            to_json(response_payload),
-            state,
-            audio_render_status,
-            to_json(metadata or {}),
-            utcnow_iso(),
-            utcnow_iso(),
-        ),
+        session_id=session_id,
+        organization_id=session["organization_id"],
+        bot_id=session["bot_id"],
+        contact_id=session["contact_id"],
+        conversation_id=session["conversation_id"],
+        message_id=message["id"],
+        linked_voice_note_id=linked_voice_note["id"] if linked_voice_note else None,
+        turn_index=turn_index,
+        actor=actor,
+        modality=modality,
+        transcript_text=transcript,
+        normalized_text=_normalize(transcript),
+        intent_family=route.get("intent_family"),
+        urgency_level=urgency_level,
+        urgency_score=urgency_score,
+        requested_human=requested_human,
+        extracted_entities=_extract_entities(transcript),
+        route=route,
+        policy=policy_evaluation,
+        shared_memory=shared_memory,
+        response=response_payload,
+        state=state,
+        audio_render_status=audio_render_status,
+        metadata=metadata,
     )
-    execute(
+    turn_id = input_turn["id"]
+    repo_update_session_after_turn(
         conn,
-        "UPDATE voice_channel_sessions SET state = ?, latest_intent_family = ?, latest_specialist_agent_key = ?, urgency_level = ?, urgency_score = ?, policy_profile_key = ?, policy_profile_version = ?, shared_memory_json = ?, updated_at = ? WHERE id = ?",
-        (
-            "thinking" if actor == "contact" else "speaking",
-            route.get("intent_family"),
-            route.get("specialist_agent_key"),
-            urgency_level,
-            urgency_score,
-            policy_evaluation.get("policy_profile_key"),
-            policy_evaluation.get("policy_profile_version"),
-            to_json(shared_memory),
-            utcnow_iso(),
-            session_id,
-        ),
+        session_id=session_id,
+        state=("thinking" if actor == "contact" else "speaking"),
+        intent_family=route.get("intent_family"),
+        specialist_agent_key=route.get("specialist_agent_key"),
+        urgency_level=urgency_level,
+        urgency_score=urgency_score,
+        policy_profile_key=policy_evaluation.get("policy_profile_key"),
+        policy_profile_version=policy_evaluation.get("policy_profile_version"),
+        shared_memory=shared_memory,
     )
 
     handoff = None
@@ -544,7 +400,7 @@ def ingest_voice_channel_turn(
                 target_queue="human_ops",
                 metadata={"route": route, "policy": policy_evaluation},
             )
-            execute(conn, "UPDATE voice_channel_sessions SET state = 'handoff', handoff_channel = 'text', handoff_state = 'completed', updated_at = ? WHERE id = ?", (utcnow_iso(), session_id))
+            repo_mark_session_handoff(conn, session_id=session_id, to_channel="text")
         render_result = _render_assistant_audio(
             conn,
             organization_id=session["organization_id"],
@@ -573,43 +429,39 @@ def ingest_voice_channel_turn(
                 "audio_render": render_result,
             },
         )
-        assistant_turn_id = new_id("voice_turn")
         assistant_turn_index = _next_turn_index(conn, session_id)
-        execute(
+        assistant_turn = repo_create_turn(
             conn,
-            "INSERT INTO voice_channel_turns (id, session_id, organization_id, bot_id, contact_id, conversation_id, message_id, linked_voice_note_id, turn_index, actor, modality, transcript_text, normalized_text, intent_family, urgency_level, urgency_score, requested_human, extracted_entities_json, route_json, policy_json, shared_memory_json, response_json, state, interruption_reason, audio_render_status, metadata_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, 'assistant', ?, ?, ?, ?, ?, ?, 0, '{}', ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)",
-            (
-                assistant_turn_id,
-                session_id,
-                session["organization_id"],
-                session["bot_id"],
-                session["contact_id"],
-                session["conversation_id"],
-                assistant_message["id"],
-                assistant_turn_index,
-                requested_reply_mode,
-                response_text,
-                _normalize(response_text),
-                route.get("intent_family"),
-                urgency_level,
-                urgency_score,
-                to_json(route),
-                to_json(policy_evaluation),
-                to_json(shared_memory),
-                to_json({"text": response_text, "render": render_result}),
-                "queued_render" if render_result.get("status") in {"queued_render", "text_fallback"} else "speaking",
-                render_result.get("status"),
-                to_json({"generated_by": VOICE_SURFACE_VERSION}),
-                utcnow_iso(),
-                utcnow_iso(),
-            ),
+            session_id=session_id,
+            organization_id=session["organization_id"],
+            bot_id=session["bot_id"],
+            contact_id=session["contact_id"],
+            conversation_id=session["conversation_id"],
+            message_id=assistant_message["id"],
+            linked_voice_note_id=None,
+            turn_index=assistant_turn_index,
+            actor="assistant",
+            modality=requested_reply_mode,
+            transcript_text=response_text,
+            normalized_text=_normalize(response_text),
+            intent_family=route.get("intent_family"),
+            urgency_level=urgency_level,
+            urgency_score=urgency_score,
+            requested_human=False,
+            extracted_entities={},
+            route=route,
+            policy=policy_evaluation,
+            shared_memory=shared_memory,
+            response={"text": response_text, "render": render_result},
+            state=("queued_render" if render_result.get("status") in {"queued_render", "text_fallback"} else "speaking"),
+            audio_render_status=render_result.get("status"),
+            metadata={"generated_by": VOICE_SURFACE_VERSION},
         )
-        execute(conn, "UPDATE voice_channel_sessions SET state = ?, active_modality = ?, updated_at = ? WHERE id = ?", (("handoff" if handoff else "speaking"), requested_reply_mode, utcnow_iso(), session_id))
-        assistant_turn = fetch_one(conn, "SELECT * FROM voice_channel_turns WHERE id = ?", (assistant_turn_id,))
+        repo_update_session_state(conn, session_id=session_id, state=("handoff" if handoff else "speaking"), active_modality=requested_reply_mode)
     return {
         "session": get_voice_channel_session(conn, session_id=session_id),
-        "input_turn": next((item for item in _load_turns(conn, session_id) if item["id"] == turn_id), None),
-        "assistant_turn": next((item for item in _load_turns(conn, session_id) if assistant_turn and item["id"] == assistant_turn["id"]), None),
+        "input_turn": input_turn,
+        "assistant_turn": assistant_turn,
         "handoff": handoff,
         "route": route,
         "policy": policy_evaluation,
@@ -623,7 +475,7 @@ def interrupt_voice_channel_session(conn, *, session_id: str, reason: str = "cus
     if not session:
         raise ValueError("Voice session not found")
     interrupted = _interrupt_active_assistant_turn(conn, session, reason=reason)
-    execute(conn, "UPDATE voice_channel_sessions SET state = 'listening', updated_at = ? WHERE id = ?", (utcnow_iso(), session_id))
+    repo_update_session_state(conn, session_id=session_id, state="listening")
     return {
         "session": get_voice_channel_session(conn, session_id=session_id),
         "interrupted_turn": dict(interrupted) if interrupted and not isinstance(interrupted, dict) else interrupted,
@@ -645,32 +497,12 @@ def create_voice_channel_handoff(
     session = _load_session(conn, session_id)
     if not session:
         raise ValueError("Voice session not found")
-    handoff_id = new_id("voice_handoff")
-    now = utcnow_iso()
-    execute(
+    return repo_create_handoff(
         conn,
-        "INSERT INTO voice_channel_handoffs (id, session_id, organization_id, bot_id, contact_id, conversation_id, from_channel, to_channel, reason, summary_text, target_queue, status, metadata_json, created_at, accepted_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?)",
-        (
-            handoff_id,
-            session_id,
-            session["organization_id"],
-            session["bot_id"],
-            session["contact_id"],
-            session["conversation_id"],
-            session.get("channel") or "voice",
-            to_channel,
-            reason,
-            summary_text,
-            target_queue,
-            to_json(metadata or {}),
-            now,
-            now,
-            now,
-        ),
+        session=session,
+        to_channel=to_channel,
+        reason=reason,
+        summary_text=summary_text,
+        target_queue=target_queue,
+        metadata=metadata,
     )
-    execute(
-        conn,
-        "UPDATE voice_channel_sessions SET state = 'handoff', handoff_channel = ?, handoff_state = 'completed', updated_at = ? WHERE id = ?",
-        (to_channel, now, session_id),
-    )
-    return fetch_one(conn, "SELECT * FROM voice_channel_handoffs WHERE id = ?", (handoff_id,))

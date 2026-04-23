@@ -1,0 +1,1370 @@
+{
+  "id": "education",
+  "name": "WAOS Education",
+  "short_name": "Educacion & formacion",
+  "description": "Sistema operativo conversacional para admisiones e inscripción.",
+  "problem": "Educación pierde conversión por exceso de respuestas manuales, mala persecución documental, seguimiento débil y poca estructura para cerrar inscripciones y renovaciones.",
+  "subverticals": [
+    "colegios privados",
+    "universidades privadas",
+    "idiomas",
+    "academias",
+    "tutorías",
+    "bootcamps",
+    "after school",
+    "formación técnica",
+    "educación ejecutiva",
+    "educación continua"
+  ],
+  "objects": [
+    "campus",
+    "programa",
+    "nivel",
+    "modalidad",
+    "ciclo",
+    "lead de admisión",
+    "tour",
+    "entrevista",
+    "examen",
+    "documentos",
+    "inscripción",
+    "colegiatura",
+    "renovación",
+    "aspirante",
+    "alumno",
+    "programa académico",
+    "campus / modalidad",
+    "cohorte",
+    "documentos pendientes",
+    "asesor educativo",
+    "beca / financiamiento"
+  ],
+  "flows": [
+    "lead -> perfilado",
+    "perfilado -> tour/entrevista",
+    "entrevista -> documentos",
+    "documentos -> inscripción",
+    "inscripción -> renovación"
+  ],
+  "kpis": [
+    "lead a entrevista/tour",
+    "entrevista a inscripción",
+    "documentos completos",
+    "inscripción pagada",
+    "tiempo de cierre",
+    "renovación por cohorte",
+    "show a sesión informativa",
+    "admisión",
+    "inscripción",
+    "deserción temprana"
+  ],
+  "recommended_integrations": [
+    "whatsapp",
+    "calendar",
+    "payments",
+    "crm",
+    "reporting"
+  ],
+  "default_services": [
+    "asesoria de admision",
+    "tour o entrevista",
+    "inscripcion",
+    "programa intensivo",
+    "renovacion de ciclo"
+  ],
+  "default_faqs": [
+    {
+      "q": "¿Que programa me conviene?",
+      "a": "Podemos orientar segun edad, nivel e interes para recomendar el programa adecuado."
+    },
+    {
+      "q": "¿Puedo agendar tour o entrevista?",
+      "a": "Si, el bot puede coordinar llamada, tour, entrevista o examen."
+    },
+    {
+      "q": "¿Que documentos necesito?",
+      "a": "Podemos perseguir documentos pendientes y explicarte el proceso de admision."
+    },
+    {
+      "q": "¿Puedo pagar inscripcion?",
+      "a": "Si, podemos enviarte enlace de pago o seguimiento de colegiatura si esta configurado."
+    }
+  ],
+  "behavior": {
+    "tone": "claro y orientador",
+    "response_length": "media",
+    "use_emojis": false,
+    "sales_intensity": "media",
+    "offer_promotions_when": "after_program_fit_detected",
+    "escalate_when": [
+      "beca especial",
+      "caso academico sensible",
+      "queja"
+    ],
+    "insistence_policy": "respectful",
+    "can_share_price_directly": true,
+    "can_negotiate": false,
+    "can_mention_stock": true,
+    "auto_send_images": true,
+    "bot_mode": "admision_y_renovacion",
+    "active_channels": [
+      "whatsapp",
+      "webchat"
+    ],
+    "forbidden_topics": [
+      "promesas de admision garantizada"
+    ],
+    "required_phrases": [
+      "te ayudo a identificar el programa correcto",
+      "puedo guiarte en el proceso de admision",
+      "te sigo",
+      "si la pregunta viene rara, igual te la aterrizo",
+      "te lo aterrizo a tu caso"
+    ],
+    "fallback_message": "Te ayudo a encontrar programa, revisar requisitos y avanzar hasta inscripcion. Si la pregunta viene rara, en broma o medio fuera de tema, igual te sigo y la aterrizamos al negocio.",
+    "humor_policy": "light_contextual",
+    "strange_question_policy": "respond_validate_reframe_sell_move"
+  },
+  "followup_rules": [
+    {
+      "type": "no_response",
+      "delay_minutes": 180,
+      "max_attempts": 2,
+      "message_template": "¿Quieres que te recomiende programa o agendemos llamada, tour o entrevista?"
+    },
+    {
+      "type": "post_quote",
+      "delay_minutes": 1440,
+      "max_attempts": 2,
+      "message_template": "Sigo pendiente por si quieres retomar admision, documentos o pago de inscripcion."
+    },
+    {
+      "type": "reactivation",
+      "delay_minutes": 43200,
+      "max_attempts": 1,
+      "message_template": "Todavia podemos ayudarte a completar tu proceso o renovar tu siguiente ciclo. ¿Lo retomamos?"
+    }
+  ],
+  "templates": [
+    {
+      "template_key": "admissions_intake",
+      "title": "Intake admision",
+      "content": "Para orientarte mejor, dime edad o nivel del alumno, programa de interes y campus preferido.",
+      "variables": []
+    },
+    {
+      "template_key": "tour_booking",
+      "title": "Agendar tour",
+      "content": "Puedo apartarte un tour o entrevista para {{date}}. ¿Te funciona ese horario?",
+      "variables": [
+        "date"
+      ]
+    },
+    {
+      "template_key": "documents_followup",
+      "title": "Seguimiento documentos",
+      "content": "Te comparto los documentos pendientes para avanzar con tu inscripcion. Si quieres, los revisamos juntos.",
+      "variables": []
+    },
+    {
+      "template_key": "enrollment_payment",
+      "title": "Pago de inscripcion",
+      "content": "Si quieres asegurar tu lugar, te envio el link de pago de inscripcion ahora mismo.",
+      "variables": []
+    },
+    {
+      "template_key": "renewal_cycle",
+      "title": "Renovacion de ciclo",
+      "content": "Tu siguiente ciclo o nivel ya esta cerca. ¿Quieres que te ayude a renovarlo?",
+      "variables": []
+    }
+  ],
+  "config_overrides": {
+    "objective_secondary": [
+      "calificar",
+      "agendar",
+      "renovar"
+    ],
+    "policies": [
+      "No garantizar admision sin proceso",
+      "Escalar casos sensibles o becas especiales"
+    ],
+    "can_say": [
+      "programas",
+      "campus",
+      "entrevistas",
+      "documentos",
+      "inscripcion",
+      "colegiatura"
+    ],
+    "cannot_say": [
+      "admision garantizada",
+      "beca aprobada sin validacion"
+    ],
+    "whatsapp_flows": [
+      "perfilado_programa",
+      "tour_entrevista",
+      "seguimiento_documentos",
+      "renovacion_ciclo"
+    ],
+    "appointment_duration_minutes": 30,
+    "handoff_keywords": [
+      "beca",
+      "queja",
+      "caso academico",
+      "reembolso"
+    ],
+    "high_score_threshold": 76
+  },
+  "portfolio_tier": "tier_1",
+  "master_thesis": "Sistema operativo conversacional para admisiones, inscripción y renovación que convierte interés académico en entrevista, documentos, pago y continuidad.",
+  "buyer": {
+    "primary": "Director de admisiones o crecimiento",
+    "secondary": [
+      "asesores de admisión",
+      "coordinación académica",
+      "cobranzas"
+    ]
+  },
+  "one_pager": {
+    "headline": "WAOS Education",
+    "thesis": "WhatsApp se vuelve el funnel de orientación, entrevista, documentos, inscripción y renovación.",
+    "problem": "Admisiones responde muchísimo, pero persigue mal documentos, pagos y cierres.",
+    "promise": "Cada prospecto avanza con siguiente paso visible hasta convertirse en alumno pagado y renovado.",
+    "monetizes": [
+      "entrevista/tour",
+      "inscripción",
+      "colegiatura inicial",
+      "renovación",
+      "upgrade de programas"
+    ],
+    "packaging": [
+      "setup education",
+      "playbooks por programa",
+      "tour + documentos + pagos",
+      "renovación por ciclo"
+    ],
+    "strategic_care": "Nicho prometedor según la auditoría; conviene venderlo como motor de admisiones y continuidad, no solo como atención informativa."
+  },
+  "demo_flow": [
+    "Entra prospecto o padre de familia preguntando por costos, horarios o requisitos.",
+    "WAOS perfila por edad, nivel, interés y modalidad.",
+    "Recomienda programa y agenda llamada, tour o entrevista.",
+    "Persigue documentos y recuerda examen o entrevista.",
+    "Cobra inscripción o primer pago.",
+    "Luego acompaña onboarding y renovación al siguiente ciclo."
+  ],
+  "native_objects": {
+    "core": [
+      "prospecto",
+      "alumno",
+      "tutor",
+      "campus",
+      "programa",
+      "nivel",
+      "modalidad",
+      "ciclo",
+      "aspirante"
+    ],
+    "commercial": [
+      "tour",
+      "entrevista",
+      "examen",
+      "documentos",
+      "inscripción",
+      "colegiatura"
+    ],
+    "operations": [
+      "onboarding académico",
+      "renovación",
+      "upgrade de programa",
+      "cohorte"
+    ]
+  },
+  "pipeline": {
+    "primary": {
+      "name": "Admisión",
+      "states": [
+        "lead nuevo",
+        "lead perfilado",
+        "programa recomendado",
+        "llamada/tour agendado",
+        "entrevista realizada",
+        "examen pendiente/completado",
+        "documentos incompletos",
+        "documentos completos",
+        "inscripción pendiente",
+        "inscripción pagada",
+        "alumno activo",
+        "renovación pendiente",
+        "renovado"
+      ]
+    },
+    "secondary": [
+      {
+        "name": "Reactivación de prospectos",
+        "states": [
+          "indeciso",
+          "nurturing",
+          "reactivado",
+          "cerrado"
+        ]
+      }
+    ]
+  },
+  "bot_playbook": {
+    "must_do": [
+      "orientar según perfil",
+      "recomendar programa",
+      "agendar tour o llamada",
+      "recordar pasos",
+      "perseguir documentos",
+      "recordar pagos",
+      "renovar ciclo",
+      "nunca quedarse seco ante bromas, preguntas raras o cambios bruscos de tema",
+      "usar humor ligero cuando sume, sin sonar payaso ni poco serio",
+      "validar el momento y luego reencauzar la conversacion al negocio",
+      "cerrar siempre con una pregunta util o siguiente paso"
+    ],
+    "must_ask": [
+      "edad o perfil",
+      "objetivo académico",
+      "modalidad preferida",
+      "horario",
+      "sede",
+      "urgencia de inscripción",
+      "que parte del negocio se esta atorando mas",
+      "si quiere que se lo aterrice a su caso"
+    ],
+    "objections": [
+      "costo",
+      "modalidad",
+      "duración",
+      "horarios",
+      "quiero compararlo",
+      "beca o apoyo"
+    ],
+    "escalate_when": [
+      "negociación financiera",
+      "dudas académicas profundas",
+      "casos especiales",
+      "beca compleja",
+      "admisión internacional"
+    ],
+    "forbidden": [
+      "prometer becas no aprobadas",
+      "asegurar admisión sin proceso"
+    ],
+    "success_signals": [
+      "quiero tour",
+      "quiero inscribirme",
+      "¿qué documentos envío?",
+      "mándame horarios",
+      "¿cómo pago?"
+    ],
+    "style": [
+      "humor ligero",
+      "manejo de preguntas raras",
+      "reencuadre comercial"
+    ]
+  },
+  "automation_sequences": [
+    {
+      "key": "edu_nurture",
+      "name": "Nurturing inicial",
+      "trigger": "lead nuevo",
+      "goal": "mover a entrevista o tour",
+      "steps": [
+        "presentar programa",
+        "resolver dudas",
+        "proponer llamada/tour"
+      ]
+    },
+    {
+      "key": "edu_documents",
+      "name": "Documentos faltantes",
+      "trigger": "proceso abierto con expediente incompleto",
+      "goal": "completar inscripción",
+      "steps": [
+        "recordar checklist",
+        "detectar faltantes",
+        "cerrar expediente"
+      ]
+    },
+    {
+      "key": "edu_payment",
+      "name": "Inscripción no pagada",
+      "trigger": "expediente completo sin pago",
+      "goal": "cerrar matrícula",
+      "steps": [
+        "recordar vencimiento",
+        "enviar link de pago",
+        "confirmar alta"
+      ]
+    },
+    {
+      "key": "edu_renewal",
+      "name": "Renovación de ciclo",
+      "trigger": "ciclo próximo a cerrar",
+      "goal": "retener alumno",
+      "steps": [
+        "recordar renovación",
+        "resolver dudas",
+        "cerrar pago"
+      ]
+    }
+  ],
+  "dashboard": {
+    "north_star": "Entrevista o tour a inscripción pagada.",
+    "sections": [
+      {
+        "name": "Funnel",
+        "metrics": [
+          "leads nuevos",
+          "lead a tour/llamada",
+          "entrevista completada",
+          "documentos completos",
+          "inscripción pagada"
+        ]
+      },
+      {
+        "name": "Revenue",
+        "metrics": [
+          "ingresos por inscripción",
+          "colegiatura inicial",
+          "renovación",
+          "ingreso por programa"
+        ]
+      },
+      {
+        "name": "Operación",
+        "metrics": [
+          "tiempo de cierre",
+          "leads sin seguimiento",
+          "documentos pendientes",
+          "conversión por asesor"
+        ]
+      },
+      {
+        "name": "Retención",
+        "metrics": [
+          "renovación por cohorte",
+          "abandono temprano",
+          "upgrade de programa",
+          "reactivación de indecisos"
+        ]
+      }
+    ]
+  },
+  "hardening_model": {
+    "goal": "Pasar de preset inteligente a sistema especialista",
+    "wave": "ola_3",
+    "entity_queen": "aspirante",
+    "core_common": true,
+    "domain_by_vertical": true,
+    "playbooks_by_subvertical": true,
+    "kpis_by_vertical": true,
+    "pricing_by_vertical": true,
+    "journeys_by_vertical": true,
+    "reusable_modules": [
+      "intake / calificación",
+      "agenda / recursos",
+      "cotización / propuesta",
+      "pago / anticipo / membresía",
+      "seguimiento / recurrencia",
+      "reporting vertical"
+    ],
+    "minimum_viable_hardening": [
+      "1 entidad reina",
+      "1 pipeline propio",
+      "1 cotización propia",
+      "1 recurrencia propia",
+      "1 dashboard propio"
+    ],
+    "hard_checklist": [
+      "tiene entidad principal propia",
+      "tiene pipeline específico",
+      "tiene cotización o pricing del nicho",
+      "tiene agenda o recursos del nicho",
+      "tiene postventa o recurrencia del nicho",
+      "tiene documentos o compliance del nicho",
+      "tiene KPIs del nicho",
+      "tiene 3 automatizaciones que mueven dinero",
+      "tiene 2 pruebas e2e de negocio",
+      "tiene subplaybooks por subvertical",
+      "entidad principal propia",
+      "pipeline específico",
+      "pricing del nicho",
+      "agenda y recursos del nicho",
+      "postventa o recurrencia del nicho",
+      "documentos o compliance del nicho",
+      "KPIs del nicho",
+      "3 automatizaciones que mueven dinero",
+      "2 pruebas e2e de negocio",
+      "subplaybooks por subvertical",
+      "runtime ejecutable por vertical"
+    ]
+  },
+  "specialist_layers": {
+    "persistent_entities": [
+      "aspirante",
+      "alumno",
+      "programa académico",
+      "campus / modalidad",
+      "cohorte",
+      "documentos pendientes",
+      "asesor educativo",
+      "beca / financiamiento"
+    ],
+    "business_pipeline": {
+      "primary_entity": "aspirante",
+      "primary_pipeline": {
+        "name": "Admisión",
+        "states": [
+          "lead nuevo",
+          "lead perfilado",
+          "programa recomendado",
+          "llamada/tour agendado",
+          "entrevista realizada",
+          "examen pendiente/completado",
+          "documentos incompletos",
+          "documentos completos",
+          "inscripción pendiente",
+          "inscripción pagada",
+          "alumno activo",
+          "renovación pendiente",
+          "renovado"
+        ]
+      },
+      "secondary_pipelines": [
+        {
+          "name": "Reactivación de prospectos",
+          "states": [
+            "indeciso",
+            "nurturing",
+            "reactivado",
+            "cerrado"
+          ]
+        }
+      ]
+    },
+    "pricing_and_quotes": [
+      "cotización por programa",
+      "beca / financiamiento",
+      "plan de pagos"
+    ],
+    "agenda_and_resources": [
+      "asesor",
+      "campus",
+      "sesión informativa",
+      "entrevista",
+      "cohorte / cupo"
+    ],
+    "post_sale_and_recurrence": [
+      "automatizaciones por deadline",
+      "seguimiento de no inscritos",
+      "retención temprana post inscripción"
+    ],
+    "documents_compliance": [
+      "documentos de admisión",
+      "carta de admisión",
+      "beca / financiamiento",
+      "expediente del aspirante"
+    ],
+    "kpis_that_matter": [
+      "lead a entrevista/tour",
+      "entrevista a inscripción",
+      "documentos completos",
+      "inscripción pagada",
+      "tiempo de cierre",
+      "renovación por cohorte",
+      "show a sesión informativa",
+      "admisión",
+      "inscripción",
+      "deserción temprana"
+    ],
+    "money_automations": [
+      "sesión informativa a entrevista",
+      "reactivación de no inscritos",
+      "deadline de documentos y pago"
+    ]
+  },
+  "domain_contract": {
+    "vertical_entity_types": [
+      "aspirante",
+      "alumno",
+      "programa académico",
+      "campus / modalidad",
+      "cohorte",
+      "documentos pendientes",
+      "asesor educativo",
+      "beca / financiamiento"
+    ],
+    "vertical_pipeline_stages": {
+      "primary": [
+        "lead nuevo",
+        "lead perfilado",
+        "programa recomendado",
+        "llamada/tour agendado",
+        "entrevista realizada",
+        "examen pendiente/completado",
+        "documentos incompletos",
+        "documentos completos",
+        "inscripción pendiente",
+        "inscripción pagada",
+        "alumno activo",
+        "renovación pendiente",
+        "renovado"
+      ],
+      "secondary": [
+        [
+          "indeciso",
+          "nurturing",
+          "reactivado",
+          "cerrado"
+        ]
+      ]
+    },
+    "vertical_quote_types": [
+      "colegiatura",
+      "inscripción",
+      "beca",
+      "financiamiento",
+      "plan de pagos"
+    ],
+    "vertical_resource_types": [
+      "asesor",
+      "campus",
+      "sesión informativa",
+      "entrevista",
+      "cohorte / cupo"
+    ],
+    "vertical_followup_policies": [
+      "automatizaciones por deadline",
+      "seguimiento de no inscritos",
+      "retención temprana post inscripción"
+    ],
+    "vertical_kpi_definitions": [
+      "lead a entrevista/tour",
+      "entrevista a inscripción",
+      "documentos completos",
+      "inscripción pagada",
+      "tiempo de cierre",
+      "renovación por cohorte",
+      "show a sesión informativa",
+      "admisión",
+      "inscripción",
+      "deserción temprana"
+    ],
+    "vertical_playbooks": [
+      "cursos cortos",
+      "licenciatura",
+      "posgrado",
+      "bootcamp",
+      "educación continua"
+    ],
+    "vertical_document_types": [
+      "documentos de admisión",
+      "carta de admisión",
+      "beca / financiamiento",
+      "expediente del aspirante"
+    ]
+  },
+  "subvertical_playbooks": [
+    {
+      "name": "cursos cortos",
+      "focus": "Playbook operativo y comercial para cursos cortos"
+    },
+    {
+      "name": "licenciatura",
+      "focus": "Playbook operativo y comercial para licenciatura"
+    },
+    {
+      "name": "posgrado",
+      "focus": "Playbook operativo y comercial para posgrado"
+    },
+    {
+      "name": "bootcamp",
+      "focus": "Playbook operativo y comercial para bootcamp"
+    },
+    {
+      "name": "educación continua",
+      "focus": "Playbook operativo y comercial para educación continua"
+    }
+  ],
+  "business_e2e_tests": [
+    {
+      "name": "lead académico agenda sesión, entrega documentos y se inscribe",
+      "status": "designed"
+    },
+    {
+      "name": "aspirante con beca pendiente reacciona antes del deadline y confirma lugar",
+      "status": "designed"
+    }
+  ],
+  "vertical_runtime": {
+    "pipeline_machine": {
+      "primary_pipeline": "Admisión",
+      "entity": "aspirante",
+      "states": [
+        "lead nuevo",
+        "lead perfilado",
+        "programa recomendado",
+        "llamada/tour agendado",
+        "entrevista realizada",
+        "examen pendiente/completado",
+        "documentos incompletos",
+        "documentos completos",
+        "inscripción pendiente",
+        "inscripción pagada",
+        "alumno activo",
+        "renovación pendiente",
+        "renovado"
+      ],
+      "transitions": [
+        {
+          "from": "lead nuevo",
+          "to": "lead perfilado",
+          "trigger": "qualification_complete",
+          "business_effect": "advance opportunity"
+        },
+        {
+          "from": "lead perfilado",
+          "to": "programa recomendado",
+          "trigger": "admitted",
+          "business_effect": "open commercial step"
+        },
+        {
+          "from": "renovación pendiente",
+          "to": "renovado",
+          "trigger": "successful_outcome",
+          "business_effect": "realize revenue or continuity"
+        },
+        {
+          "from": "renovación pendiente",
+          "to": "at_risk",
+          "trigger": "info_session_booked",
+          "business_effect": "activate retention sequence"
+        }
+      ],
+      "at_risk_state": "at_risk",
+      "closed_states": [
+        "renovado"
+      ]
+    },
+    "pricing_engine": {
+      "quote_types": [
+        "inscripcion",
+        "colegiatura",
+        "beca/financiamiento",
+        "upgrade de programa"
+      ],
+      "pricing_basis": "program + campus + modality + scholarship/financing",
+      "rules": [
+        {
+          "rule": "base price by programa type",
+          "effect": "set base_price"
+        },
+        {
+          "rule": "premium or urgent add-ons increase quote",
+          "effect": "add surcharge"
+        },
+        {
+          "rule": "bundle, membership or financing can lower immediate friction",
+          "effect": "recommend package or installments"
+        }
+      ],
+      "deposit_policy": "request advance when capacity, specialist time or inventory must be secured"
+    },
+    "resource_capacity": {
+      "resource_types": [
+        "asesor educativo",
+        "sesion informativa",
+        "entrevistador",
+        "cupo de cohorte"
+      ],
+      "capacity_basis": "advisor bandwidth, interview slots and cohort seats",
+      "constraints": [
+        "avoid double booking of critical resources",
+        "respect service duration and cleanup/buffer time",
+        "prioritize higher urgency and higher close probability cases"
+      ],
+      "priority_queue": "asesor, cohorte y admisiones"
+    },
+    "recurrence_engine": {
+      "policies": [
+        {
+          "type": "deadline_nudge",
+          "interval_days": 7,
+          "anchor": "aspirante"
+        },
+        {
+          "type": "docs_followup",
+          "interval_days": 5,
+          "anchor": "aspirante"
+        },
+        {
+          "type": "retention_check",
+          "interval_days": 30,
+          "anchor": "aspirante"
+        }
+      ],
+      "reactivation_window_days": 30,
+      "goal": "protect retention, repeat revenue and continuity"
+    },
+    "kpi_engine": {
+      "north_star": "Entrevista o tour a inscripción pagada.",
+      "definitions": [
+        {
+          "name": "admission_rate",
+          "formula": "admitted / qualified_applicants"
+        },
+        {
+          "name": "enrollment_rate",
+          "formula": "enrolled / admitted"
+        },
+        {
+          "name": "early_dropout_risk",
+          "formula": "inactive_new_students / enrolled_new_students"
+        }
+      ],
+      "leading_indicators": [
+        "info_session_booked",
+        "docs_missing",
+        "no_response_7d"
+      ]
+    },
+    "automation_engine": {
+      "money_automation_policies": [
+        {
+          "trigger": "info_session_booked",
+          "actions": [
+            "send_followup",
+            "escalate_owner",
+            "offer_relevant_next_step"
+          ],
+          "goal": "save conversion or retention"
+        },
+        {
+          "trigger": "docs_missing",
+          "actions": [
+            "send_quote_or_payment_link",
+            "remind_deadline",
+            "notify_human"
+          ],
+          "goal": "move revenue forward"
+        },
+        {
+          "trigger": "enrollment_deadline_near",
+          "actions": [
+            "schedule_recurrence",
+            "cross_sell_next_best_offer",
+            "create_task"
+          ],
+          "goal": "increase LTV"
+        }
+      ],
+      "quiet_hours": "21:00-08:00"
+    },
+    "document_flow": {
+      "required_documents": [
+        "expediente de admision",
+        "documentos academicos",
+        "carta de admision",
+        "acuerdo de pago"
+      ],
+      "lifecycle_rules": [
+        {
+          "document": "expediente de admision",
+          "required_before": "first committed step",
+          "signature_required": true
+        },
+        {
+          "document": "acuerdo de pago",
+          "required_before": "handoff or continuity step",
+          "signature_required": false
+        }
+      ]
+    },
+    "matching_engine": {
+      "entity": "aspirante",
+      "rules": [
+        "program_interest match",
+        "modality match",
+        "campus match",
+        "budget/aid fit"
+      ],
+      "next_best_match_outputs": [
+        "best_owner",
+        "best_resource_slot",
+        "best_offer"
+      ]
+    }
+  },
+  "transactional_motor_v12": {
+    "version": "v12_full_transactional",
+    "aggregate_root": "student_admission_account",
+    "main_business_entity": "aspirante",
+    "transaction_unit": "admission_cycle",
+    "system_of_record": {
+      "write_model": [
+        "commands",
+        "events",
+        "ledger",
+        "aggregate_snapshots"
+      ],
+      "read_models": [
+        "commercial_board",
+        "operations_board",
+        "finance_board",
+        "continuity_board",
+        "resource_load_board",
+        "document_readiness_board",
+        "revenue_levers_board"
+      ],
+      "idempotency_scope": [
+        "organization_id",
+        "vertical_id",
+        "external_reference",
+        "command_key"
+      ],
+      "audit_mode": "append_only_with_snapshots"
+    },
+    "transaction_primitives": {
+      "commands": [
+        "capture_intent",
+        "qualify_record",
+        "create_quote",
+        "request_deposit",
+        "reserve_capacity",
+        "confirm_booking",
+        "start_case",
+        "approve_quote",
+        "collect_payment",
+        "start_fulfillment",
+        "close_fulfillment",
+        "schedule_recurrence",
+        "issue_refund",
+        "reactivate_customer",
+        "assign_program_fit",
+        "open_admission_file",
+        "collect_enrollment_deposit",
+        "activate_retention_plan"
+      ],
+      "events": [
+        "intent_captured",
+        "record_qualified",
+        "quote_created",
+        "deposit_requested",
+        "capacity_reserved",
+        "booking_confirmed",
+        "case_started",
+        "quote_approved",
+        "payment_collected",
+        "fulfillment_started",
+        "fulfillment_closed",
+        "recurrence_scheduled",
+        "refund_issued",
+        "customer_reactivated",
+        "program_fit_assigned",
+        "admission_file_opened",
+        "enrollment_deposit_collected",
+        "retention_plan_activated"
+      ],
+      "ledger_event_types": [
+        "charge_opened",
+        "deposit_collected",
+        "installment_due",
+        "payment_applied",
+        "credit_issued",
+        "refund_issued",
+        "write_off_registered"
+      ],
+      "invariants": [
+        "no admisión sin documentos mínimos",
+        "no reservar lugar sin anticipo",
+        "no aplicar beca sin validación",
+        "todo pago debe referenciar quote, order o case activo",
+        "todo cambio crítico debe emitir evento y renglón de auditoría",
+        "ningún recurso se confirma dos veces en la misma ventana"
+      ],
+      "idempotency_keys": [
+        "command_key",
+        "payment_reference",
+        "booking_reference",
+        "external_message_id"
+      ]
+    },
+    "aggregates": {
+      "primary_record": {
+        "name": "aspirante",
+        "status_axis": [
+          "commercial",
+          "operations",
+          "finance",
+          "continuity"
+        ]
+      },
+      "quote": {
+        "name": "tuition_offer",
+        "states": [
+          "draft",
+          "sent",
+          "accepted",
+          "expired",
+          "lost"
+        ]
+      },
+      "booking": {
+        "name": "info_session_booking",
+        "states": [
+          "proposed",
+          "reserved",
+          "confirmed",
+          "attended_or_executed",
+          "missed_or_canceled"
+        ]
+      },
+      "execution": {
+        "name": "admission_and_enrollment",
+        "states": [
+          "pending",
+          "ready",
+          "in_progress",
+          "blocked",
+          "completed",
+          "closed"
+        ]
+      },
+      "payment_account": {
+        "name": "payment_account",
+        "states": [
+          "open",
+          "partially_paid",
+          "paid",
+          "overdue",
+          "refunded"
+        ]
+      },
+      "continuity": {
+        "name": "retention_plan",
+        "states": [
+          "not_started",
+          "active",
+          "at_risk",
+          "recovered",
+          "closed"
+        ]
+      }
+    },
+    "orchestration": {
+      "command_handlers": [
+        "handle_capture_intent",
+        "handle_qualify_record",
+        "handle_create_quote",
+        "handle_request_deposit",
+        "handle_reserve_capacity",
+        "handle_confirm_booking",
+        "handle_start_case",
+        "handle_approve_quote",
+        "handle_assign_program_fit",
+        "handle_open_admission_file",
+        "handle_collect_enrollment_deposit",
+        "handle_activate_retention_plan"
+      ],
+      "sagas": [
+        "orientation_to_admission",
+        "documents_to_enrollment",
+        "non_enrolled_reactivation"
+      ],
+      "money_guards": [
+        "quote_before_payment",
+        "capacity_before_confirmation",
+        "documents_before_execution",
+        "balance_before_close"
+      ],
+      "read_model_refresh": [
+        "on_every_event",
+        "nightly_reconciliation",
+        "pre_dashboard_cache"
+      ]
+    },
+    "finance": {
+      "money_objects": [
+        "application_charge",
+        "enrollment_deposit",
+        "tuition_installment",
+        "reentry_charge"
+      ],
+      "collection_modes": [
+        "inscripción",
+        "colegiatura",
+        "financiamiento"
+      ],
+      "refund_modes": [
+        "application_credit",
+        "enrollment_release"
+      ],
+      "reconciliation_views": [
+        "expected_vs_collected",
+        "aging_balance",
+        "refund_exposure",
+        "cash_by_stage"
+      ]
+    },
+    "operations": {
+      "fulfillment_unit": "admission_cycle",
+      "resource_locking": [
+        "advisor",
+        "interview_slot",
+        "program_capacity"
+      ],
+      "dispatch_or_schedule_board": [
+        "queued",
+        "ready",
+        "assigned",
+        "in_progress",
+        "blocked",
+        "done"
+      ],
+      "handoff_rules": [
+        "human_handoff_on_exception",
+        "supervisor_handoff_on_money_risk",
+        "operator_handoff_on_compliance_gap"
+      ]
+    },
+    "audit_compliance": {
+      "timeline_entities": [
+        "aspirante",
+        "tuition_offer",
+        "info_session_booking",
+        "admission_and_enrollment",
+        "payment_account"
+      ],
+      "consent_gates": [
+        "academic_documents",
+        "admission_file",
+        "financial_aid_form"
+      ],
+      "required_evidence": [
+        "timeline_event",
+        "actor",
+        "timestamp",
+        "before_after_snapshot"
+      ],
+      "retention_rules": [
+        "audit_log_append_only",
+        "documents_linked_to_primary_record",
+        "payment_trace_non_destructive"
+      ]
+    },
+    "transaction_views": {
+      "commercial": [
+        "orientation",
+        "documents",
+        "admission"
+      ],
+      "operations": [
+        "cohort_fill",
+        "deadline_tracking",
+        "advisor_load"
+      ],
+      "finance": [
+        "enrollment_pipeline",
+        "installments",
+        "scholarship_mix"
+      ],
+      "continuity": [
+        "retention",
+        "drop_risk",
+        "reentry"
+      ]
+    },
+    "command_catalog": [
+      {
+        "command": "capture_intent",
+        "writes": "aspirante",
+        "emits": "intent_captured",
+        "guard": "no admisión sin documentos mínimos"
+      },
+      {
+        "command": "qualify_record",
+        "writes": "aspirante",
+        "emits": "record_qualified",
+        "guard": "no reservar lugar sin anticipo"
+      },
+      {
+        "command": "create_quote",
+        "writes": "aspirante",
+        "emits": "quote_created",
+        "guard": "no aplicar beca sin validación"
+      },
+      {
+        "command": "request_deposit",
+        "writes": "aspirante",
+        "emits": "deposit_requested",
+        "guard": "no admisión sin documentos mínimos"
+      },
+      {
+        "command": "reserve_capacity",
+        "writes": "aspirante",
+        "emits": "capacity_reserved",
+        "guard": "no reservar lugar sin anticipo"
+      },
+      {
+        "command": "confirm_booking",
+        "writes": "aspirante",
+        "emits": "booking_confirmed",
+        "guard": "no aplicar beca sin validación"
+      },
+      {
+        "command": "start_case",
+        "writes": "aspirante",
+        "emits": "case_started",
+        "guard": "no admisión sin documentos mínimos"
+      },
+      {
+        "command": "approve_quote",
+        "writes": "aspirante",
+        "emits": "quote_approved",
+        "guard": "no reservar lugar sin anticipo"
+      },
+      {
+        "command": "assign_program_fit",
+        "writes": "aspirante",
+        "emits": "payment_collected",
+        "guard": "no aplicar beca sin validación"
+      },
+      {
+        "command": "open_admission_file",
+        "writes": "aspirante",
+        "emits": "fulfillment_started",
+        "guard": "no admisión sin documentos mínimos"
+      },
+      {
+        "command": "collect_enrollment_deposit",
+        "writes": "aspirante",
+        "emits": "fulfillment_closed",
+        "guard": "no reservar lugar sin anticipo"
+      },
+      {
+        "command": "activate_retention_plan",
+        "writes": "aspirante",
+        "emits": "recurrence_scheduled",
+        "guard": "no aplicar beca sin validación"
+      }
+    ],
+    "event_catalog": [
+      {
+        "event": "intent_captured",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "orientation_to_admission"
+      },
+      {
+        "event": "record_qualified",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "documents_to_enrollment"
+      },
+      {
+        "event": "quote_created",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "non_enrolled_reactivation"
+      },
+      {
+        "event": "deposit_requested",
+        "updates": [
+          "timeline",
+          "boards",
+          "ledger"
+        ],
+        "next_action": "orientation_to_admission"
+      },
+      {
+        "event": "capacity_reserved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "documents_to_enrollment"
+      },
+      {
+        "event": "booking_confirmed",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "non_enrolled_reactivation"
+      },
+      {
+        "event": "case_started",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "orientation_to_admission"
+      },
+      {
+        "event": "quote_approved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "documents_to_enrollment"
+      },
+      {
+        "event": "program_fit_assigned",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "non_enrolled_reactivation"
+      },
+      {
+        "event": "admission_file_opened",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "orientation_to_admission"
+      },
+      {
+        "event": "enrollment_deposit_collected",
+        "updates": [
+          "timeline",
+          "boards",
+          "ledger"
+        ],
+        "next_action": "documents_to_enrollment"
+      },
+      {
+        "event": "retention_plan_activated",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "non_enrolled_reactivation"
+      }
+    ]
+  },
+  "subvertical_profiles": [],
+  "recommended_subverticals": []
+}

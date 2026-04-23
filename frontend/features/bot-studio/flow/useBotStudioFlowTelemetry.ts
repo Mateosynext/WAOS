@@ -1,0 +1,31 @@
+"use client";
+
+import { recordWizardAutosaveMetric, recordWizardTimelineEvent } from "../../../app/bot-studio/wizardEnterpriseGuards";
+import { useBotStudioWizardState } from "../context/useBotStudioWizardState";
+import type { BotStudioFlowProps } from "./types";
+
+export function useBotStudioFlowTelemetry(
+  props: Pick<BotStudioFlowProps, "routeMode">,
+  state: ReturnType<typeof useBotStudioWizardState>,
+) {
+  const getTelemetryStorage = () => (typeof window === "undefined" ? null : window.sessionStorage);
+
+  const buildTelemetryContext = (wizardIdOverride?: string | null) => ({
+    mode: props.routeMode,
+    organizationId: state.selectedOrganizationId,
+    botId: props.routeMode === "reconfigure" ? state.selectedBotId : undefined,
+    wizardId: wizardIdOverride || state.wizardId,
+    verticalId: state.selectedVerticalId,
+    subvertical: state.selectedSubvertical,
+  });
+
+  const recordOperationEvent = (type: string, payload?: Record<string, unknown>, wizardIdOverride?: string | null) => {
+    recordWizardTimelineEvent(getTelemetryStorage(), buildTelemetryContext(wizardIdOverride), { type, payload });
+  };
+
+  const recordAutosaveResult = (result: "success" | "error", durationMs: number, stepCount = 0, wizardIdOverride?: string | null) => {
+    recordWizardAutosaveMetric(getTelemetryStorage(), buildTelemetryContext(wizardIdOverride), { result, durationMs, stepCount });
+  };
+
+  return { recordAutosaveResult, recordOperationEvent };
+}

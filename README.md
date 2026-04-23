@@ -60,6 +60,7 @@ bash scripts/validate_release_in_ci.sh
 - `scripts/release_build.py` ahora sanea también el source artifact para que no arrastre reportes runtime ni residuos locales.
 - `scripts/release_gate.py` falla si el runtime incluye bases locales, `*.tsbuildinfo` o PDFs generados.
 - `dist/ARTIFACT_SIZES.json` deja evidencia del peso final y de los archivos locales/generados eliminados del paquete.
+- `scripts/check_repo_hygiene.py` y `scripts/release_gate.py --profile source` ahora también validan referencias `docs/*.md` y fugas legacy en raíz.
 
 ## Revisión de mantenibilidad
 - Se extrajeron adapters y políticas de ejecución a `backend/app/application/tool_execution_adapters.py` para reducir complejidad en `tool_execution_service.py`.
@@ -73,6 +74,11 @@ bash scripts/validate_release_in_ci.sh
 - El backend trae `backend/.env.render.example` para cargar variables mínimas de Render.
 - Ruta única de handoff: `RELEASE_HANDOFF.md` y `docs/WAOS_RELEASE_CANDIDATE_HANDOFF.md`.
 - Validación local rápida: `bash scripts/release_candidate_smoke.sh`.
+
+## Frontend fallback vertical
+- El fallback de verticales ya no vive como un blob único: quedó modularizado en `frontend/app/lib/vertical-fallback/`.
+- Cada vertical vive en `profiles/*.json`, con `index.json` como índice versionado y loader validado por contrato al cargar.
+- `getFallbackVerticalProfile(...)` puede resolver una vertical concreta sin cargar todo el catálogo primero.
 
 ## Browser E2E real
 - El modo real arranca `backend/scripts/run_browser_e2e_server.py`.

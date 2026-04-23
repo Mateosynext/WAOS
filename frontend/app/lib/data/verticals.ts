@@ -13,7 +13,7 @@ export async function getVerticalCatalog(topOnly = false): Promise<VerticalProfi
     const items = normalizeCollection(result.data, normalizeVerticalProfile);
     if (items.length) return items;
   }
-  return getFallbackVerticalCatalog(topOnly);
+  return await getFallbackVerticalCatalog(topOnly);
 }
 
 export async function getStrongestVerticals(): Promise<VerticalProfileContract[]> {
@@ -45,5 +45,5 @@ export async function getVerticalProfile(vertical?: string, botId?: string, subv
       if (profile.id) return profile;
     }
   }
-  return getFallbackVerticalProfile(vertical, subvertical);
+  return await getFallbackVerticalProfile(vertical, subvertical);
 }

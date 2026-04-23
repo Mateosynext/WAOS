@@ -12,6 +12,7 @@ from .utils import from_json, new_id, slugify, to_json, utcnow_iso
 from .vertical_10x import apply_subvertical_pack, get_subvertical_profile
 from .verticals import build_vertical_bot_setup, get_vertical_profile, list_vertical_profiles, normalize_vertical_key
 from .world_class import execute, fetch_all, fetch_one, has_column, table_exists
+from .runtime_schema_guards import assert_schema_ready
 
 
 GUIDED_ONBOARDING_VERSION = "guided_vertical_onboarding_v1"
@@ -359,85 +360,20 @@ def _upsert_guided_integration(
     return fetch_one(conn, "SELECT * FROM integration_connections WHERE id = ?", (row_id,)) or {"id": row_id, "provider": provider, "status": status}
 
 def ensure_guided_vertical_onboarding_schema(conn: Any) -> None:
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS vertical_onboarding_wizards (
-            id TEXT PRIMARY KEY,
-            organization_id TEXT NOT NULL,
-            bot_id TEXT,
-            vertical_id TEXT NOT NULL,
-            subvertical TEXT,
-            wizard_version TEXT NOT NULL DEFAULT 'guided_vertical_onboarding_v1',
-            status TEXT NOT NULL DEFAULT 'draft',
-            current_step TEXT,
-            progress_percent INTEGER NOT NULL DEFAULT 0,
-            business_name TEXT,
-            bot_name TEXT,
-            tone TEXT,
-            language TEXT,
-            timezone TEXT,
-            primary_objective TEXT,
-            answers_json TEXT NOT NULL DEFAULT '{}',
-            setup_json TEXT NOT NULL DEFAULT '{}',
-            checklist_json TEXT NOT NULL DEFAULT '[]',
-            recommended_integrations_json TEXT NOT NULL DEFAULT '[]',
-            recommended_playbooks_json TEXT NOT NULL DEFAULT '[]',
-            recommended_ctas_json TEXT NOT NULL DEFAULT '[]',
-            applied_summary_json TEXT NOT NULL DEFAULT '{}',
-            created_by TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            applied_at TEXT,
-            FOREIGN KEY (organization_id) REFERENCES organizations(id),
-            FOREIGN KEY (bot_id) REFERENCES bots(id),
-            FOREIGN KEY (created_by) REFERENCES users(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS vertical_onboarding_step_runs (
-            id TEXT PRIMARY KEY,
-            wizard_id TEXT NOT NULL,
-            organization_id TEXT NOT NULL,
-            bot_id TEXT,
-            step_key TEXT NOT NULL,
-            step_status TEXT NOT NULL DEFAULT 'pending',
-            is_required INTEGER NOT NULL DEFAULT 1,
-            payload_json TEXT NOT NULL DEFAULT '{}',
-            generated_patch_json TEXT NOT NULL DEFAULT '{}',
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            completed_at TEXT,
-            UNIQUE(wizard_id, step_key),
-            FOREIGN KEY (wizard_id) REFERENCES vertical_onboarding_wizards(id),
-            FOREIGN KEY (organization_id) REFERENCES organizations(id),
-            FOREIGN KEY (bot_id) REFERENCES bots(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS vertical_onboarding_wizard_events (
-            id TEXT PRIMARY KEY,
-            wizard_id TEXT NOT NULL,
-            organization_id TEXT NOT NULL,
-            bot_id TEXT,
-            event_type TEXT NOT NULL,
-            step_key TEXT,
-            payload_json TEXT NOT NULL DEFAULT '{}',
-            created_at TEXT NOT NULL,
-            FOREIGN KEY (wizard_id) REFERENCES vertical_onboarding_wizards(id),
-            FOREIGN KEY (organization_id) REFERENCES organizations(id),
-            FOREIGN KEY (bot_id) REFERENCES bots(id)
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_vertical_onboarding_wizards_org ON vertical_onboarding_wizards(organization_id, status, updated_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_vertical_onboarding_wizards_bot ON vertical_onboarding_wizards(bot_id, updated_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_vertical_onboarding_step_runs_wizard ON vertical_onboarding_step_runs(wizard_id, step_key);
-        CREATE INDEX IF NOT EXISTS idx_vertical_onboarding_wizard_events_wizard ON vertical_onboarding_wizard_events(wizard_id, created_at DESC);
-        """
+    assert_schema_ready(
+        conn,
+        owner="migrations.py / db/migrations/012_guided_vertical_onboarding.sql",
+        tables=(
+            "vertical_onboarding_wizards",
+            "vertical_onboarding_step_runs",
+            "vertical_onboarding_wizard_events",
+        ),
+        columns=(
+            ("vertical_onboarding_wizards", "validation_snapshot_json"),
+            ("vertical_onboarding_wizards", "recompute_state_json"),
+            ("vertical_onboarding_wizards", "wizard_revision"),
+        ),
     )
-    if not has_column(conn, "vertical_onboarding_wizards", "validation_snapshot_json"):
-        execute(conn, "ALTER TABLE vertical_onboarding_wizards ADD COLUMN validation_snapshot_json TEXT NOT NULL DEFAULT '{}' ")
-    if not has_column(conn, "vertical_onboarding_wizards", "recompute_state_json"):
-        execute(conn, "ALTER TABLE vertical_onboarding_wizards ADD COLUMN recompute_state_json TEXT NOT NULL DEFAULT '{}' ")
-    if not has_column(conn, "vertical_onboarding_wizards", "wizard_revision"):
-        execute(conn, "ALTER TABLE vertical_onboarding_wizards ADD COLUMN wizard_revision INTEGER NOT NULL DEFAULT 1")
 
 
 def _deep_merge(base: Any, updates: Any) -> Any:
@@ -623,6 +559,28 @@ def _max_updateable_step_key(answers: dict[str, Any] | None) -> str | None:
     if not _GUIDED_STEPS:
         return None
     return _safe_text(_GUIDED_STEPS[-1].get("key")) or None
+
+
+def _required_step_fields(step_key: str) -> list[str]:
+    normalized_step_key = _safe_text(step_key)
+    step = next((item for item in _GUIDED_STEPS if _safe_text(item.get("key")) == normalized_step_key), None)
+    if not step or not step.get("required"):
+        return []
+    return [str(field).strip() for field in list(step.get("fields") or []) if str(field).strip()]
+
+
+def _preserve_required_step_fields(step_key: str, existing_payload: dict[str, Any] | None, next_payload: dict[str, Any] | None) -> tuple[dict[str, Any], list[str]]:
+    existing = _as_record(existing_payload)
+    guarded = deepcopy(_as_record(next_payload))
+    preserved_fields: list[str] = []
+    for field in _required_step_fields(step_key):
+        if _has_required_value(guarded.get(field)):
+            continue
+        if not _has_required_value(existing.get(field)):
+            continue
+        guarded[field] = deepcopy(existing.get(field))
+        preserved_fields.append(field)
+    return guarded, preserved_fields
 
 
 def _step_update_allowed(answers: dict[str, Any] | None, step_key: str) -> bool:
@@ -1286,6 +1244,25 @@ def start_guided_onboarding_wizard(
     return get_guided_onboarding_wizard(conn, wizard_id) or {"id": wizard_id}
 
 
+def _stale_validation_state(*, wizard: dict[str, Any], step_key: str, now: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    stale_snapshot = {
+        "generated_at": wizard.get("updated_at") or wizard.get("created_at") or now,
+        "source": "stale_after_save",
+        "apply_ready": False,
+        "gate": {"status": "yellow", "label": "Pendiente de revalidación", "detail": "Se guardó el paso, pero la validación y el dry run quedaron pendientes de recomputarse."},
+        "warnings": [{"code": "validation_pending", "message": "El wizard cambió y necesita refrescar snapshot/dry run antes de aplicar."}],
+    }
+    recompute_state = {
+        "summary_pending": False,
+        "checklist_pending": False,
+        "validation_snapshot_pending": True,
+        "dry_run_pending": True,
+        "last_saved_step": step_key,
+        "last_saved_at": now,
+    }
+    return stale_snapshot, recompute_state
+
+
 def update_guided_onboarding_step(conn: Any, *, wizard_id: str, step_key: str, payload: dict[str, Any], expected_revision: int | None = None) -> dict[str, Any]:
     ensure_guided_vertical_onboarding_schema(conn)
     wizard = get_guided_onboarding_wizard(conn, wizard_id)
@@ -1298,13 +1275,29 @@ def update_guided_onboarding_step(conn: Any, *, wizard_id: str, step_key: str, p
         raise ValueError("wizard_revision_conflict")
 
     answers = _normalize_answers(deepcopy(wizard.get("answers") or {}))
-    normalized_payload = _normalize_step_payload(step_key, payload or {})
+    existing_payload = _normalize_step_payload(step_key, _as_record(answers.get(step_key)))
+    requested_payload = _normalize_step_payload(step_key, payload or {})
+    normalized_payload, preserved_required_fields = _preserve_required_step_fields(
+        step_key,
+        existing_payload,
+        requested_payload,
+    )
     if not _step_update_allowed(answers, step_key):
         raise ValueError("wizard_step_out_of_sequence")
-    existing_payload = _normalize_step_payload(step_key, _as_record(answers.get(step_key)))
-    if _payload_fingerprint(existing_payload) == _payload_fingerprint(_deep_merge(_as_record(existing_payload), normalized_payload)):
+    merged_payload, preserved_required_fields_after_merge = _preserve_required_step_fields(
+        step_key,
+        existing_payload,
+        _deep_merge(_as_record(existing_payload), normalized_payload),
+    )
+    preserved_required_fields = _unique_strings([*preserved_required_fields, *preserved_required_fields_after_merge])
+    existing_fingerprint = _payload_fingerprint(existing_payload)
+    requested_fingerprint = _payload_fingerprint(requested_payload)
+    merged_fingerprint = _payload_fingerprint(merged_payload)
+    validation_before_save = _as_record(answers.get("dry_run_validation"))
+    touch_requires_revalidation = bool(validation_before_save) and requested_fingerprint != existing_fingerprint and merged_fingerprint == existing_fingerprint
+    if merged_fingerprint == existing_fingerprint and not touch_requires_revalidation:
         return wizard
-    answers[step_key] = _deep_merge(_as_record(answers.get(step_key)), normalized_payload)
+    answers[step_key] = merged_payload
     answers = _normalize_answers(answers)
     answers.pop("dry_run_validation", None)
     blueprint = build_guided_onboarding_blueprint(
@@ -1327,20 +1320,7 @@ def update_guided_onboarding_step(conn: Any, *, wizard_id: str, step_key: str, p
         raise ValueError("invalid_step_key")
 
     next_revision = current_revision + 1
-    stale_snapshot = {
-        "generated_at": wizard.get("updated_at") or wizard.get("created_at") or now,
-        "source": "stale_after_save",
-        "apply_ready": False,
-        "gate": {"status": "yellow", "label": "Pendiente de revalidación", "detail": "Se guardó el paso, pero la validación y el dry run quedaron pendientes de recomputarse."},
-        "warnings": [{"code": "validation_pending", "message": "El wizard cambió y necesita refrescar snapshot/dry run antes de aplicar."}],
-    }
-    recompute_state = {
-        "summary_pending": False,
-        "checklist_pending": False,
-        "validation_snapshot_pending": True,
-        "last_saved_step": step_key,
-        "last_saved_at": now,
-    }
+    stale_snapshot, recompute_state = _stale_validation_state(wizard=wizard, step_key=step_key, now=now)
     cursor = conn.execute(
         """
         UPDATE vertical_onboarding_wizards
@@ -1406,6 +1386,8 @@ def update_guided_onboarding_step(conn: Any, *, wizard_id: str, step_key: str, p
             "progress_percent": blueprint.get("progress_percent") or 0,
             "completed": bool(step_payload.get("completed")),
             "status": step_payload.get("status") or "pending",
+            "preserved_required_fields": preserved_required_fields,
+            "revalidation_forced": touch_requires_revalidation,
         },
         created_at=now,
     )
@@ -2217,6 +2199,7 @@ def refresh_guided_onboarding_validation_snapshot(conn: Any, *, wizard_id: str, 
     )
     recompute_state = _as_record(wizard.get("recompute_state"))
     recompute_state["validation_snapshot_pending"] = False
+    recompute_state["dry_run_pending"] = False if validation else bool(recompute_state.get("dry_run_pending"))
     recompute_state["last_snapshot_source"] = source
     if snapshot != previous_snapshot or recompute_state != _as_record(wizard.get("recompute_state")):
         execute(conn, "UPDATE vertical_onboarding_wizards SET validation_snapshot_json = ?, recompute_state_json = ? WHERE id = ?", (to_json(snapshot), to_json(recompute_state), wizard_id))
@@ -2441,6 +2424,7 @@ def dry_run_guided_onboarding_wizard(conn: Any, *, wizard_id: str) -> dict[str, 
     answers["dry_run_validation"] = {
         "validated_at": validated_at,
         "validation_hash": validation_hash,
+        "wizard_revision": int(wizard.get("wizard_revision") or 1),
         "apply_ready": apply_ready,
         "exit_score": exit_value,
         "conflicts": len(conflicts),
@@ -2461,6 +2445,7 @@ def dry_run_guided_onboarding_wizard(conn: Any, *, wizard_id: str) -> dict[str, 
     )
     recompute_state = _as_record(wizard.get("recompute_state"))
     recompute_state["validation_snapshot_pending"] = False
+    recompute_state["dry_run_pending"] = False
     recompute_state["last_snapshot_source"] = "dry_run"
     execute(conn, "UPDATE vertical_onboarding_wizards SET answers_json = ?, validation_snapshot_json = ?, recompute_state_json = ?, updated_at = ? WHERE id = ?", (to_json(answers), to_json(validation_snapshot), to_json(recompute_state), validated_at, wizard_id))
     _append_wizard_event(
@@ -2578,7 +2563,14 @@ def apply_guided_onboarding_wizard(conn: Any, *, wizard_id: str, actor_user: dic
         preflight = dry_run_guided_onboarding_wizard(conn, wizard_id=wizard_id)
         wizard = preflight.get("wizard") or get_guided_onboarding_wizard(conn, wizard_id) or wizard
     if wizard.get("bot_id"):
+        recompute_state = _as_record(wizard.get("recompute_state"))
         validation = _as_record(_as_record(wizard.get("answers")).get("dry_run_validation"))
+        validated_revision = int(validation.get("wizard_revision") or 0)
+        current_revision = int(wizard.get("wizard_revision") or 0)
+        if recompute_state.get("validation_snapshot_pending") or recompute_state.get("dry_run_pending"):
+            raise ValueError("dry_run_required")
+        if not validated_revision or validated_revision != current_revision:
+            raise ValueError("dry_run_required")
         if validation.get("validation_hash") != _build_dry_run_signature(wizard):
             raise ValueError("dry_run_required")
         if not bool(validation.get("apply_ready")):

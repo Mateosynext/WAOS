@@ -1,45 +1,33 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import re
 import sys
-from pathlib import Path
+sys.dont_write_bytecode = True
 
-ROOT = Path(__file__).resolve().parents[1]
-ALLOWED_DIR_NAMES = {"node_modules", ".next", ".git", ".venv", "venv", "__pycache__"}
-FORBIDDEN_PATTERNS = [
-    re.compile(r".*\.(bak|backup|old|orig|rej|tmp|temp|swp|swo)$", re.IGNORECASE),
-    re.compile(r".*~$"),
-    re.compile(r"(^|/)(notes\.txt|todo\.txt|scratch\.txt)$", re.IGNORECASE),
-    re.compile(r"(^|/)\.notes(/|$)"),
-    re.compile(r"(^|/)tmp(/|$)"),
-]
-EXPLICIT_ALLOWLIST = {
-    Path('frontend/package-lock.json'),
-}
+import sys
 
-
-def is_forbidden(path: Path) -> bool:
-    rel = path.relative_to(ROOT)
-    rel_text = rel.as_posix()
-    if rel in EXPLICIT_ALLOWLIST:
-        return False
-    if any(part in ALLOWED_DIR_NAMES for part in rel.parts):
-        return False
-    return any(pattern.search(rel_text) for pattern in FORBIDDEN_PATTERNS)
+from repo_policy import ROOT, scan_source_tree
 
 
 def main() -> int:
-    offenders: list[str] = []
-    for path in ROOT.rglob('*'):
-        if not path.is_file():
-            continue
-        if is_forbidden(path):
-            offenders.append(path.relative_to(ROOT).as_posix())
-    if offenders:
+    report = scan_source_tree(ROOT)
+    has_failures = False
+    if report["forbidden_files"]:
+        has_failures = True
         print('Repo hygiene check failed. Remove these files before commit:', file=sys.stderr)
-        for item in sorted(offenders):
+        for item in report["forbidden_files"]:
             print(f' - {item}', file=sys.stderr)
+    if report["missing_doc_refs"]:
+        has_failures = True
+        print('Repo hygiene check failed. These markdown references point to missing docs:', file=sys.stderr)
+        for item in report["missing_doc_refs"]:
+            print(f" - {item['source']} -> {item['reference']}", file=sys.stderr)
+    if report["legacy_root_leaks"]:
+        has_failures = True
+        print('Repo hygiene check failed. Legacy root shims leaked back into the active tree:', file=sys.stderr)
+        for item in report["legacy_root_leaks"]:
+            print(f' - {item}', file=sys.stderr)
+    if has_failures:
         return 1
     print('Repo hygiene check passed.')
     return 0

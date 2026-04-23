@@ -1,0 +1,1401 @@
+{
+  "id": "commerce",
+  "name": "WAOS Commerce",
+  "short_name": "Commerce & retail conversacional",
+  "description": "Sistema operativo de commerce y retail conversacional por WhatsApp.",
+  "problem": "Commerce conversacional pierde ventas porque tarda en responder, presenta mal el catálogo, no tiene stock claro, no recomienda bien, no arma carrito y no recupera compras abandonadas.",
+  "subverticals": [
+    "ropa",
+    "streetwear",
+    "gorras",
+    "tenis",
+    "joyería",
+    "relojería fashion",
+    "accesorios",
+    "bolsas",
+    "skincare",
+    "cosmética",
+    "perfumería",
+    "regalos",
+    "home decor",
+    "gadgets",
+    "merch",
+    "marcas DTC pequeñas"
+  ],
+  "objects": [
+    "producto",
+    "variante",
+    "colección",
+    "categoría",
+    "stock",
+    "promoción",
+    "asset",
+    "carrito conversacional",
+    "pedido",
+    "link de pago",
+    "envío",
+    "recompra",
+    "bundle",
+    "carrito / intención de compra",
+    "variant / SKU",
+    "stock confiable",
+    "checkout intent",
+    "pago",
+    "orden",
+    "fulfillment",
+    "devolución / incidencia"
+  ],
+  "flows": [
+    "descubrimiento -> ficha",
+    "ficha -> carrito",
+    "carrito -> pago",
+    "pago -> envío",
+    "postcompra -> cross-sell",
+    "abandono -> recuperación"
+  ],
+  "kpis": [
+    "conversación a pedido",
+    "pedido a pago",
+    "recuperación de carrito",
+    "ticket promedio",
+    "recompra",
+    "abandono por falta de stock",
+    "abandono de carrito",
+    "conversión",
+    "AOV",
+    "incidencia postventa"
+  ],
+  "recommended_integrations": [
+    "whatsapp",
+    "payments",
+    "catalog",
+    "media",
+    "promotions",
+    "insights"
+  ],
+  "default_services": [
+    "descubrimiento de producto",
+    "armado de pedido",
+    "pago por link",
+    "seguimiento de envio",
+    "recompra y cross-sell"
+  ],
+  "default_faqs": [
+    {
+      "q": "¿Tienen talla, color o stock?",
+      "a": "Si, el bot puede responder variantes, precio y disponibilidad del catalogo conectado."
+    },
+    {
+      "q": "¿Puedo comprar por WhatsApp?",
+      "a": "Si, podemos ayudarte a armar pedido y enviarte link de pago."
+    },
+    {
+      "q": "¿Que pasa si no termino la compra?",
+      "a": "El bot puede retomar carritos conversacionales y ayudarte a cerrarlos."
+    },
+    {
+      "q": "¿Me avisan del envio?",
+      "a": "Si, podemos confirmar compra y compartir estatus de envio o entrega."
+    }
+  ],
+  "behavior": {
+    "tone": "vendedor digital",
+    "response_length": "corta",
+    "use_emojis": false,
+    "sales_intensity": "alta",
+    "offer_promotions_when": "always_when_relevant",
+    "escalate_when": [
+      "fraude",
+      "reclamo fuerte",
+      "devolucion compleja"
+    ],
+    "insistence_policy": "respectful",
+    "can_share_price_directly": true,
+    "can_negotiate": false,
+    "can_mention_stock": true,
+    "auto_send_images": true,
+    "bot_mode": "venta_conversacional",
+    "active_channels": [
+      "whatsapp",
+      "instagram_dm",
+      "webchat"
+    ],
+    "forbidden_topics": [
+      "inventario no validado",
+      "promesas de entrega no configuradas"
+    ],
+    "required_phrases": [
+      "te ayudo a encontrar producto",
+      "puedo armar tu pedido y enviarte link de pago",
+      "te sigo",
+      "si la pregunta viene rara, igual te la aterrizo",
+      "te lo aterrizo a tu caso"
+    ],
+    "fallback_message": "Te ayudo a elegir producto, revisar variantes y cerrar tu compra por chat. Si la pregunta viene rara, en broma o medio fuera de tema, igual te sigo y la aterrizamos al negocio.",
+    "humor_policy": "light_contextual",
+    "strange_question_policy": "respond_validate_reframe_sell_move"
+  },
+  "followup_rules": [
+    {
+      "type": "no_response",
+      "delay_minutes": 45,
+      "max_attempts": 2,
+      "message_template": "¿Quieres que te comparta opciones, confirme stock o arme tu pedido?"
+    },
+    {
+      "type": "post_quote",
+      "delay_minutes": 360,
+      "max_attempts": 2,
+      "message_template": "Todavia puedo ayudarte a completar tu compra o resolver talla, color, stock y envio."
+    },
+    {
+      "type": "reactivation",
+      "delay_minutes": 10080,
+      "max_attempts": 2,
+      "message_template": "Tenemos novedades, reposiciones o complementos que pueden encajar contigo. ¿Quieres ver opciones?"
+    }
+  ],
+  "templates": [
+    {
+      "template_key": "product_discovery",
+      "title": "Descubrimiento de producto",
+      "content": "Cuentame que buscas y te recomiendo opciones de catalogo con precio, color, talla o variante disponible.",
+      "variables": []
+    },
+    {
+      "template_key": "cart_build",
+      "title": "Armado de carrito",
+      "content": "Ya tengo tu pedido casi listo. Si quieres, confirmamos variante, envio y te mando el link de pago.",
+      "variables": []
+    },
+    {
+      "template_key": "payment_link",
+      "title": "Link de pago",
+      "content": "Perfecto. Te comparto el link de pago para confirmar tu compra en este momento.",
+      "variables": []
+    },
+    {
+      "template_key": "shipment_update",
+      "title": "Estatus de envio",
+      "content": "Tu pedido ya esta en etapa de {{shipping_status}}. Si quieres, te comparto el siguiente paso o referencia.",
+      "variables": [
+        "shipping_status"
+      ]
+    },
+    {
+      "template_key": "abandoned_cart",
+      "title": "Recuperacion carrito",
+      "content": "Tu pedido sigue disponible. Si quieres, retomamos talla, color, stock o metodo de pago para cerrarlo hoy.",
+      "variables": []
+    }
+  ],
+  "config_overrides": {
+    "objective_secondary": [
+      "vender",
+      "upsell",
+      "reactivar"
+    ],
+    "policies": [
+      "No prometer stock o entregas no confirmadas",
+      "Escalar fraudes o devoluciones sensibles"
+    ],
+    "can_say": [
+      "precio",
+      "stock",
+      "color",
+      "talla",
+      "envio",
+      "promocion",
+      "link de pago"
+    ],
+    "cannot_say": [
+      "stock no validado",
+      "entregas no configuradas",
+      "promesas logisticas"
+    ],
+    "whatsapp_flows": [
+      "descubrimiento_producto",
+      "carrito_conversacional",
+      "link_de_pago",
+      "recuperacion_carrito"
+    ],
+    "appointment_duration_minutes": 20,
+    "handoff_keywords": [
+      "fraude",
+      "cobro duplicado",
+      "devolucion",
+      "reembolso"
+    ],
+    "high_score_threshold": 70
+  },
+  "portfolio_tier": "tier_3_guarded",
+  "master_thesis": "Sistema operativo de commerce y retail conversacional que convierte WhatsApp en descubrimiento, recomendación, pedido, pago, seguimiento y recompra para catálogos simples o medianos.",
+  "buyer": {
+    "primary": "Founder o gerente comercial de marca retail/DTC pequeña",
+    "secondary": [
+      "operación e-commerce ligera",
+      "equipo de ventas por WhatsApp",
+      "marketing de drops"
+    ]
+  },
+  "one_pager": {
+    "headline": "WAOS Commerce",
+    "thesis": "WhatsApp se convierte en vendedor digital con catálogo estructurado, carrito conversacional, pago y recompra.",
+    "problem": "La conversación sí existe, pero no se transforma en pedido porque falta catálogo serio, recomendación, stock y recuperación.",
+    "promise": "Cada conversación termina en recomendación, pedido, pago, seguimiento o winback.",
+    "monetizes": [
+      "pedido",
+      "link de pago",
+      "upsell",
+      "cross-sell",
+      "recompra",
+      "drops",
+      "bundles"
+    ],
+    "packaging": [
+      "setup commerce conversacional",
+      "business hub + customer experience",
+      "catálogo + media + promos + pagos",
+      "retención y recompra"
+    ],
+    "strategic_care": "Debe venderse como retail conversacional controlado, no como e-commerce pesado con logística compleja o miles de SKUs en tiempo real."
+  },
+  "demo_flow": [
+    "El cliente entra preguntando por producto, talla, color, precio o recomendación.",
+    "WAOS detecta intención y producto/categoría/variante.",
+    "Responde con ficha enriquecida, stock, promo y alternativas.",
+    "Arma pedido y envía link de pago.",
+    "Confirma compra y seguimiento de envío o entrega.",
+    "Después activa cross-sell, recompra y recuperación de carrito."
+  ],
+  "native_objects": {
+    "core": [
+      "cliente",
+      "producto",
+      "variante",
+      "categoría",
+      "colección",
+      "asset",
+      "orden"
+    ],
+    "commercial": [
+      "stock",
+      "promoción",
+      "bundle",
+      "carrito conversacional",
+      "pedido",
+      "link de pago"
+    ],
+    "operations": [
+      "envío",
+      "pickup",
+      "recompra",
+      "pregunta de producto",
+      "cliente recurrente"
+    ]
+  },
+  "pipeline": {
+    "primary": {
+      "name": "Conversión conversacional",
+      "states": [
+        "lead nuevo",
+        "producto identificado",
+        "interés calificado",
+        "ficha enviada",
+        "carrito iniciado",
+        "pago pendiente",
+        "pago confirmado",
+        "pedido armado",
+        "envío o entrega",
+        "postventa",
+        "recompra pendiente",
+        "recompra",
+        "carrito abandonado",
+        "perdido por stock/precio/silencio"
+      ]
+    },
+    "secondary": [
+      {
+        "name": "Drops y lanzamientos",
+        "states": [
+          "anunciado",
+          "interés captado",
+          "lista de espera",
+          "pedido",
+          "agotado",
+          "winback con sustituto"
+        ]
+      }
+    ]
+  },
+  "bot_playbook": {
+    "must_do": [
+      "descubrir intención",
+      "recomendar productos",
+      "mostrar variantes",
+      "responder precio y stock",
+      "construir pedido",
+      "mandar link de pago",
+      "recuperar carrito",
+      "seguir envío",
+      "empujar recompra",
+      "nunca quedarse seco ante bromas, preguntas raras o cambios bruscos de tema",
+      "usar humor ligero cuando sume, sin sonar payaso ni poco serio",
+      "validar el momento y luego reencauzar la conversacion al negocio",
+      "cerrar siempre con una pregunta util o siguiente paso"
+    ],
+    "must_ask": [
+      "categoría buscada",
+      "talla/color/variante",
+      "presupuesto",
+      "urgencia",
+      "uso o estilo",
+      "entrega o pickup",
+      "que parte del negocio se esta atorando mas",
+      "si quiere que se lo aterrice a su caso"
+    ],
+    "objections": [
+      "precio",
+      "stock",
+      "talla",
+      "color",
+      "envío",
+      "quiero pensarlo",
+      "muéstrame más opciones"
+    ],
+    "escalate_when": [
+      "pedido complejo",
+      "mayoreo",
+      "personalización",
+      "reclamación",
+      "problema de pago",
+      "cliente VIP"
+    ],
+    "forbidden": [
+      "prometer stock no confirmado",
+      "prometer tiempos logísticos no integrados",
+      "vender como e-commerce enterprise"
+    ],
+    "success_signals": [
+      "quiero comprar",
+      "agrega ese",
+      "mándame el link",
+      "¿sí hay mi talla?",
+      "quiero apartarlo"
+    ],
+    "style": [
+      "humor ligero",
+      "manejo de preguntas raras",
+      "reencuadre comercial"
+    ]
+  },
+  "automation_sequences": [
+    {
+      "key": "commerce_cart",
+      "name": "Carrito abandonado",
+      "trigger": "carrito iniciado sin pago",
+      "goal": "recuperar compra",
+      "steps": [
+        "recordar producto",
+        "resolver objeción",
+        "reenviar link"
+      ]
+    },
+    {
+      "key": "commerce_payment",
+      "name": "Pago pendiente",
+      "trigger": "link emitido sin confirmación",
+      "goal": "cerrar pago",
+      "steps": [
+        "recordar vencimiento",
+        "confirmar monto",
+        "reenviar link"
+      ]
+    },
+    {
+      "key": "commerce_postpurchase",
+      "name": "Post compra",
+      "trigger": "pedido pagado",
+      "goal": "seguimiento + cross-sell",
+      "steps": [
+        "confirmar compra",
+        "actualizar envío",
+        "sugerir complemento"
+      ]
+    },
+    {
+      "key": "commerce_winback",
+      "name": "Recompra o winback",
+      "trigger": "ventana ideal de recompra",
+      "goal": "retención",
+      "steps": [
+        "recomendar reposición",
+        "ofrecer promo",
+        "cerrar pedido"
+      ]
+    }
+  ],
+  "dashboard": {
+    "north_star": "Conversación a pago confirmado con recompra.",
+    "sections": [
+      {
+        "name": "Conversión",
+        "metrics": [
+          "conversaciones a producto identificado",
+          "producto a pedido",
+          "pedido a pago",
+          "recuperación de carrito"
+        ]
+      },
+      {
+        "name": "Revenue",
+        "metrics": [
+          "ticket promedio",
+          "revenue por categoría",
+          "revenue por promoción",
+          "revenue por recompra"
+        ]
+      },
+      {
+        "name": "Catálogo",
+        "metrics": [
+          "productos más consultados",
+          "productos con más abandono",
+          "pérdida por stock",
+          "assets con mejor conversión"
+        ]
+      },
+      {
+        "name": "Clientes",
+        "metrics": [
+          "nuevos vs recurrentes",
+          "frecuencia de compra",
+          "cross-sell rate",
+          "winback rate"
+        ]
+      }
+    ]
+  },
+  "hardening_model": {
+    "goal": "Pasar de preset inteligente a sistema especialista",
+    "wave": "ola_3",
+    "entity_queen": "orden",
+    "core_common": true,
+    "domain_by_vertical": true,
+    "playbooks_by_subvertical": true,
+    "kpis_by_vertical": true,
+    "pricing_by_vertical": true,
+    "journeys_by_vertical": true,
+    "reusable_modules": [
+      "intake / calificación",
+      "agenda / recursos",
+      "cotización / propuesta",
+      "pago / anticipo / membresía",
+      "seguimiento / recurrencia",
+      "reporting vertical"
+    ],
+    "minimum_viable_hardening": [
+      "1 entidad reina",
+      "1 pipeline propio",
+      "1 cotización propia",
+      "1 recurrencia propia",
+      "1 dashboard propio"
+    ],
+    "hard_checklist": [
+      "tiene entidad principal propia",
+      "tiene pipeline específico",
+      "tiene cotización o pricing del nicho",
+      "tiene agenda o recursos del nicho",
+      "tiene postventa o recurrencia del nicho",
+      "tiene documentos o compliance del nicho",
+      "tiene KPIs del nicho",
+      "tiene 3 automatizaciones que mueven dinero",
+      "tiene 2 pruebas e2e de negocio",
+      "tiene subplaybooks por subvertical",
+      "entidad principal propia",
+      "pipeline específico",
+      "pricing del nicho",
+      "agenda y recursos del nicho",
+      "postventa o recurrencia del nicho",
+      "documentos o compliance del nicho",
+      "KPIs del nicho",
+      "3 automatizaciones que mueven dinero",
+      "2 pruebas e2e de negocio",
+      "subplaybooks por subvertical",
+      "runtime ejecutable por vertical"
+    ]
+  },
+  "specialist_layers": {
+    "persistent_entities": [
+      "carrito / intención de compra",
+      "variant / SKU",
+      "stock confiable",
+      "checkout intent",
+      "pago",
+      "orden",
+      "fulfillment",
+      "devolución / incidencia"
+    ],
+    "business_pipeline": {
+      "primary_entity": "orden",
+      "primary_pipeline": {
+        "name": "Conversión conversacional",
+        "states": [
+          "lead nuevo",
+          "producto identificado",
+          "interés calificado",
+          "ficha enviada",
+          "carrito iniciado",
+          "pago pendiente",
+          "pago confirmado",
+          "pedido armado",
+          "envío o entrega",
+          "postventa",
+          "recompra pendiente",
+          "recompra",
+          "carrito abandonado",
+          "perdido por stock/precio/silencio"
+        ]
+      },
+      "secondary_pipelines": [
+        {
+          "name": "Drops y lanzamientos",
+          "states": [
+            "anunciado",
+            "interés captado",
+            "lista de espera",
+            "pedido",
+            "agotado",
+            "winback con sustituto"
+          ]
+        }
+      ]
+    },
+    "pricing_and_quotes": [
+      "precio por variante",
+      "bundle inteligente",
+      "cross-sell",
+      "rescate de carrito"
+    ],
+    "agenda_and_resources": [
+      "inventario",
+      "fulfillment",
+      "pickup",
+      "slot de envío",
+      "promoción activa"
+    ],
+    "post_sale_and_recurrence": [
+      "postcompra automatizada",
+      "reseña",
+      "reposición",
+      "recompra"
+    ],
+    "documents_compliance": [
+      "confirmación de orden",
+      "guía / tracking",
+      "política de devoluciones",
+      "incidencia postventa"
+    ],
+    "kpis_that_matter": [
+      "conversación a pedido",
+      "pedido a pago",
+      "recuperación de carrito",
+      "ticket promedio",
+      "recompra",
+      "abandono por falta de stock",
+      "abandono de carrito",
+      "conversión",
+      "AOV",
+      "incidencia postventa"
+    ],
+    "money_automations": [
+      "abandono de carrito",
+      "cross-sell postcompra",
+      "recompra por reposición"
+    ]
+  },
+  "domain_contract": {
+    "vertical_entity_types": [
+      "carrito / intención de compra",
+      "variant / SKU",
+      "stock confiable",
+      "checkout intent",
+      "pago",
+      "orden",
+      "fulfillment",
+      "devolución / incidencia"
+    ],
+    "vertical_pipeline_stages": {
+      "primary": [
+        "lead nuevo",
+        "producto identificado",
+        "interés calificado",
+        "ficha enviada",
+        "carrito iniciado",
+        "pago pendiente",
+        "pago confirmado",
+        "pedido armado",
+        "envío o entrega",
+        "postventa",
+        "recompra pendiente",
+        "recompra",
+        "carrito abandonado",
+        "perdido por stock/precio/silencio"
+      ],
+      "secondary": [
+        [
+          "anunciado",
+          "interés captado",
+          "lista de espera",
+          "pedido",
+          "agotado",
+          "winback con sustituto"
+        ]
+      ]
+    },
+    "vertical_quote_types": [
+      "checkout",
+      "bundle",
+      "cross-sell",
+      "promoción",
+      "reposición / recompra"
+    ],
+    "vertical_resource_types": [
+      "inventario",
+      "fulfillment",
+      "pickup",
+      "slot de envío",
+      "promoción activa"
+    ],
+    "vertical_followup_policies": [
+      "postcompra automatizada",
+      "reseña",
+      "reposición",
+      "recompra"
+    ],
+    "vertical_kpi_definitions": [
+      "conversación a pedido",
+      "pedido a pago",
+      "recuperación de carrito",
+      "ticket promedio",
+      "recompra",
+      "abandono por falta de stock",
+      "abandono de carrito",
+      "conversión",
+      "AOV",
+      "incidencia postventa"
+    ],
+    "vertical_playbooks": [
+      "moda",
+      "suplementos no regulados",
+      "hogar",
+      "electrónica ligera",
+      "alimentos empaquetados"
+    ],
+    "vertical_document_types": [
+      "confirmación de orden",
+      "guía / tracking",
+      "política de devoluciones",
+      "incidencia postventa"
+    ]
+  },
+  "subvertical_playbooks": [
+    {
+      "name": "moda",
+      "focus": "Playbook operativo y comercial para moda"
+    },
+    {
+      "name": "suplementos no regulados",
+      "focus": "Playbook operativo y comercial para suplementos no regulados"
+    },
+    {
+      "name": "hogar",
+      "focus": "Playbook operativo y comercial para hogar"
+    },
+    {
+      "name": "electrónica ligera",
+      "focus": "Playbook operativo y comercial para electrónica ligera"
+    },
+    {
+      "name": "alimentos empaquetados",
+      "focus": "Playbook operativo y comercial para alimentos empaquetados"
+    }
+  ],
+  "business_e2e_tests": [
+    {
+      "name": "cliente agrega al carrito, completa checkout y activa tracking",
+      "status": "designed"
+    },
+    {
+      "name": "comprador postventa recibe recomendación y recompra bundle",
+      "status": "designed"
+    }
+  ],
+  "vertical_runtime": {
+    "pipeline_machine": {
+      "primary_pipeline": "Conversión conversacional",
+      "entity": "intención de compra",
+      "states": [
+        "lead nuevo",
+        "producto identificado",
+        "interés calificado",
+        "ficha enviada",
+        "carrito iniciado",
+        "pago pendiente",
+        "pago confirmado",
+        "pedido armado",
+        "envío o entrega",
+        "postventa",
+        "recompra pendiente",
+        "recompra",
+        "carrito abandonado",
+        "perdido por stock/precio/silencio"
+      ],
+      "transitions": [
+        {
+          "from": "lead nuevo",
+          "to": "producto identificado",
+          "trigger": "qualification_complete",
+          "business_effect": "advance opportunity"
+        },
+        {
+          "from": "producto identificado",
+          "to": "interés calificado",
+          "trigger": "order_delivered",
+          "business_effect": "open commercial step"
+        },
+        {
+          "from": "carrito abandonado",
+          "to": "perdido por stock/precio/silencio",
+          "trigger": "successful_outcome",
+          "business_effect": "realize revenue or continuity"
+        },
+        {
+          "from": "carrito abandonado",
+          "to": "at_risk",
+          "trigger": "cart_abandoned",
+          "business_effect": "activate retention sequence"
+        }
+      ],
+      "at_risk_state": "at_risk",
+      "closed_states": [
+        "perdido por stock/precio/silencio"
+      ]
+    },
+    "pricing_engine": {
+      "quote_types": [
+        "carrito",
+        "checkout",
+        "bundle",
+        "reposicion"
+      ],
+      "pricing_basis": "sku + variant + bundle + shipping + promotion",
+      "rules": [
+        {
+          "rule": "base price by orden type",
+          "effect": "set base_price"
+        },
+        {
+          "rule": "premium or urgent add-ons increase quote",
+          "effect": "add surcharge"
+        },
+        {
+          "rule": "bundle, membership or financing can lower immediate friction",
+          "effect": "recommend package or installments"
+        }
+      ],
+      "deposit_policy": "request advance when capacity, specialist time or inventory must be secured"
+    },
+    "resource_capacity": {
+      "resource_types": [
+        "sku",
+        "inventario",
+        "slot de pickup",
+        "carrier",
+        "agente postventa"
+      ],
+      "capacity_basis": "inventory availability, prep capacity and fulfillment windows",
+      "constraints": [
+        "avoid double booking of critical resources",
+        "respect service duration and cleanup/buffer time",
+        "prioritize higher urgency and higher close probability cases"
+      ],
+      "priority_queue": "sku, pago y fulfillment"
+    },
+    "recurrence_engine": {
+      "policies": [
+        {
+          "type": "cart_recovery",
+          "interval_days": 1,
+          "anchor": "intención de compra"
+        },
+        {
+          "type": "reorder_cycle",
+          "interval_days": 30,
+          "anchor": "intención de compra"
+        },
+        {
+          "type": "review_request",
+          "interval_days": 7,
+          "anchor": "intención de compra"
+        }
+      ],
+      "reactivation_window_days": 30,
+      "goal": "protect retention, repeat revenue and continuity"
+    },
+    "kpi_engine": {
+      "north_star": "Conversación a pago confirmado con recompra.",
+      "definitions": [
+        {
+          "name": "cart_conversion",
+          "formula": "paid_orders / checkouts_started"
+        },
+        {
+          "name": "aov",
+          "formula": "revenue / paid_orders"
+        },
+        {
+          "name": "repurchase_90d",
+          "formula": "repeat_buyers_90d / delivered_buyers"
+        }
+      ],
+      "leading_indicators": [
+        "cart_abandoned",
+        "checkout_started",
+        "no_response_7d"
+      ]
+    },
+    "automation_engine": {
+      "money_automation_policies": [
+        {
+          "trigger": "cart_abandoned",
+          "actions": [
+            "send_followup",
+            "escalate_owner",
+            "offer_relevant_next_step"
+          ],
+          "goal": "save conversion or retention"
+        },
+        {
+          "trigger": "checkout_started",
+          "actions": [
+            "send_quote_or_payment_link",
+            "remind_deadline",
+            "notify_human"
+          ],
+          "goal": "move revenue forward"
+        },
+        {
+          "trigger": "return_requested",
+          "actions": [
+            "schedule_recurrence",
+            "cross_sell_next_best_offer",
+            "create_task"
+          ],
+          "goal": "increase LTV"
+        }
+      ],
+      "quiet_hours": "21:00-08:00"
+    },
+    "document_flow": {
+      "required_documents": [
+        "confirmacion de orden",
+        "guia de envio",
+        "solicitud de devolucion",
+        "incidencia postventa"
+      ],
+      "lifecycle_rules": [
+        {
+          "document": "confirmacion de orden",
+          "required_before": "first committed step",
+          "signature_required": true
+        },
+        {
+          "document": "incidencia postventa",
+          "required_before": "handoff or continuity step",
+          "signature_required": false
+        }
+      ]
+    },
+    "matching_engine": {
+      "entity": "intención de compra",
+      "rules": [
+        "sku availability",
+        "variant preference",
+        "basket affinity",
+        "shipping_zone_match"
+      ],
+      "next_best_match_outputs": [
+        "best_owner",
+        "best_resource_slot",
+        "best_offer"
+      ]
+    }
+  },
+  "transactional_motor_v12": {
+    "version": "v12_full_transactional",
+    "aggregate_root": "commerce_order_account",
+    "main_business_entity": "orden",
+    "transaction_unit": "cart_checkout_cycle",
+    "system_of_record": {
+      "write_model": [
+        "commands",
+        "events",
+        "ledger",
+        "aggregate_snapshots"
+      ],
+      "read_models": [
+        "commercial_board",
+        "operations_board",
+        "finance_board",
+        "continuity_board",
+        "resource_load_board",
+        "document_readiness_board",
+        "revenue_levers_board"
+      ],
+      "idempotency_scope": [
+        "organization_id",
+        "vertical_id",
+        "external_reference",
+        "command_key"
+      ],
+      "audit_mode": "append_only_with_snapshots"
+    },
+    "transaction_primitives": {
+      "commands": [
+        "capture_intent",
+        "qualify_record",
+        "create_quote",
+        "request_deposit",
+        "reserve_capacity",
+        "confirm_booking",
+        "start_case",
+        "approve_quote",
+        "collect_payment",
+        "start_fulfillment",
+        "close_fulfillment",
+        "schedule_recurrence",
+        "issue_refund",
+        "reactivate_customer",
+        "reserve_cart_stock",
+        "create_checkout",
+        "release_to_fulfillment",
+        "open_return_case"
+      ],
+      "events": [
+        "intent_captured",
+        "record_qualified",
+        "quote_created",
+        "deposit_requested",
+        "capacity_reserved",
+        "booking_confirmed",
+        "case_started",
+        "quote_approved",
+        "payment_collected",
+        "fulfillment_started",
+        "fulfillment_closed",
+        "recurrence_scheduled",
+        "refund_issued",
+        "customer_reactivated",
+        "cart_stock_reserved",
+        "checkout_created",
+        "released_to_fulfillment",
+        "return_case_opened"
+      ],
+      "ledger_event_types": [
+        "charge_opened",
+        "deposit_collected",
+        "installment_due",
+        "payment_applied",
+        "credit_issued",
+        "refund_issued",
+        "write_off_registered"
+      ],
+      "invariants": [
+        "no checkout sin stock reservado",
+        "no surtir pedido sin pago o condición válida",
+        "no cerrar devolución sin trazabilidad",
+        "todo pago debe referenciar quote, order o case activo",
+        "todo cambio crítico debe emitir evento y renglón de auditoría",
+        "ningún recurso se confirma dos veces en la misma ventana"
+      ],
+      "idempotency_keys": [
+        "command_key",
+        "payment_reference",
+        "booking_reference",
+        "external_message_id"
+      ]
+    },
+    "aggregates": {
+      "primary_record": {
+        "name": "orden",
+        "status_axis": [
+          "commercial",
+          "operations",
+          "finance",
+          "continuity"
+        ]
+      },
+      "quote": {
+        "name": "checkout_quote",
+        "states": [
+          "draft",
+          "sent",
+          "accepted",
+          "expired",
+          "lost"
+        ]
+      },
+      "booking": {
+        "name": "checkout_reservation",
+        "states": [
+          "proposed",
+          "reserved",
+          "confirmed",
+          "attended_or_executed",
+          "missed_or_canceled"
+        ]
+      },
+      "execution": {
+        "name": "order_fulfillment",
+        "states": [
+          "pending",
+          "ready",
+          "in_progress",
+          "blocked",
+          "completed",
+          "closed"
+        ]
+      },
+      "payment_account": {
+        "name": "payment_account",
+        "states": [
+          "open",
+          "partially_paid",
+          "paid",
+          "overdue",
+          "refunded"
+        ]
+      },
+      "continuity": {
+        "name": "post_purchase_reorder_plan",
+        "states": [
+          "not_started",
+          "active",
+          "at_risk",
+          "recovered",
+          "closed"
+        ]
+      }
+    },
+    "orchestration": {
+      "command_handlers": [
+        "handle_capture_intent",
+        "handle_qualify_record",
+        "handle_create_quote",
+        "handle_request_deposit",
+        "handle_reserve_capacity",
+        "handle_confirm_booking",
+        "handle_start_case",
+        "handle_approve_quote",
+        "handle_reserve_cart_stock",
+        "handle_create_checkout",
+        "handle_release_to_fulfillment",
+        "handle_open_return_case"
+      ],
+      "sagas": [
+        "cart_to_checkout",
+        "checkout_to_delivery",
+        "post_purchase_reorder"
+      ],
+      "money_guards": [
+        "quote_before_payment",
+        "capacity_before_confirmation",
+        "documents_before_execution",
+        "balance_before_close"
+      ],
+      "read_model_refresh": [
+        "on_every_event",
+        "nightly_reconciliation",
+        "pre_dashboard_cache"
+      ]
+    },
+    "finance": {
+      "money_objects": [
+        "cart_charge",
+        "shipping_charge",
+        "refund_issue",
+        "reorder_collection"
+      ],
+      "collection_modes": [
+        "checkout",
+        "contra entrega si aplica",
+        "recompra"
+      ],
+      "refund_modes": [
+        "return_refund",
+        "store_credit"
+      ],
+      "reconciliation_views": [
+        "expected_vs_collected",
+        "aging_balance",
+        "refund_exposure",
+        "cash_by_stage"
+      ]
+    },
+    "operations": {
+      "fulfillment_unit": "cart_checkout_cycle",
+      "resource_locking": [
+        "inventory_unit",
+        "pick_pack_capacity",
+        "delivery_slot"
+      ],
+      "dispatch_or_schedule_board": [
+        "queued",
+        "ready",
+        "assigned",
+        "in_progress",
+        "blocked",
+        "done"
+      ],
+      "handoff_rules": [
+        "human_handoff_on_exception",
+        "supervisor_handoff_on_money_risk",
+        "operator_handoff_on_compliance_gap"
+      ]
+    },
+    "audit_compliance": {
+      "timeline_entities": [
+        "orden",
+        "checkout_quote",
+        "checkout_reservation",
+        "order_fulfillment",
+        "payment_account"
+      ],
+      "consent_gates": [
+        "order_confirmation",
+        "shipping_proof",
+        "return_request"
+      ],
+      "required_evidence": [
+        "timeline_event",
+        "actor",
+        "timestamp",
+        "before_after_snapshot"
+      ],
+      "retention_rules": [
+        "audit_log_append_only",
+        "documents_linked_to_primary_record",
+        "payment_trace_non_destructive"
+      ]
+    },
+    "transaction_views": {
+      "commercial": [
+        "browse",
+        "cart",
+        "checkout"
+      ],
+      "operations": [
+        "inventory",
+        "fulfillment",
+        "returns"
+      ],
+      "finance": [
+        "conversion",
+        "aov",
+        "refund_rate"
+      ],
+      "continuity": [
+        "reorder",
+        "review",
+        "cross_sell"
+      ]
+    },
+    "command_catalog": [
+      {
+        "command": "capture_intent",
+        "writes": "orden",
+        "emits": "intent_captured",
+        "guard": "no checkout sin stock reservado"
+      },
+      {
+        "command": "qualify_record",
+        "writes": "orden",
+        "emits": "record_qualified",
+        "guard": "no surtir pedido sin pago o condición válida"
+      },
+      {
+        "command": "create_quote",
+        "writes": "orden",
+        "emits": "quote_created",
+        "guard": "no cerrar devolución sin trazabilidad"
+      },
+      {
+        "command": "request_deposit",
+        "writes": "orden",
+        "emits": "deposit_requested",
+        "guard": "no checkout sin stock reservado"
+      },
+      {
+        "command": "reserve_capacity",
+        "writes": "orden",
+        "emits": "capacity_reserved",
+        "guard": "no surtir pedido sin pago o condición válida"
+      },
+      {
+        "command": "confirm_booking",
+        "writes": "orden",
+        "emits": "booking_confirmed",
+        "guard": "no cerrar devolución sin trazabilidad"
+      },
+      {
+        "command": "start_case",
+        "writes": "orden",
+        "emits": "case_started",
+        "guard": "no checkout sin stock reservado"
+      },
+      {
+        "command": "approve_quote",
+        "writes": "orden",
+        "emits": "quote_approved",
+        "guard": "no surtir pedido sin pago o condición válida"
+      },
+      {
+        "command": "reserve_cart_stock",
+        "writes": "orden",
+        "emits": "payment_collected",
+        "guard": "no cerrar devolución sin trazabilidad"
+      },
+      {
+        "command": "create_checkout",
+        "writes": "orden",
+        "emits": "fulfillment_started",
+        "guard": "no checkout sin stock reservado"
+      },
+      {
+        "command": "release_to_fulfillment",
+        "writes": "orden",
+        "emits": "fulfillment_closed",
+        "guard": "no surtir pedido sin pago o condición válida"
+      },
+      {
+        "command": "open_return_case",
+        "writes": "orden",
+        "emits": "recurrence_scheduled",
+        "guard": "no cerrar devolución sin trazabilidad"
+      }
+    ],
+    "event_catalog": [
+      {
+        "event": "intent_captured",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "cart_to_checkout"
+      },
+      {
+        "event": "record_qualified",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "checkout_to_delivery"
+      },
+      {
+        "event": "quote_created",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "post_purchase_reorder"
+      },
+      {
+        "event": "deposit_requested",
+        "updates": [
+          "timeline",
+          "boards",
+          "ledger"
+        ],
+        "next_action": "cart_to_checkout"
+      },
+      {
+        "event": "capacity_reserved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "checkout_to_delivery"
+      },
+      {
+        "event": "booking_confirmed",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "post_purchase_reorder"
+      },
+      {
+        "event": "case_started",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "cart_to_checkout"
+      },
+      {
+        "event": "quote_approved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "checkout_to_delivery"
+      },
+      {
+        "event": "cart_stock_reserved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "post_purchase_reorder"
+      },
+      {
+        "event": "checkout_created",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "cart_to_checkout"
+      },
+      {
+        "event": "released_to_fulfillment",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "checkout_to_delivery"
+      },
+      {
+        "event": "return_case_opened",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "post_purchase_reorder"
+      }
+    ]
+  },
+  "subvertical_profiles": [],
+  "recommended_subverticals": []
+}

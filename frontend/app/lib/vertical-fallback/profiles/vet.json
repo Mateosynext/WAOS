@@ -1,0 +1,2134 @@
+{
+  "id": "vet",
+  "name": "WAOS Vet",
+  "short_name": "Veterinaria & pet care",
+  "description": "Sistema operativo conversacional para veterinarias y pet care.",
+  "problem": "Veterinarias y pet care suelen mezclar salud, grooming y prevención en conversaciones separadas, perdiendo historial, recordatorios y servicios recurrentes.",
+  "subverticals": [
+    "clínica veterinaria",
+    "hospital veterinario",
+    "vacunación",
+    "grooming",
+    "hotel",
+    "daycare",
+    "rehabilitación",
+    "nutrición veterinaria",
+    "planes preventivos"
+  ],
+  "objects": [
+    "mascota",
+    "tutor",
+    "especie",
+    "raza",
+    "edad",
+    "vacunas",
+    "plan preventivo",
+    "consulta",
+    "grooming",
+    "próxima fecha",
+    "servicio recurrente",
+    "tutor / familia",
+    "peso"
+  ],
+  "flows": [
+    "registro mascota",
+    "consulta o servicio",
+    "seguimiento post visita",
+    "plan preventivo -> renovación"
+  ],
+  "kpis": [
+    "citas por mascota",
+    "recurrencia por tutor",
+    "vacunas al día",
+    "grooming repetido",
+    "plan preventivo",
+    "reactivación",
+    "renovación de plan",
+    "recompra grooming",
+    "ausencias"
+  ],
+  "recommended_integrations": [
+    "whatsapp",
+    "google_calendar",
+    "payments",
+    "crm"
+  ],
+  "default_services": [
+    "consulta general",
+    "vacunacion",
+    "grooming",
+    "daycare",
+    "plan preventivo"
+  ],
+  "default_faqs": [
+    {
+      "q": "¿Pueden registrar a mi mascota?",
+      "a": "Si, podemos registrar mascota, especie, raza y datos del tutor para dar mejor seguimiento."
+    },
+    {
+      "q": "¿Manejan vacunas y recordatorios?",
+      "a": "Si, enviamos recordatorios de vacunas, controles y servicios recurrentes."
+    },
+    {
+      "q": "¿Puedo agendar grooming o consulta?",
+      "a": "Si, el bot clasifica el motivo y te ayuda a reservar servicio o consulta."
+    },
+    {
+      "q": "¿Tienen planes preventivos?",
+      "a": "Si, podemos explicarte opciones y ayudarte a renovarlas."
+    }
+  ],
+  "behavior": {
+    "tone": "cercano y responsable",
+    "response_length": "media",
+    "use_emojis": false,
+    "sales_intensity": "media",
+    "offer_promotions_when": "after_pet_profile_completed",
+    "escalate_when": [
+      "urgencia",
+      "accidente",
+      "vomito continuo",
+      "dificultad respiratoria"
+    ],
+    "insistence_policy": "respectful",
+    "can_share_price_directly": true,
+    "can_negotiate": false,
+    "can_mention_stock": false,
+    "auto_send_images": false,
+    "bot_mode": "seguimiento_de_cuidado",
+    "active_channels": [
+      "whatsapp",
+      "webchat"
+    ],
+    "forbidden_topics": [
+      "diagnostico veterinario definitivo por chat"
+    ],
+    "required_phrases": [
+      "te ayudo a registrar a tu mascota",
+      "si es urgencia te canalizo con prioridad",
+      "te sigo",
+      "si la pregunta viene rara, igual te la aterrizo",
+      "te lo aterrizo a tu caso"
+    ],
+    "fallback_message": "Te ayudo con consulta, grooming, vacunas o plan preventivo para tu mascota. Si la pregunta viene rara, en broma o medio fuera de tema, igual te sigo y la aterrizamos al negocio.",
+    "humor_policy": "light_contextual",
+    "strange_question_policy": "respond_validate_reframe_sell_move"
+  },
+  "followup_rules": [
+    {
+      "type": "no_response",
+      "delay_minutes": 120,
+      "max_attempts": 2,
+      "message_template": "¿Quieres que agendemos consulta, grooming o revisemos la siguiente vacuna?"
+    },
+    {
+      "type": "post_quote",
+      "delay_minutes": 1440,
+      "max_attempts": 1,
+      "message_template": "Quedo pendiente para ayudarte con la siguiente visita o plan preventivo de tu mascota."
+    },
+    {
+      "type": "reactivation",
+      "delay_minutes": 43200,
+      "max_attempts": 1,
+      "message_template": "Vemos que tu mascota ya podria requerir su siguiente servicio o control. ¿Quieres que te comparta horarios?"
+    }
+  ],
+  "templates": [
+    {
+      "template_key": "pet_registration",
+      "title": "Registro mascota",
+      "content": "Para ayudarte mejor, comparteme nombre de tu mascota, especie, raza y el motivo de consulta o servicio.",
+      "variables": []
+    },
+    {
+      "template_key": "vaccine_reminder",
+      "title": "Recordatorio de vacuna",
+      "content": "Tu mascota ya esta cerca de su siguiente vacuna o control. ¿Quieres que lo agendemos?",
+      "variables": []
+    },
+    {
+      "template_key": "grooming_rebook",
+      "title": "Rebook grooming",
+      "content": "Ya toca el siguiente grooming recomendado. Si quieres, te comparto horarios disponibles.",
+      "variables": []
+    },
+    {
+      "template_key": "post_visit",
+      "title": "Seguimiento post visita",
+      "content": "¿Como siguio tu mascota despues de la visita? Si notas algo fuera de lo normal, te canalizo con el equipo.",
+      "variables": []
+    },
+    {
+      "template_key": "plan_renewal",
+      "title": "Renovacion plan",
+      "content": "Tu plan preventivo esta por vencer. ¿Quieres que te ayude a renovarlo hoy?",
+      "variables": []
+    }
+  ],
+  "config_overrides": {
+    "objective_secondary": [
+      "agendar",
+      "reactivar",
+      "renovar"
+    ],
+    "policies": [
+      "No emitir diagnosticos definitivos por chat",
+      "Escalar urgencias veterinarias"
+    ],
+    "can_say": [
+      "consulta",
+      "vacunas",
+      "grooming",
+      "planes preventivos",
+      "agendar"
+    ],
+    "cannot_say": [
+      "diagnostico definitivo",
+      "promesas clinicas absolutas"
+    ],
+    "whatsapp_flows": [
+      "registro_mascota",
+      "agenda_vacuna",
+      "grooming_rebook",
+      "renovacion_plan"
+    ],
+    "appointment_duration_minutes": 30,
+    "handoff_keywords": [
+      "urgencia",
+      "respira mal",
+      "accidente",
+      "convulsiona"
+    ],
+    "high_score_threshold": 88
+  },
+  "portfolio_tier": "tier_2",
+  "master_thesis": "Sistema operativo conversacional para veterinarias y pet care que conecta consulta, prevención, grooming, planes y recurrencia alrededor de la mascota.",
+  "buyer": {
+    "primary": "Dueño de clínica veterinaria o pet care",
+    "secondary": [
+      "recepción",
+      "médicos veterinarios",
+      "grooming manager"
+    ]
+  },
+  "one_pager": {
+    "headline": "WAOS Vet",
+    "thesis": "WhatsApp deja de ser solo atención y se convierte en una relación continua con la mascota y su tutor.",
+    "problem": "Se pierden recordatorios, continuidad clínica y recompras de grooming o planes preventivos.",
+    "promise": "Cada mascota se gestiona como cuenta recurrente con próxima acción clara.",
+    "monetizes": [
+      "consulta",
+      "vacunas",
+      "grooming",
+      "hotel/daycare",
+      "planes preventivos",
+      "nutrición"
+    ],
+    "packaging": [
+      "setup vet + grooming",
+      "historial de mascota",
+      "recordatorios preventivos",
+      "operación mensual de recurrencia"
+    ],
+    "strategic_care": "Muy buena vertical por recurrencia y conversación natural en WhatsApp, pero el diseño del bot debe escalar bien cualquier urgencia clínica."
+  },
+  "demo_flow": [
+    "El tutor entra por síntoma, vacuna, grooming u hotel.",
+    "WAOS registra mascota y clasifica el tipo de servicio.",
+    "Agenda consulta o servicio y confirma.",
+    "Da seguimiento post consulta o post grooming.",
+    "Programa próxima fecha clave preventiva.",
+    "Sugiere plan preventivo o servicio complementario y reactiva por frecuencia recomendada."
+  ],
+  "native_objects": {
+    "core": [
+      "tutor",
+      "mascota",
+      "especie",
+      "raza",
+      "edad"
+    ],
+    "commercial": [
+      "consulta",
+      "vacuna",
+      "grooming",
+      "hotel/daycare",
+      "plan preventivo"
+    ],
+    "operations": [
+      "historial",
+      "condición especial",
+      "próxima fecha",
+      "recordatorio estacional",
+      "renovación"
+    ]
+  },
+  "pipeline": {
+    "primary": {
+      "name": "Atención y recurrencia",
+      "states": [
+        "lead nuevo",
+        "mascota registrada",
+        "servicio identificado",
+        "consulta/servicio agendado",
+        "confirmado",
+        "asistido",
+        "seguimiento post servicio",
+        "plan preventivo ofrecido",
+        "plan activo",
+        "próxima fecha pendiente",
+        "inactivo",
+        "reactivado"
+      ]
+    },
+    "secondary": [
+      {
+        "name": "Preventivo",
+        "states": [
+          "sin plan",
+          "plan ofrecido",
+          "plan activo",
+          "renovación pendiente",
+          "renovado"
+        ]
+      }
+    ]
+  },
+  "bot_playbook": {
+    "must_do": [
+      "registrar tutor y mascota",
+      "orientar tipo de servicio",
+      "clasificar urgencia básica",
+      "agendar",
+      "recordar vacunas y controles",
+      "vender plan preventivo",
+      "seguir recuperación",
+      "nunca quedarse seco ante bromas, preguntas raras o cambios bruscos de tema",
+      "usar humor ligero cuando sume, sin sonar payaso ni poco serio",
+      "validar el momento y luego reencauzar la conversacion al negocio",
+      "cerrar siempre con una pregunta util o siguiente paso"
+    ],
+    "must_ask": [
+      "especie",
+      "edad",
+      "motivo",
+      "síntomas o servicio solicitado",
+      "si ya es paciente",
+      "disponibilidad",
+      "que parte del negocio se esta atorando mas",
+      "si quiere que se lo aterrice a su caso"
+    ],
+    "objections": [
+      "precio",
+      "solo quiero preguntar",
+      "no sé si urge",
+      "luego la llevo",
+      "solo quiero grooming"
+    ],
+    "escalate_when": [
+      "urgencia clínica seria",
+      "hospitalización",
+      "decisión médica",
+      "queja fuerte"
+    ],
+    "forbidden": [
+      "diagnóstico veterinario definitivo por chat"
+    ],
+    "success_signals": [
+      "quiero agendar",
+      "mi mascota necesita",
+      "¿qué vacunas tocan?",
+      "quiero grooming",
+      "mándame horarios"
+    ],
+    "style": [
+      "humor ligero",
+      "manejo de preguntas raras",
+      "reencuadre comercial"
+    ]
+  },
+  "automation_sequences": [
+    {
+      "key": "vet_visit_confirmation",
+      "name": "Confirmación de visita",
+      "trigger": "consulta o servicio agendado",
+      "goal": "reducir no-show",
+      "steps": [
+        "confirmar fecha",
+        "recordatorio 24h",
+        "recordatorio 2h"
+      ]
+    },
+    {
+      "key": "vet_preventive",
+      "name": "Preventivo periódico",
+      "trigger": "próxima vacuna o desparasitación",
+      "goal": "cumplimiento preventivo",
+      "steps": [
+        "recordar fecha",
+        "ofrecer agenda",
+        "cerrar visita"
+      ]
+    },
+    {
+      "key": "vet_post_visit",
+      "name": "Seguimiento post visita",
+      "trigger": "consulta realizada",
+      "goal": "calidad y continuidad",
+      "steps": [
+        "preguntar evolución",
+        "escalar anomalía",
+        "proponer control"
+      ]
+    },
+    {
+      "key": "vet_rebook",
+      "name": "Rebook de grooming o plan",
+      "trigger": "frecuencia ideal alcanzada",
+      "goal": "recurrencia",
+      "steps": [
+        "recordatorio",
+        "proponer horario",
+        "cerrar servicio"
+      ]
+    }
+  ],
+  "dashboard": {
+    "north_star": "Recurrencia por mascota y plan preventivo activo.",
+    "sections": [
+      {
+        "name": "Conversión",
+        "metrics": [
+          "consulta agendada",
+          "grooming agendado",
+          "plan preventivo vendido",
+          "mascota registrada"
+        ]
+      },
+      {
+        "name": "Retención",
+        "metrics": [
+          "vacunas al día",
+          "grooming repetido",
+          "plan renovado",
+          "mascotas reactivadas"
+        ]
+      },
+      {
+        "name": "Revenue",
+        "metrics": [
+          "ticket por mascota",
+          "revenue clínico",
+          "revenue grooming",
+          "revenue preventivo"
+        ]
+      },
+      {
+        "name": "Operación",
+        "metrics": [
+          "no-show",
+          "tiempo de respuesta",
+          "tiempo a próxima cita",
+          "seguimientos post visita"
+        ]
+      }
+    ]
+  },
+  "hardening_model": {
+    "goal": "Pasar de preset inteligente a sistema especialista",
+    "wave": "ola_2",
+    "entity_queen": "mascota",
+    "core_common": true,
+    "domain_by_vertical": true,
+    "playbooks_by_subvertical": true,
+    "kpis_by_vertical": true,
+    "pricing_by_vertical": true,
+    "journeys_by_vertical": true,
+    "reusable_modules": [
+      "intake / calificación",
+      "agenda / recursos",
+      "cotización / propuesta",
+      "pago / anticipo / membresía",
+      "seguimiento / recurrencia",
+      "reporting vertical"
+    ],
+    "minimum_viable_hardening": [
+      "1 entidad reina",
+      "1 pipeline propio",
+      "1 cotización propia",
+      "1 recurrencia propia",
+      "1 dashboard propio"
+    ],
+    "hard_checklist": [
+      "tiene entidad principal propia",
+      "tiene pipeline específico",
+      "tiene cotización o pricing del nicho",
+      "tiene agenda o recursos del nicho",
+      "tiene postventa o recurrencia del nicho",
+      "tiene documentos o compliance del nicho",
+      "tiene KPIs del nicho",
+      "tiene 3 automatizaciones que mueven dinero",
+      "tiene 2 pruebas e2e de negocio",
+      "tiene subplaybooks por subvertical",
+      "entidad principal propia",
+      "pipeline específico",
+      "pricing del nicho",
+      "agenda y recursos del nicho",
+      "postventa o recurrencia del nicho",
+      "documentos o compliance del nicho",
+      "KPIs del nicho",
+      "3 automatizaciones que mueven dinero",
+      "2 pruebas e2e de negocio",
+      "subplaybooks por subvertical",
+      "runtime ejecutable por vertical"
+    ]
+  },
+  "specialist_layers": {
+    "persistent_entities": [
+      "mascota",
+      "tutor / familia",
+      "especie",
+      "raza",
+      "edad",
+      "peso",
+      "vacunas",
+      "plan preventivo"
+    ],
+    "business_pipeline": {
+      "primary_entity": "mascota",
+      "primary_pipeline": {
+        "name": "Atención y recurrencia",
+        "states": [
+          "lead nuevo",
+          "mascota registrada",
+          "servicio identificado",
+          "consulta/servicio agendado",
+          "confirmado",
+          "asistido",
+          "seguimiento post servicio",
+          "plan preventivo ofrecido",
+          "plan activo",
+          "próxima fecha pendiente",
+          "inactivo",
+          "reactivado"
+        ]
+      },
+      "secondary_pipelines": [
+        {
+          "name": "Preventivo",
+          "states": [
+            "sin plan",
+            "plan ofrecido",
+            "plan activo",
+            "renovación pendiente",
+            "renovado"
+          ]
+        }
+      ]
+    },
+    "pricing_and_quotes": [
+      "cotización por mascota y servicio",
+      "plan preventivo recurrente",
+      "bundle grooming + vacunas"
+    ],
+    "agenda_and_resources": [
+      "médico veterinario",
+      "groomer",
+      "área de consulta",
+      "estancia",
+      "agenda por especie"
+    ],
+    "post_sale_and_recurrence": [
+      "recordatorios por vacuna/desparasitación",
+      "seguimiento por multi-mascota",
+      "renovación de plan preventivo"
+    ],
+    "documents_compliance": [
+      "cartilla de vacunación",
+      "consentimiento de procedimiento",
+      "instrucciones postservicio",
+      "registro médico básico"
+    ],
+    "kpis_that_matter": [
+      "citas por mascota",
+      "recurrencia por tutor",
+      "vacunas al día",
+      "grooming repetido",
+      "plan preventivo",
+      "reactivación",
+      "renovación de plan",
+      "recompra grooming",
+      "ausencias"
+    ],
+    "money_automations": [
+      "recordatorio de vacuna pendiente",
+      "recompra de grooming",
+      "renovación de plan preventivo"
+    ]
+  },
+  "domain_contract": {
+    "vertical_entity_types": [
+      "mascota",
+      "tutor / familia",
+      "especie",
+      "raza",
+      "edad",
+      "peso",
+      "vacunas",
+      "plan preventivo"
+    ],
+    "vertical_pipeline_stages": {
+      "primary": [
+        "lead nuevo",
+        "mascota registrada",
+        "servicio identificado",
+        "consulta/servicio agendado",
+        "confirmado",
+        "asistido",
+        "seguimiento post servicio",
+        "plan preventivo ofrecido",
+        "plan activo",
+        "próxima fecha pendiente",
+        "inactivo",
+        "reactivado"
+      ],
+      "secondary": [
+        [
+          "sin plan",
+          "plan ofrecido",
+          "plan activo",
+          "renovación pendiente",
+          "renovado"
+        ]
+      ]
+    },
+    "vertical_quote_types": [
+      "consulta",
+      "vacunación",
+      "grooming",
+      "daycare / hotel",
+      "plan preventivo"
+    ],
+    "vertical_resource_types": [
+      "médico veterinario",
+      "groomer",
+      "área de consulta",
+      "estancia",
+      "agenda por especie"
+    ],
+    "vertical_followup_policies": [
+      "recordatorios por vacuna/desparasitación",
+      "seguimiento por multi-mascota",
+      "renovación de plan preventivo"
+    ],
+    "vertical_kpi_definitions": [
+      "citas por mascota",
+      "recurrencia por tutor",
+      "vacunas al día",
+      "grooming repetido",
+      "plan preventivo",
+      "reactivación",
+      "renovación de plan",
+      "recompra grooming",
+      "ausencias"
+    ],
+    "vertical_playbooks": [
+      "clínica",
+      "grooming",
+      "daycare",
+      "hotel",
+      "vacunas"
+    ],
+    "vertical_document_types": [
+      "cartilla de vacunación",
+      "consentimiento de procedimiento",
+      "instrucciones postservicio",
+      "registro médico básico"
+    ]
+  },
+  "subvertical_playbooks": [
+    {
+      "name": "clínica",
+      "focus": "Playbook operativo y comercial para clínica"
+    },
+    {
+      "name": "grooming",
+      "focus": "Playbook operativo y comercial para grooming"
+    },
+    {
+      "name": "daycare",
+      "focus": "Playbook operativo y comercial para daycare"
+    },
+    {
+      "name": "hotel",
+      "focus": "Playbook operativo y comercial para hotel"
+    },
+    {
+      "name": "vacunas",
+      "focus": "Playbook operativo y comercial para vacunas"
+    }
+  ],
+  "business_e2e_tests": [
+    {
+      "name": "tutor registra mascota, agenda vacuna y activa plan preventivo",
+      "status": "designed"
+    },
+    {
+      "name": "cliente de grooming recompra y agenda siguiente visita",
+      "status": "designed"
+    }
+  ],
+  "vertical_runtime": {
+    "pipeline_machine": {
+      "primary_pipeline": "Atención y recurrencia",
+      "entity": "mascota",
+      "states": [
+        "lead nuevo",
+        "mascota registrada",
+        "servicio identificado",
+        "consulta/servicio agendado",
+        "confirmado",
+        "asistido",
+        "seguimiento post servicio",
+        "plan preventivo ofrecido",
+        "plan activo",
+        "próxima fecha pendiente",
+        "inactivo",
+        "reactivado"
+      ],
+      "transitions": [
+        {
+          "from": "lead nuevo",
+          "to": "mascota registrada",
+          "trigger": "qualification_complete",
+          "business_effect": "advance opportunity"
+        },
+        {
+          "from": "mascota registrada",
+          "to": "servicio identificado",
+          "trigger": "grooming_gap",
+          "business_effect": "open commercial step"
+        },
+        {
+          "from": "inactivo",
+          "to": "reactivado",
+          "trigger": "successful_outcome",
+          "business_effect": "realize revenue or continuity"
+        },
+        {
+          "from": "inactivo",
+          "to": "at_risk",
+          "trigger": "vaccine_due",
+          "business_effect": "activate retention sequence"
+        }
+      ],
+      "at_risk_state": "at_risk",
+      "closed_states": [
+        "reactivado"
+      ]
+    },
+    "pricing_engine": {
+      "quote_types": [
+        "consulta",
+        "plan preventivo",
+        "grooming bundle",
+        "hotel/daycare"
+      ],
+      "pricing_basis": "service_type + pet_size + species + preventive_plan",
+      "rules": [
+        {
+          "rule": "base price by servicio type",
+          "effect": "set base_price"
+        },
+        {
+          "rule": "premium or urgent add-ons increase quote",
+          "effect": "add surcharge"
+        },
+        {
+          "rule": "bundle, membership or financing can lower immediate friction",
+          "effect": "recommend package or installments"
+        }
+      ],
+      "deposit_policy": "request advance when capacity, specialist time or inventory must be secured"
+    },
+    "resource_capacity": {
+      "resource_types": [
+        "veterinario",
+        "groomer",
+        "jaula",
+        "consultorio",
+        "espacio hotel"
+      ],
+      "capacity_basis": "doctor/groomer availability, room/kennel capacity and pet duration",
+      "constraints": [
+        "avoid double booking of critical resources",
+        "respect service duration and cleanup/buffer time",
+        "prioritize higher urgency and higher close probability cases"
+      ],
+      "priority_queue": "medico, grooming o daycare por especie"
+    },
+    "recurrence_engine": {
+      "policies": [
+        {
+          "type": "vaccine_recall",
+          "interval_days": 365,
+          "anchor": "mascota"
+        },
+        {
+          "type": "deworming_recall",
+          "interval_days": 90,
+          "anchor": "mascota"
+        },
+        {
+          "type": "grooming_rebook",
+          "interval_days": 30,
+          "anchor": "mascota"
+        }
+      ],
+      "reactivation_window_days": 365,
+      "goal": "protect retention, repeat revenue and continuity"
+    },
+    "kpi_engine": {
+      "north_star": "Recurrencia por mascota y plan preventivo activo.",
+      "definitions": [
+        {
+          "name": "vaccines_on_time",
+          "formula": "vaccines_completed / vaccines_due"
+        },
+        {
+          "name": "grooming_repurchase",
+          "formula": "repeat_grooming / grooming_clients"
+        },
+        {
+          "name": "preventive_renewal",
+          "formula": "renewed_plans / expiring_plans"
+        }
+      ],
+      "leading_indicators": [
+        "vaccine_due",
+        "deworming_due",
+        "no_response_7d"
+      ]
+    },
+    "automation_engine": {
+      "money_automation_policies": [
+        {
+          "trigger": "vaccine_due",
+          "actions": [
+            "send_followup",
+            "escalate_owner",
+            "offer_relevant_next_step"
+          ],
+          "goal": "save conversion or retention"
+        },
+        {
+          "trigger": "deworming_due",
+          "actions": [
+            "send_quote_or_payment_link",
+            "remind_deadline",
+            "notify_human"
+          ],
+          "goal": "move revenue forward"
+        },
+        {
+          "trigger": "plan_expiring",
+          "actions": [
+            "schedule_recurrence",
+            "cross_sell_next_best_offer",
+            "create_task"
+          ],
+          "goal": "increase LTV"
+        }
+      ],
+      "quiet_hours": "21:00-08:00"
+    },
+    "document_flow": {
+      "required_documents": [
+        "cartilla de vacunacion",
+        "consentimiento de procedimiento",
+        "ingreso hotel",
+        "plan preventivo"
+      ],
+      "lifecycle_rules": [
+        {
+          "document": "cartilla de vacunacion",
+          "required_before": "first committed step",
+          "signature_required": true
+        },
+        {
+          "document": "plan preventivo",
+          "required_before": "handoff or continuity step",
+          "signature_required": false
+        }
+      ]
+    },
+    "matching_engine": {
+      "entity": "mascota",
+      "rules": [
+        "species_match",
+        "service_type -> staff_skill",
+        "weight_range_fit",
+        "multi_pet_household_priority"
+      ],
+      "next_best_match_outputs": [
+        "best_owner",
+        "best_resource_slot",
+        "best_offer"
+      ]
+    }
+  },
+  "transactional_motor_v12": {
+    "version": "v12_full_transactional",
+    "aggregate_root": "pet_lifecycle_account",
+    "main_business_entity": "mascota",
+    "transaction_unit": "preventive_cycle",
+    "system_of_record": {
+      "write_model": [
+        "commands",
+        "events",
+        "ledger",
+        "aggregate_snapshots"
+      ],
+      "read_models": [
+        "commercial_board",
+        "operations_board",
+        "finance_board",
+        "continuity_board",
+        "resource_load_board",
+        "document_readiness_board",
+        "revenue_levers_board"
+      ],
+      "idempotency_scope": [
+        "organization_id",
+        "vertical_id",
+        "external_reference",
+        "command_key"
+      ],
+      "audit_mode": "append_only_with_snapshots"
+    },
+    "transaction_primitives": {
+      "commands": [
+        "capture_intent",
+        "qualify_record",
+        "create_quote",
+        "request_deposit",
+        "reserve_capacity",
+        "confirm_booking",
+        "start_case",
+        "approve_quote",
+        "collect_payment",
+        "start_fulfillment",
+        "close_fulfillment",
+        "schedule_recurrence",
+        "issue_refund",
+        "reactivate_customer",
+        "register_pet_profile",
+        "sell_preventive_plan",
+        "log_vaccine",
+        "schedule_next_due"
+      ],
+      "events": [
+        "intent_captured",
+        "record_qualified",
+        "quote_created",
+        "deposit_requested",
+        "capacity_reserved",
+        "booking_confirmed",
+        "case_started",
+        "quote_approved",
+        "payment_collected",
+        "fulfillment_started",
+        "fulfillment_closed",
+        "recurrence_scheduled",
+        "refund_issued",
+        "customer_reactivated",
+        "pet_registered",
+        "preventive_plan_sold",
+        "vaccine_logged",
+        "next_due_scheduled"
+      ],
+      "ledger_event_types": [
+        "charge_opened",
+        "deposit_collected",
+        "installment_due",
+        "payment_applied",
+        "credit_issued",
+        "refund_issued",
+        "write_off_registered"
+      ],
+      "invariants": [
+        "no vacuna sin historial mínimo",
+        "no boarding sin documentos",
+        "no cerrar visita sin próxima fecha",
+        "todo pago debe referenciar quote, order o case activo",
+        "todo cambio crítico debe emitir evento y renglón de auditoría",
+        "ningún recurso se confirma dos veces en la misma ventana"
+      ],
+      "idempotency_keys": [
+        "command_key",
+        "payment_reference",
+        "booking_reference",
+        "external_message_id"
+      ]
+    },
+    "aggregates": {
+      "primary_record": {
+        "name": "mascota",
+        "status_axis": [
+          "commercial",
+          "operations",
+          "finance",
+          "continuity"
+        ]
+      },
+      "quote": {
+        "name": "service_plan_quote",
+        "states": [
+          "draft",
+          "sent",
+          "accepted",
+          "expired",
+          "lost"
+        ]
+      },
+      "booking": {
+        "name": "pet_visit_booking",
+        "states": [
+          "proposed",
+          "reserved",
+          "confirmed",
+          "attended_or_executed",
+          "missed_or_canceled"
+        ]
+      },
+      "execution": {
+        "name": "service_visit",
+        "states": [
+          "pending",
+          "ready",
+          "in_progress",
+          "blocked",
+          "completed",
+          "closed"
+        ]
+      },
+      "payment_account": {
+        "name": "payment_account",
+        "states": [
+          "open",
+          "partially_paid",
+          "paid",
+          "overdue",
+          "refunded"
+        ]
+      },
+      "continuity": {
+        "name": "preventive_plan",
+        "states": [
+          "not_started",
+          "active",
+          "at_risk",
+          "recovered",
+          "closed"
+        ]
+      }
+    },
+    "orchestration": {
+      "command_handlers": [
+        "handle_capture_intent",
+        "handle_qualify_record",
+        "handle_create_quote",
+        "handle_request_deposit",
+        "handle_reserve_capacity",
+        "handle_confirm_booking",
+        "handle_start_case",
+        "handle_approve_quote",
+        "handle_register_pet_profile",
+        "handle_sell_preventive_plan",
+        "handle_log_vaccine",
+        "handle_schedule_next_due"
+      ],
+      "sagas": [
+        "first_visit_to_plan",
+        "vaccine_due_reactivation",
+        "boarding_followup"
+      ],
+      "money_guards": [
+        "quote_before_payment",
+        "capacity_before_confirmation",
+        "documents_before_execution",
+        "balance_before_close"
+      ],
+      "read_model_refresh": [
+        "on_every_event",
+        "nightly_reconciliation",
+        "pre_dashboard_cache"
+      ]
+    },
+    "finance": {
+      "money_objects": [
+        "consultation_charge",
+        "plan_charge",
+        "boarding_deposit",
+        "grooming_charge"
+      ],
+      "collection_modes": [
+        "por visita",
+        "plan preventivo",
+        "prepago de servicios"
+      ],
+      "refund_modes": [
+        "service_credit",
+        "boarding_adjustment"
+      ],
+      "reconciliation_views": [
+        "expected_vs_collected",
+        "aging_balance",
+        "refund_exposure",
+        "cash_by_stage"
+      ]
+    },
+    "operations": {
+      "fulfillment_unit": "preventive_cycle",
+      "resource_locking": [
+        "vet",
+        "groomer",
+        "room_kennel_capacity"
+      ],
+      "dispatch_or_schedule_board": [
+        "queued",
+        "ready",
+        "assigned",
+        "in_progress",
+        "blocked",
+        "done"
+      ],
+      "handoff_rules": [
+        "human_handoff_on_exception",
+        "supervisor_handoff_on_money_risk",
+        "operator_handoff_on_compliance_gap"
+      ]
+    },
+    "audit_compliance": {
+      "timeline_entities": [
+        "mascota",
+        "service_plan_quote",
+        "pet_visit_booking",
+        "service_visit",
+        "payment_account"
+      ],
+      "consent_gates": [
+        "vaccination_card",
+        "consentimiento_mascota",
+        "boarding_rules"
+      ],
+      "required_evidence": [
+        "timeline_event",
+        "actor",
+        "timestamp",
+        "before_after_snapshot"
+      ],
+      "retention_rules": [
+        "audit_log_append_only",
+        "documents_linked_to_primary_record",
+        "payment_trace_non_destructive"
+      ]
+    },
+    "transaction_views": {
+      "commercial": [
+        "first_service",
+        "plan_conversion",
+        "family_value"
+      ],
+      "operations": [
+        "vaccine_calendar",
+        "service_history",
+        "capacity"
+      ],
+      "finance": [
+        "plan_renewals",
+        "avg_ticket_per_pet",
+        "open_balance"
+      ],
+      "continuity": [
+        "next_due_date",
+        "preventive_compliance",
+        "multi_pet_rebuy"
+      ]
+    },
+    "command_catalog": [
+      {
+        "command": "capture_intent",
+        "writes": "mascota",
+        "emits": "intent_captured",
+        "guard": "no vacuna sin historial mínimo"
+      },
+      {
+        "command": "qualify_record",
+        "writes": "mascota",
+        "emits": "record_qualified",
+        "guard": "no boarding sin documentos"
+      },
+      {
+        "command": "create_quote",
+        "writes": "mascota",
+        "emits": "quote_created",
+        "guard": "no cerrar visita sin próxima fecha"
+      },
+      {
+        "command": "request_deposit",
+        "writes": "mascota",
+        "emits": "deposit_requested",
+        "guard": "no vacuna sin historial mínimo"
+      },
+      {
+        "command": "reserve_capacity",
+        "writes": "mascota",
+        "emits": "capacity_reserved",
+        "guard": "no boarding sin documentos"
+      },
+      {
+        "command": "confirm_booking",
+        "writes": "mascota",
+        "emits": "booking_confirmed",
+        "guard": "no cerrar visita sin próxima fecha"
+      },
+      {
+        "command": "start_case",
+        "writes": "mascota",
+        "emits": "case_started",
+        "guard": "no vacuna sin historial mínimo"
+      },
+      {
+        "command": "approve_quote",
+        "writes": "mascota",
+        "emits": "quote_approved",
+        "guard": "no boarding sin documentos"
+      },
+      {
+        "command": "register_pet_profile",
+        "writes": "mascota",
+        "emits": "payment_collected",
+        "guard": "no cerrar visita sin próxima fecha"
+      },
+      {
+        "command": "sell_preventive_plan",
+        "writes": "mascota",
+        "emits": "fulfillment_started",
+        "guard": "no vacuna sin historial mínimo"
+      },
+      {
+        "command": "log_vaccine",
+        "writes": "mascota",
+        "emits": "fulfillment_closed",
+        "guard": "no boarding sin documentos"
+      },
+      {
+        "command": "schedule_next_due",
+        "writes": "mascota",
+        "emits": "recurrence_scheduled",
+        "guard": "no cerrar visita sin próxima fecha"
+      }
+    ],
+    "event_catalog": [
+      {
+        "event": "intent_captured",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "first_visit_to_plan"
+      },
+      {
+        "event": "record_qualified",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "vaccine_due_reactivation"
+      },
+      {
+        "event": "quote_created",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "boarding_followup"
+      },
+      {
+        "event": "deposit_requested",
+        "updates": [
+          "timeline",
+          "boards",
+          "ledger"
+        ],
+        "next_action": "first_visit_to_plan"
+      },
+      {
+        "event": "capacity_reserved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "vaccine_due_reactivation"
+      },
+      {
+        "event": "booking_confirmed",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "boarding_followup"
+      },
+      {
+        "event": "case_started",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "first_visit_to_plan"
+      },
+      {
+        "event": "quote_approved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "vaccine_due_reactivation"
+      },
+      {
+        "event": "pet_registered",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "boarding_followup"
+      },
+      {
+        "event": "preventive_plan_sold",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "first_visit_to_plan"
+      },
+      {
+        "event": "vaccine_logged",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "vaccine_due_reactivation"
+      },
+      {
+        "event": "next_due_scheduled",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "boarding_followup"
+      }
+    ]
+  },
+  "is_strongest_vertical": true,
+  "strongest_rank": 4,
+  "ten_x_score": 94,
+  "ten_x_narrative": "WAOS Vet gana cuando trata a la mascota como cuenta recurrente con consulta, prevencion, grooming y plan.",
+  "ten_x_growth_loops": [
+    "consulta a plan preventivo",
+    "vacuna a proxima vacuna",
+    "grooming a frecuencia",
+    "mascota activa a recordatorio"
+  ],
+  "recommended_subverticals": [
+    "clínica veterinaria",
+    "hospital veterinario",
+    "vacunación",
+    "grooming"
+  ],
+  "subvertical_profiles": [
+    {
+      "id": "clínica-veterinaria",
+      "name": "clínica veterinaria",
+      "strength_score": 94,
+      "promise": "Ordenar consulta, seguimiento y control preventivo alrededor de la mascota.",
+      "growth_motion": "consult_to_prevention",
+      "buyer": "Dueño de clínica veterinaria o pet care",
+      "monetizes": [
+        "consulta",
+        "vacunas",
+        "grooming",
+        "hotel/daycare"
+      ],
+      "service_bundle": [
+        "consulta general",
+        "seguimiento",
+        "vacunacion",
+        "control anual"
+      ],
+      "qualification_questions": [
+        "que especie y edad tiene",
+        "que sintomas o necesidad hay",
+        "es urgencia",
+        "cuando puedes venir"
+      ],
+      "objections": [
+        "quiero saber si es urgente",
+        "solo quiero precio",
+        "no tengo como moverme",
+        "prefiero observarlo"
+      ],
+      "automation_priorities": [
+        "seguimiento clínica veterinaria",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "citas por mascota",
+        "recurrencia por tutor",
+        "vacunas al día",
+        "grooming repetido",
+        "conversion clínica veterinaria",
+        "revenue clínica veterinaria"
+      ],
+      "recommended_commands": [
+        "avisar siguiente vacuna",
+        "bloquear guardia",
+        "modo humano para urgencias",
+        "reactivar plan preventivo"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "clínica-veterinaria-lead",
+          "title": "Captacion clínica veterinaria",
+          "content": "Hola, te ayudo con clínica veterinaria. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "clínica-veterinaria-followup",
+          "title": "Seguimiento clínica veterinaria",
+          "content": "Te sigo con clínica veterinaria. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "clínica-veterinaria-reactivation",
+          "title": "Reactivacion clínica veterinaria",
+          "content": "Te escribo porque todavia podemos mover clínica veterinaria a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "cercano y responsable",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de clínica veterinaria",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con clínica veterinaria. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "hospital-veterinario",
+      "name": "hospital veterinario",
+      "strength_score": 92,
+      "promise": "Convertir conversaciones de hospital veterinario en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño de clínica veterinaria o pet care",
+      "monetizes": [
+        "consulta",
+        "vacunas",
+        "grooming",
+        "hotel/daycare"
+      ],
+      "service_bundle": [
+        "servicio hospital veterinario",
+        "seguimiento hospital veterinario",
+        "recordatorio preventivo",
+        "proxima visita"
+      ],
+      "qualification_questions": [
+        "que especie y edad tiene",
+        "que sintomas o necesidad hay",
+        "es urgencia",
+        "cuando puedes venir"
+      ],
+      "objections": [
+        "precio",
+        "solo quiero preguntar",
+        "no sé si urge",
+        "luego la llevo"
+      ],
+      "automation_priorities": [
+        "seguimiento hospital veterinario",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "citas por mascota",
+        "recurrencia por tutor",
+        "vacunas al día",
+        "grooming repetido",
+        "conversion hospital veterinario",
+        "revenue hospital veterinario"
+      ],
+      "recommended_commands": [
+        "avisar siguiente vacuna",
+        "bloquear guardia",
+        "modo humano para urgencias",
+        "reactivar plan preventivo"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "hospital-veterinario-lead",
+          "title": "Captacion hospital veterinario",
+          "content": "Hola, te ayudo con hospital veterinario. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "hospital-veterinario-followup",
+          "title": "Seguimiento hospital veterinario",
+          "content": "Te sigo con hospital veterinario. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "hospital-veterinario-reactivation",
+          "title": "Reactivacion hospital veterinario",
+          "content": "Te escribo porque todavia podemos mover hospital veterinario a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "cercano y responsable",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de hospital veterinario",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con hospital veterinario. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "vacunación",
+      "name": "vacunación",
+      "strength_score": 90,
+      "promise": "Convertir conversaciones de vacunación en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño de clínica veterinaria o pet care",
+      "monetizes": [
+        "consulta",
+        "vacunas",
+        "grooming",
+        "hotel/daycare"
+      ],
+      "service_bundle": [
+        "servicio vacunación",
+        "seguimiento vacunación",
+        "recordatorio preventivo",
+        "proxima visita"
+      ],
+      "qualification_questions": [
+        "que especie y edad tiene",
+        "que sintomas o necesidad hay",
+        "es urgencia",
+        "cuando puedes venir"
+      ],
+      "objections": [
+        "precio",
+        "solo quiero preguntar",
+        "no sé si urge",
+        "luego la llevo"
+      ],
+      "automation_priorities": [
+        "seguimiento vacunación",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "citas por mascota",
+        "recurrencia por tutor",
+        "vacunas al día",
+        "grooming repetido",
+        "conversion vacunación",
+        "revenue vacunación"
+      ],
+      "recommended_commands": [
+        "avisar siguiente vacuna",
+        "bloquear guardia",
+        "modo humano para urgencias",
+        "reactivar plan preventivo"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "vacunación-lead",
+          "title": "Captacion vacunación",
+          "content": "Hola, te ayudo con vacunación. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "vacunación-followup",
+          "title": "Seguimiento vacunación",
+          "content": "Te sigo con vacunación. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "vacunación-reactivation",
+          "title": "Reactivacion vacunación",
+          "content": "Te escribo porque todavia podemos mover vacunación a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "cercano y responsable",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de vacunación",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con vacunación. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "grooming",
+      "name": "grooming",
+      "strength_score": 88,
+      "promise": "Llenar agenda recurrente con recompra y paquetes por frecuencia.",
+      "growth_motion": "grooming_recurrence",
+      "buyer": "Dueño de clínica veterinaria o pet care",
+      "monetizes": [
+        "consulta",
+        "vacunas",
+        "grooming",
+        "hotel/daycare"
+      ],
+      "service_bundle": [
+        "grooming basico",
+        "spa pet",
+        "paquete mensual",
+        "recordatorio de siguiente cita"
+      ],
+      "qualification_questions": [
+        "que especie y edad tiene",
+        "que sintomas o necesidad hay",
+        "es urgencia",
+        "cuando puedes venir"
+      ],
+      "objections": [
+        "se estresa",
+        "solo quiero una vez",
+        "esta caro",
+        "no se porta bien"
+      ],
+      "automation_priorities": [
+        "seguimiento grooming",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "citas por mascota",
+        "recurrencia por tutor",
+        "vacunas al día",
+        "grooming repetido",
+        "conversion grooming",
+        "revenue grooming"
+      ],
+      "recommended_commands": [
+        "avisar siguiente vacuna",
+        "bloquear guardia",
+        "modo humano para urgencias",
+        "reactivar plan preventivo"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "grooming-lead",
+          "title": "Captacion grooming",
+          "content": "Hola, te ayudo con grooming. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "grooming-followup",
+          "title": "Seguimiento grooming",
+          "content": "Te sigo con grooming. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "grooming-reactivation",
+          "title": "Reactivacion grooming",
+          "content": "Te escribo porque todavia podemos mover grooming a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "cercano y responsable",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de grooming",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con grooming. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "hotel",
+      "name": "hotel",
+      "strength_score": 86,
+      "promise": "Convertir estancias en una operacion confiable con upsell de servicios complementarios.",
+      "growth_motion": "stay_and_addons",
+      "buyer": "Dueño de clínica veterinaria o pet care",
+      "monetizes": [
+        "consulta",
+        "vacunas",
+        "grooming",
+        "hotel/daycare"
+      ],
+      "service_bundle": [
+        "estancia corta",
+        "estancia larga",
+        "guarderia",
+        "grooming antes de salida"
+      ],
+      "qualification_questions": [
+        "que especie y edad tiene",
+        "que sintomas o necesidad hay",
+        "es urgencia",
+        "cuando puedes venir"
+      ],
+      "objections": [
+        "me da pendiente dejarlo",
+        "quiero ver instalaciones",
+        "es caro",
+        "no se adapta"
+      ],
+      "automation_priorities": [
+        "seguimiento hotel",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "citas por mascota",
+        "recurrencia por tutor",
+        "vacunas al día",
+        "grooming repetido",
+        "conversion hotel",
+        "revenue hotel"
+      ],
+      "recommended_commands": [
+        "avisar siguiente vacuna",
+        "bloquear guardia",
+        "modo humano para urgencias",
+        "reactivar plan preventivo"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "hotel-lead",
+          "title": "Captacion hotel",
+          "content": "Hola, te ayudo con hotel. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "hotel-followup",
+          "title": "Seguimiento hotel",
+          "content": "Te sigo con hotel. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "hotel-reactivation",
+          "title": "Reactivacion hotel",
+          "content": "Te escribo porque todavia podemos mover hotel a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "cercano y responsable",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de hotel",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con hotel. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "daycare",
+      "name": "daycare",
+      "strength_score": 84,
+      "promise": "Convertir conversaciones de daycare en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño de clínica veterinaria o pet care",
+      "monetizes": [
+        "consulta",
+        "vacunas",
+        "grooming",
+        "hotel/daycare"
+      ],
+      "service_bundle": [
+        "servicio daycare",
+        "seguimiento daycare",
+        "recordatorio preventivo",
+        "proxima visita"
+      ],
+      "qualification_questions": [
+        "que especie y edad tiene",
+        "que sintomas o necesidad hay",
+        "es urgencia",
+        "cuando puedes venir"
+      ],
+      "objections": [
+        "precio",
+        "solo quiero preguntar",
+        "no sé si urge",
+        "luego la llevo"
+      ],
+      "automation_priorities": [
+        "seguimiento daycare",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "citas por mascota",
+        "recurrencia por tutor",
+        "vacunas al día",
+        "grooming repetido",
+        "conversion daycare",
+        "revenue daycare"
+      ],
+      "recommended_commands": [
+        "avisar siguiente vacuna",
+        "bloquear guardia",
+        "modo humano para urgencias",
+        "reactivar plan preventivo"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "daycare-lead",
+          "title": "Captacion daycare",
+          "content": "Hola, te ayudo con daycare. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "daycare-followup",
+          "title": "Seguimiento daycare",
+          "content": "Te sigo con daycare. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "daycare-reactivation",
+          "title": "Reactivacion daycare",
+          "content": "Te escribo porque todavia podemos mover daycare a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "cercano y responsable",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de daycare",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con daycare. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "rehabilitación",
+      "name": "rehabilitación",
+      "strength_score": 82,
+      "promise": "Convertir conversaciones de rehabilitación en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño de clínica veterinaria o pet care",
+      "monetizes": [
+        "consulta",
+        "vacunas",
+        "grooming",
+        "hotel/daycare"
+      ],
+      "service_bundle": [
+        "servicio rehabilitación",
+        "seguimiento rehabilitación",
+        "recordatorio preventivo",
+        "proxima visita"
+      ],
+      "qualification_questions": [
+        "que especie y edad tiene",
+        "que sintomas o necesidad hay",
+        "es urgencia",
+        "cuando puedes venir"
+      ],
+      "objections": [
+        "precio",
+        "solo quiero preguntar",
+        "no sé si urge",
+        "luego la llevo"
+      ],
+      "automation_priorities": [
+        "seguimiento rehabilitación",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "citas por mascota",
+        "recurrencia por tutor",
+        "vacunas al día",
+        "grooming repetido",
+        "conversion rehabilitación",
+        "revenue rehabilitación"
+      ],
+      "recommended_commands": [
+        "avisar siguiente vacuna",
+        "bloquear guardia",
+        "modo humano para urgencias",
+        "reactivar plan preventivo"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "rehabilitación-lead",
+          "title": "Captacion rehabilitación",
+          "content": "Hola, te ayudo con rehabilitación. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "rehabilitación-followup",
+          "title": "Seguimiento rehabilitación",
+          "content": "Te sigo con rehabilitación. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "rehabilitación-reactivation",
+          "title": "Reactivacion rehabilitación",
+          "content": "Te escribo porque todavia podemos mover rehabilitación a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "cercano y responsable",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de rehabilitación",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con rehabilitación. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "nutrición-veterinaria",
+      "name": "nutrición veterinaria",
+      "strength_score": 80,
+      "promise": "Convertir conversaciones de nutrición veterinaria en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño de clínica veterinaria o pet care",
+      "monetizes": [
+        "consulta",
+        "vacunas",
+        "grooming",
+        "hotel/daycare"
+      ],
+      "service_bundle": [
+        "servicio nutrición veterinaria",
+        "seguimiento nutrición veterinaria",
+        "recordatorio preventivo",
+        "proxima visita"
+      ],
+      "qualification_questions": [
+        "que especie y edad tiene",
+        "que sintomas o necesidad hay",
+        "es urgencia",
+        "cuando puedes venir"
+      ],
+      "objections": [
+        "precio",
+        "solo quiero preguntar",
+        "no sé si urge",
+        "luego la llevo"
+      ],
+      "automation_priorities": [
+        "seguimiento nutrición veterinaria",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "citas por mascota",
+        "recurrencia por tutor",
+        "vacunas al día",
+        "grooming repetido",
+        "conversion nutrición veterinaria",
+        "revenue nutrición veterinaria"
+      ],
+      "recommended_commands": [
+        "avisar siguiente vacuna",
+        "bloquear guardia",
+        "modo humano para urgencias",
+        "reactivar plan preventivo"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "nutrición-veterinaria-lead",
+          "title": "Captacion nutrición veterinaria",
+          "content": "Hola, te ayudo con nutrición veterinaria. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "nutrición-veterinaria-followup",
+          "title": "Seguimiento nutrición veterinaria",
+          "content": "Te sigo con nutrición veterinaria. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "nutrición-veterinaria-reactivation",
+          "title": "Reactivacion nutrición veterinaria",
+          "content": "Te escribo porque todavia podemos mover nutrición veterinaria a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "cercano y responsable",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de nutrición veterinaria",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con nutrición veterinaria. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "planes-preventivos",
+      "name": "planes preventivos",
+      "strength_score": 78,
+      "promise": "Convertir una consulta en relacion recurrente con proxima accion clara.",
+      "growth_motion": "preventive_membership",
+      "buyer": "Dueño de clínica veterinaria o pet care",
+      "monetizes": [
+        "consulta",
+        "vacunas",
+        "grooming",
+        "hotel/daycare"
+      ],
+      "service_bundle": [
+        "plan preventivo",
+        "vacunas",
+        "desparasitacion",
+        "recordatorio automatico"
+      ],
+      "qualification_questions": [
+        "que especie y edad tiene",
+        "que sintomas o necesidad hay",
+        "es urgencia",
+        "cuando puedes venir"
+      ],
+      "objections": [
+        "luego lo veo",
+        "no sabia que tocaba",
+        "es mucho gasto",
+        "mi mascota esta bien"
+      ],
+      "automation_priorities": [
+        "seguimiento planes preventivos",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "citas por mascota",
+        "recurrencia por tutor",
+        "vacunas al día",
+        "grooming repetido",
+        "conversion planes preventivos",
+        "revenue planes preventivos"
+      ],
+      "recommended_commands": [
+        "avisar siguiente vacuna",
+        "bloquear guardia",
+        "modo humano para urgencias",
+        "reactivar plan preventivo"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "planes-preventivos-lead",
+          "title": "Captacion planes preventivos",
+          "content": "Hola, te ayudo con planes preventivos. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "planes-preventivos-followup",
+          "title": "Seguimiento planes preventivos",
+          "content": "Te sigo con planes preventivos. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "planes-preventivos-reactivation",
+          "title": "Reactivacion planes preventivos",
+          "content": "Te escribo porque todavia podemos mover planes preventivos a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "cercano y responsable",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de planes preventivos",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con planes preventivos. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    }
+  ],
+  "ten_x_operational_pack": {
+    "recommended_commands": [
+      "avisar siguiente vacuna",
+      "bloquear guardia",
+      "modo humano para urgencias",
+      "reactivar plan preventivo"
+    ],
+    "launch_sequence": [
+      "escoger subvertical",
+      "aplicar pack",
+      "simular conversaciones",
+      "publicar y medir"
+    ],
+    "why_this_vertical": "WAOS Vet gana cuando trata a la mascota como cuenta recurrente con consulta, prevencion, grooming y plan."
+  }
+}

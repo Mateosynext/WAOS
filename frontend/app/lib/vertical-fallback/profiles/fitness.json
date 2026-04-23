@@ -1,0 +1,2594 @@
+{
+  "id": "fitness",
+  "name": "WAOS Fitness",
+  "short_name": "Fitness & entrenamiento",
+  "description": "Sistema operativo conversacional para gimnasios, estudios y academias deportivas.",
+  "problem": "Los negocios fitness pierden dinero porque demasiados leads preguntan pero no prueban, demasiadas pruebas no se convierten y demasiados alumnos se enfrían por falta de seguimiento, asistencia y reactivación.",
+  "subverticals": [
+    "gym tradicional",
+    "gimnasio boutique",
+    "entrenamiento funcional",
+    "cross training",
+    "spinning",
+    "personal training",
+    "boxeo",
+    "MMA",
+    "jiu-jitsu",
+    "taekwondo",
+    "pilates",
+    "yoga",
+    "running club",
+    "academias deportivas"
+  ],
+  "objects": [
+    "sede",
+    "disciplina",
+    "coach",
+    "clase",
+    "horario",
+    "cupo",
+    "nivel",
+    "membresía",
+    "pase",
+    "paquete",
+    "clase muestra",
+    "evaluación inicial",
+    "asistencia",
+    "freeze",
+    "reactivación",
+    "programa premium",
+    "alumno fitness",
+    "objetivo del alumno",
+    "nivel real",
+    "programa sugerido",
+    "coach matching"
+  ],
+  "flows": [
+    "lead nuevo -> clase muestra",
+    "prueba -> inscripción",
+    "alumno nuevo -> asistencia",
+    "asistencia baja -> reactivación",
+    "membresía -> renovación"
+  ],
+  "kpis": [
+    "lead a prueba",
+    "prueba a membresía",
+    "asistencia 30 días",
+    "churn temprano",
+    "reactivación",
+    "ocupación por coach/sede",
+    "trial to signup",
+    "asistencia por franja",
+    "churn por coach",
+    "freeze rate"
+  ],
+  "recommended_integrations": [
+    "whatsapp",
+    "google_calendar",
+    "payments",
+    "crm",
+    "promotions",
+    "insights"
+  ],
+  "default_services": [
+    "clase muestra",
+    "evaluacion inicial",
+    "membresia mensual",
+    "personal training",
+    "nutricion"
+  ],
+  "default_faqs": [
+    {
+      "q": "¿Que plan me conviene?",
+      "a": "Te guiamos segun tu objetivo, nivel y frecuencia ideal."
+    },
+    {
+      "q": "¿Tienen horarios y sedes?",
+      "a": "Si, podemos compartir horarios, sedes y coaches disponibles."
+    },
+    {
+      "q": "¿Puedo agendar una clase muestra?",
+      "a": "Si, el bot puede proponerte horario y dejar apartada tu clase muestra."
+    },
+    {
+      "q": "¿Manejan congelamiento o renovacion?",
+      "a": "Si, podemos explicarte condiciones de freeze, renovacion y asistencia."
+    }
+  ],
+  "behavior": {
+    "tone": "enfocado y motivador",
+    "response_length": "media",
+    "use_emojis": false,
+    "sales_intensity": "alta",
+    "offer_promotions_when": "after_goal_detected",
+    "escalate_when": [
+      "lesion",
+      "reclamo",
+      "cambio de coach",
+      "tema medico"
+    ],
+    "insistence_policy": "respectful",
+    "can_share_price_directly": true,
+    "can_negotiate": false,
+    "can_mention_stock": false,
+    "auto_send_images": true,
+    "bot_mode": "captacion_y_reactivacion",
+    "active_channels": [
+      "whatsapp",
+      "webchat",
+      "instagram_dm"
+    ],
+    "forbidden_topics": [
+      "diagnosticos medicos",
+      "promesas fisicas garantizadas"
+    ],
+    "required_phrases": [
+      "te recomiendo el plan segun tu objetivo",
+      "puedo ayudarte a agendar tu clase muestra",
+      "te sigo",
+      "si la pregunta viene rara, igual te la aterrizo",
+      "te lo aterrizo a tu caso"
+    ],
+    "fallback_message": "Te ayudo a elegir plan, ver horarios o apartar clase muestra. ¿Que objetivo tienes hoy? Si la pregunta viene rara, en broma o medio fuera de tema, igual te sigo y la aterrizamos al negocio.",
+    "humor_policy": "light_contextual",
+    "strange_question_policy": "respond_validate_reframe_sell_move"
+  },
+  "followup_rules": [
+    {
+      "type": "no_response",
+      "delay_minutes": 90,
+      "max_attempts": 2,
+      "message_template": "Solo dando seguimiento. ¿Quieres que te recomiende plan u horario segun tu objetivo?"
+    },
+    {
+      "type": "post_quote",
+      "delay_minutes": 720,
+      "max_attempts": 2,
+      "message_template": "¿Quieres que te reserve tu clase muestra o te comparta el plan que mejor encaja contigo?"
+    },
+    {
+      "type": "reactivation",
+      "delay_minutes": 10080,
+      "max_attempts": 2,
+      "message_template": "Te extrañamos. Si quieres retomar, te ayudo con horario, coach o plan de regreso."
+    }
+  ],
+  "templates": [
+    {
+      "template_key": "lead_capture",
+      "title": "Captacion fitness",
+      "content": "¡Hola! Soy {{bot_name}} de {{business_name}}. Te ayudo a encontrar el mejor plan segun tu objetivo, nivel y horario ideal.",
+      "variables": [
+        "bot_name",
+        "business_name"
+      ]
+    },
+    {
+      "template_key": "class_reminder",
+      "title": "Recordatorio de clase",
+      "content": "Te recuerdo tu clase de {{service_name}} el {{date}} a las {{time}}. Si necesitas moverla, te ayudo.",
+      "variables": [
+        "service_name",
+        "date",
+        "time"
+      ]
+    },
+    {
+      "template_key": "post_trial_followup",
+      "title": "Seguimiento post trial",
+      "content": "¿Como te sentiste en tu clase muestra? Si quieres, hoy mismo te recomiendo el plan ideal y te ayudo a inscribirte.",
+      "variables": []
+    },
+    {
+      "template_key": "absence_recovery",
+      "title": "Recuperacion de ausencia",
+      "content": "Notamos que no pudiste venir. ¿Quieres que te proponga nuevo horario para no perder ritmo?",
+      "variables": []
+    },
+    {
+      "template_key": "reactivation_offer",
+      "title": "Reactivacion",
+      "content": "Tenemos opciones para que regreses con buen ritmo. ¿Prefieres horario matutino, vespertino o fin de semana?",
+      "variables": []
+    }
+  ],
+  "config_overrides": {
+    "objective_secondary": [
+      "agendar",
+      "reactivar",
+      "upsell"
+    ],
+    "policies": [
+      "No prometer resultados fisicos garantizados",
+      "Escalar lesiones o temas medicos a humano"
+    ],
+    "can_say": [
+      "planes",
+      "horarios",
+      "sedes",
+      "coaches",
+      "promociones",
+      "agendar"
+    ],
+    "cannot_say": [
+      "diagnosticos medicos",
+      "rutinas clinicas",
+      "promesas de transformacion"
+    ],
+    "whatsapp_flows": [
+      "clase_muestra",
+      "recomendacion_plan",
+      "reactivacion_alumno",
+      "renovacion_membresia"
+    ],
+    "appointment_duration_minutes": 45,
+    "handoff_keywords": [
+      "lesion",
+      "molestia",
+      "reclamo",
+      "cancelacion"
+    ],
+    "high_score_threshold": 75
+  },
+  "portfolio_tier": "tier_1",
+  "master_thesis": "Sistema operativo conversacional para gimnasios, estudios y academias deportivas que convierte captación, prueba, inscripción, asistencia y retención en un flujo operable desde WhatsApp.",
+  "buyer": {
+    "primary": "Dueño de gimnasio o director comercial/operativo",
+    "secondary": [
+      "gerente de sede",
+      "coordinador de coaches",
+      "equipo de ventas"
+    ]
+  },
+  "one_pager": {
+    "headline": "WAOS Fitness",
+    "thesis": "WhatsApp deja de ser un inbox de horarios y se convierte en un sistema de captación, inscripción, asistencia, retención y reactivación.",
+    "problem": "Mucho volumen conversacional, poca prueba agendada, mala asistencia inicial y poca reactivación estructurada.",
+    "promise": "Cada conversación termina en una acción clara: clase muestra, evaluación, inscripción, renovación o retorno.",
+    "monetizes": [
+      "inscripción",
+      "primer mes",
+      "paquetes",
+      "membresías",
+      "personal training",
+      "nutrición",
+      "upgrades"
+    ],
+    "packaging": [
+      "setup vertical fitness",
+      "playbooks por disciplina",
+      "agenda + pagos + reactivación",
+      "operación mensual gestionada"
+    ],
+    "strategic_care": "Gran vertical madre para WAOS por volumen, recurrencia, agenda y pagos; conviene venderla como sistema de asistencia y revenue, no solo de respuestas."
+  },
+  "demo_flow": [
+    "El lead entra preguntando por costo, horario, sede o promoción.",
+    "WAOS detecta objetivo, nivel, disponibilidad y disciplina de interés.",
+    "Recomienda plan, sede, coach y clase muestra o evaluación.",
+    "Agenda, confirma y manda recordatorios previos.",
+    "Después de la prueba, cierra inscripción o activa recuperación de no-show.",
+    "Tras el alta, monitorea asistencia temprana y dispara reactivación si baja la frecuencia."
+  ],
+  "native_objects": {
+    "core": [
+      "lead",
+      "alumno",
+      "sede",
+      "disciplina",
+      "coach",
+      "clase",
+      "horario",
+      "nivel",
+      "alumno fitness"
+    ],
+    "commercial": [
+      "clase muestra",
+      "evaluación",
+      "membresía",
+      "pase",
+      "paquete",
+      "promoción",
+      "upgrade"
+    ],
+    "operations": [
+      "cupo",
+      "asistencia",
+      "freeze",
+      "renovación",
+      "reactivación"
+    ]
+  },
+  "pipeline": {
+    "primary": {
+      "name": "Captación e inscripción",
+      "states": [
+        "lead nuevo",
+        "lead calificado",
+        "prueba ofrecida",
+        "prueba agendada",
+        "prueba confirmada",
+        "prueba asistida",
+        "oferta enviada",
+        "inscripción pendiente",
+        "inscrito",
+        "perdido"
+      ]
+    },
+    "secondary": [
+      {
+        "name": "Retención",
+        "states": [
+          "alumno nuevo",
+          "alumno activo",
+          "asistencia baja",
+          "riesgo de abandono",
+          "freeze",
+          "en reactivación",
+          "reactivado",
+          "cancelado"
+        ]
+      }
+    ]
+  },
+  "bot_playbook": {
+    "must_do": [
+      "responder horarios, sedes y costos",
+      "recomendar disciplina",
+      "agendar prueba o evaluación",
+      "cobrar inscripción cuando aplique",
+      "recordar asistencia",
+      "reactivar abandono",
+      "vender upsells",
+      "nunca quedarse seco ante bromas, preguntas raras o cambios bruscos de tema",
+      "usar humor ligero cuando sume, sin sonar payaso ni poco serio",
+      "validar el momento y luego reencauzar la conversacion al negocio",
+      "cerrar siempre con una pregunta util o siguiente paso"
+    ],
+    "must_ask": [
+      "objetivo",
+      "experiencia previa",
+      "horario preferido",
+      "sede",
+      "disciplina de interés",
+      "si busca prueba o inscripción directa",
+      "que parte del negocio se esta atorando mas",
+      "si quiere que se lo aterrice a su caso"
+    ],
+    "objections": [
+      "precio",
+      "no sé cuál me conviene",
+      "no tengo tiempo",
+      "me queda lejos",
+      "quiero ver si me gusta"
+    ],
+    "escalate_when": [
+      "lesión",
+      "tema médico",
+      "reclamo",
+      "negociación especial",
+      "paquete corporativo"
+    ],
+    "forbidden": [
+      "diagnósticos médicos",
+      "promesas físicas garantizadas"
+    ],
+    "success_signals": [
+      "quiero clase muestra",
+      "mándame horarios",
+      "quiero empezar",
+      "¿cómo pago?",
+      "me interesa ese plan"
+    ],
+    "style": [
+      "humor ligero",
+      "manejo de preguntas raras",
+      "reencuadre comercial"
+    ]
+  },
+  "automation_sequences": [
+    {
+      "key": "fitness_lead_welcome",
+      "name": "Bienvenida a lead nuevo",
+      "trigger": "entra lead nuevo",
+      "goal": "calificar y proponer clase muestra",
+      "steps": [
+        "saludo + objetivo",
+        "detectar horario y sede",
+        "proponer prueba o evaluación"
+      ]
+    },
+    {
+      "key": "fitness_trial_followup",
+      "name": "Seguimiento post prueba",
+      "trigger": "prueba asistida",
+      "goal": "cerrar membresía",
+      "steps": [
+        "pedir feedback",
+        "recomendar plan",
+        "enviar cierre y pago"
+      ]
+    },
+    {
+      "key": "fitness_no_show",
+      "name": "Recuperación de no-show",
+      "trigger": "prueba no asistida",
+      "goal": "reagendar rápido",
+      "steps": [
+        "recordar valor de prueba",
+        "ofrecer nuevo horario",
+        "cerrar nueva fecha"
+      ]
+    },
+    {
+      "key": "fitness_reactivation",
+      "name": "Reactivación por baja asistencia",
+      "trigger": "7/14/30 días sin asistir",
+      "goal": "recuperar hábito y plan activo",
+      "steps": [
+        "detectar fricción",
+        "proponer horario/coaches",
+        "ofrecer plan de retorno"
+      ]
+    }
+  ],
+  "dashboard": {
+    "north_star": "Conversión de prueba a membresía con asistencia saludable en los primeros 30 días.",
+    "sections": [
+      {
+        "name": "Adquisición",
+        "metrics": [
+          "leads nuevos",
+          "tiempo de primera respuesta",
+          "lead a prueba",
+          "prueba agendada"
+        ]
+      },
+      {
+        "name": "Conversión",
+        "metrics": [
+          "prueba asistida",
+          "prueba a membresía",
+          "inscripción por coach/sede/disciplina",
+          "primer pago cobrado"
+        ]
+      },
+      {
+        "name": "Retención",
+        "metrics": [
+          "asistencia 30 días",
+          "churn temprano",
+          "freeze",
+          "reactivación"
+        ]
+      },
+      {
+        "name": "Revenue",
+        "metrics": [
+          "ingreso por nuevas altas",
+          "renovaciones",
+          "upsells",
+          "ARPU por miembro"
+        ]
+      }
+    ]
+  },
+  "hardening_model": {
+    "goal": "Pasar de preset inteligente a sistema especialista",
+    "wave": "ola_1",
+    "entity_queen": "alumno fitness",
+    "core_common": true,
+    "domain_by_vertical": true,
+    "playbooks_by_subvertical": true,
+    "kpis_by_vertical": true,
+    "pricing_by_vertical": true,
+    "journeys_by_vertical": true,
+    "reusable_modules": [
+      "intake / calificación",
+      "agenda / recursos",
+      "cotización / propuesta",
+      "pago / anticipo / membresía",
+      "seguimiento / recurrencia",
+      "reporting vertical"
+    ],
+    "minimum_viable_hardening": [
+      "1 entidad reina",
+      "1 pipeline propio",
+      "1 cotización propia",
+      "1 recurrencia propia",
+      "1 dashboard propio"
+    ],
+    "hard_checklist": [
+      "tiene entidad principal propia",
+      "tiene pipeline específico",
+      "tiene cotización o pricing del nicho",
+      "tiene agenda o recursos del nicho",
+      "tiene postventa o recurrencia del nicho",
+      "tiene documentos o compliance del nicho",
+      "tiene KPIs del nicho",
+      "tiene 3 automatizaciones que mueven dinero",
+      "tiene 2 pruebas e2e de negocio",
+      "tiene subplaybooks por subvertical",
+      "entidad principal propia",
+      "pipeline específico",
+      "pricing del nicho",
+      "agenda y recursos del nicho",
+      "postventa o recurrencia del nicho",
+      "documentos o compliance del nicho",
+      "KPIs del nicho",
+      "3 automatizaciones que mueven dinero",
+      "2 pruebas e2e de negocio",
+      "subplaybooks por subvertical",
+      "runtime ejecutable por vertical"
+    ]
+  },
+  "specialist_layers": {
+    "persistent_entities": [
+      "alumno fitness",
+      "objetivo del alumno",
+      "nivel real",
+      "programa sugerido",
+      "clase muestra",
+      "freeze",
+      "reactivación",
+      "coach matching"
+    ],
+    "business_pipeline": {
+      "primary_entity": "alumno fitness",
+      "primary_pipeline": {
+        "name": "Captación e inscripción",
+        "states": [
+          "lead nuevo",
+          "lead calificado",
+          "prueba ofrecida",
+          "prueba agendada",
+          "prueba confirmada",
+          "prueba asistida",
+          "oferta enviada",
+          "inscripción pendiente",
+          "inscrito",
+          "perdido"
+        ]
+      },
+      "secondary_pipelines": [
+        {
+          "name": "Retención",
+          "states": [
+            "alumno nuevo",
+            "alumno activo",
+            "asistencia baja",
+            "riesgo de abandono",
+            "freeze",
+            "en reactivación",
+            "reactivado",
+            "cancelado"
+          ]
+        }
+      ]
+    },
+    "pricing_and_quotes": [
+      "cotización por plan según objetivo y frecuencia",
+      "upgrade sugerido por patrón de uso",
+      "freeze con política estructurada"
+    ],
+    "agenda_and_resources": [
+      "coach",
+      "sede",
+      "salón",
+      "franja horaria",
+      "cupo por clase"
+    ],
+    "post_sale_and_recurrence": [
+      "renovación por patrón de asistencia",
+      "alerta de churn por baja asistencia + no respuesta + vencimiento",
+      "reactivación por pausa o freeze"
+    ],
+    "documents_compliance": [
+      "waiver de salud",
+      "onboarding inicial",
+      "reglas de freeze",
+      "autorización de cargos recurrentes"
+    ],
+    "kpis_that_matter": [
+      "lead a prueba",
+      "prueba a membresía",
+      "asistencia 30 días",
+      "churn temprano",
+      "reactivación",
+      "ocupación por coach/sede",
+      "trial to signup",
+      "asistencia por franja",
+      "churn por coach",
+      "freeze rate"
+    ],
+    "money_automations": [
+      "seguimiento post trial con cierre de plan",
+      "renovación inteligente por uso",
+      "winback por churn temprano"
+    ]
+  },
+  "domain_contract": {
+    "vertical_entity_types": [
+      "alumno fitness",
+      "objetivo del alumno",
+      "nivel real",
+      "programa sugerido",
+      "clase muestra",
+      "freeze",
+      "reactivación",
+      "coach matching"
+    ],
+    "vertical_pipeline_stages": {
+      "primary": [
+        "lead nuevo",
+        "lead calificado",
+        "prueba ofrecida",
+        "prueba agendada",
+        "prueba confirmada",
+        "prueba asistida",
+        "oferta enviada",
+        "inscripción pendiente",
+        "inscrito",
+        "perdido"
+      ],
+      "secondary": [
+        [
+          "alumno nuevo",
+          "alumno activo",
+          "asistencia baja",
+          "riesgo de abandono",
+          "freeze",
+          "en reactivación",
+          "reactivado",
+          "cancelado"
+        ]
+      ]
+    },
+    "vertical_quote_types": [
+      "membresía",
+      "paquete de clases",
+      "personal training",
+      "nutrición",
+      "upgrade premium"
+    ],
+    "vertical_resource_types": [
+      "coach",
+      "sede",
+      "salón",
+      "franja horaria",
+      "cupo por clase"
+    ],
+    "vertical_followup_policies": [
+      "renovación por patrón de asistencia",
+      "alerta de churn por baja asistencia + no respuesta + vencimiento",
+      "reactivación por pausa o freeze"
+    ],
+    "vertical_kpi_definitions": [
+      "lead a prueba",
+      "prueba a membresía",
+      "asistencia 30 días",
+      "churn temprano",
+      "reactivación",
+      "ocupación por coach/sede",
+      "trial to signup",
+      "asistencia por franja",
+      "churn por coach",
+      "freeze rate"
+    ],
+    "vertical_playbooks": [
+      "boxeo",
+      "yoga",
+      "pilates",
+      "cross training",
+      "personal training"
+    ],
+    "vertical_document_types": [
+      "waiver de salud",
+      "onboarding inicial",
+      "reglas de freeze",
+      "autorización de cargos recurrentes"
+    ]
+  },
+  "subvertical_playbooks": [
+    {
+      "name": "boxeo",
+      "focus": "Playbook operativo y comercial para boxeo"
+    },
+    {
+      "name": "yoga",
+      "focus": "Playbook operativo y comercial para yoga"
+    },
+    {
+      "name": "pilates",
+      "focus": "Playbook operativo y comercial para pilates"
+    },
+    {
+      "name": "cross training",
+      "focus": "Playbook operativo y comercial para cross training"
+    },
+    {
+      "name": "personal training",
+      "focus": "Playbook operativo y comercial para personal training"
+    }
+  ],
+  "business_e2e_tests": [
+    {
+      "name": "lead de boxeo agenda trial, asiste y compra membresía",
+      "status": "designed"
+    },
+    {
+      "name": "alumno con baja asistencia entra en riesgo, recibe winback y renueva",
+      "status": "designed"
+    }
+  ],
+  "vertical_runtime": {
+    "pipeline_machine": {
+      "primary_pipeline": "Captación e inscripción",
+      "entity": "alumno",
+      "states": [
+        "lead nuevo",
+        "lead calificado",
+        "prueba ofrecida",
+        "prueba agendada",
+        "prueba confirmada",
+        "prueba asistida",
+        "oferta enviada",
+        "inscripción pendiente",
+        "inscrito",
+        "perdido"
+      ],
+      "transitions": [
+        {
+          "from": "lead nuevo",
+          "to": "lead calificado",
+          "trigger": "qualification_complete",
+          "business_effect": "advance opportunity"
+        },
+        {
+          "from": "lead calificado",
+          "to": "prueba ofrecida",
+          "trigger": "trial_attended",
+          "business_effect": "open commercial step"
+        },
+        {
+          "from": "inscrito",
+          "to": "perdido",
+          "trigger": "successful_outcome",
+          "business_effect": "realize revenue or continuity"
+        },
+        {
+          "from": "inscrito",
+          "to": "at_risk",
+          "trigger": "low_attendance",
+          "business_effect": "activate retention sequence"
+        }
+      ],
+      "at_risk_state": "at_risk",
+      "closed_states": [
+        "perdido"
+      ]
+    },
+    "pricing_engine": {
+      "quote_types": [
+        "membresia mensual",
+        "membresia trimestral",
+        "paquete personal training",
+        "upgrade nutricion"
+      ],
+      "pricing_basis": "plan_type + frequency + branch + extras",
+      "rules": [
+        {
+          "rule": "base price by programa type",
+          "effect": "set base_price"
+        },
+        {
+          "rule": "premium or urgent add-ons increase quote",
+          "effect": "add surcharge"
+        },
+        {
+          "rule": "bundle, membership or financing can lower immediate friction",
+          "effect": "recommend package or installments"
+        }
+      ],
+      "deposit_policy": "request advance when capacity, specialist time or inventory must be secured"
+    },
+    "resource_capacity": {
+      "resource_types": [
+        "coach",
+        "salon",
+        "cupo de clase",
+        "franja horaria",
+        "sede"
+      ],
+      "capacity_basis": "coach, class_capacity, room, branch and session duration",
+      "constraints": [
+        "avoid double booking of critical resources",
+        "respect service duration and cleanup/buffer time",
+        "prioritize higher urgency and higher close probability cases"
+      ],
+      "priority_queue": "coach matching y cupos"
+    },
+    "recurrence_engine": {
+      "policies": [
+        {
+          "type": "attendance_review",
+          "interval_days": 7,
+          "anchor": "alumno"
+        },
+        {
+          "type": "renewal_check",
+          "interval_days": 30,
+          "anchor": "alumno"
+        },
+        {
+          "type": "reactivation_window",
+          "interval_days": 21,
+          "anchor": "alumno"
+        }
+      ],
+      "reactivation_window_days": 30,
+      "goal": "protect retention, repeat revenue and continuity"
+    },
+    "kpi_engine": {
+      "north_star": "Conversión de prueba a membresía con asistencia saludable en los primeros 30 días.",
+      "definitions": [
+        {
+          "name": "trial_to_signup",
+          "formula": "trial_attended / trial_booked"
+        },
+        {
+          "name": "churn_risk",
+          "formula": "low_attendance AND no_response_7d"
+        },
+        {
+          "name": "coach_utilization",
+          "formula": "occupied_slots / available_slots"
+        }
+      ],
+      "leading_indicators": [
+        "low_attendance",
+        "plan_expiring",
+        "no_response_7d"
+      ]
+    },
+    "automation_engine": {
+      "money_automation_policies": [
+        {
+          "trigger": "low_attendance",
+          "actions": [
+            "send_followup",
+            "escalate_owner",
+            "offer_relevant_next_step"
+          ],
+          "goal": "save conversion or retention"
+        },
+        {
+          "trigger": "plan_expiring",
+          "actions": [
+            "send_quote_or_payment_link",
+            "remind_deadline",
+            "notify_human"
+          ],
+          "goal": "move revenue forward"
+        },
+        {
+          "trigger": "freeze_requested",
+          "actions": [
+            "schedule_recurrence",
+            "cross_sell_next_best_offer",
+            "create_task"
+          ],
+          "goal": "increase LTV"
+        }
+      ],
+      "quiet_hours": "21:00-08:00"
+    },
+    "document_flow": {
+      "required_documents": [
+        "waiver inicial",
+        "fitness assessment",
+        "freeze request",
+        "consentimiento basico"
+      ],
+      "lifecycle_rules": [
+        {
+          "document": "waiver inicial",
+          "required_before": "first committed step",
+          "signature_required": true
+        },
+        {
+          "document": "consentimiento basico",
+          "required_before": "handoff or continuity step",
+          "signature_required": false
+        }
+      ]
+    },
+    "matching_engine": {
+      "entity": "alumno",
+      "rules": [
+        "goal == coach.specialty",
+        "level in coach.accepted_levels",
+        "schedule_overlap",
+        "branch_match"
+      ],
+      "next_best_match_outputs": [
+        "best_owner",
+        "best_resource_slot",
+        "best_offer"
+      ]
+    }
+  },
+  "transactional_motor_v12": {
+    "version": "v12_full_transactional",
+    "aggregate_root": "fitness_member_journey",
+    "main_business_entity": "programa sugerido",
+    "transaction_unit": "attendance_cycle",
+    "system_of_record": {
+      "write_model": [
+        "commands",
+        "events",
+        "ledger",
+        "aggregate_snapshots"
+      ],
+      "read_models": [
+        "commercial_board",
+        "operations_board",
+        "finance_board",
+        "continuity_board",
+        "resource_load_board",
+        "document_readiness_board",
+        "revenue_levers_board"
+      ],
+      "idempotency_scope": [
+        "organization_id",
+        "vertical_id",
+        "external_reference",
+        "command_key"
+      ],
+      "audit_mode": "append_only_with_snapshots"
+    },
+    "transaction_primitives": {
+      "commands": [
+        "capture_intent",
+        "qualify_record",
+        "create_quote",
+        "request_deposit",
+        "reserve_capacity",
+        "confirm_booking",
+        "start_case",
+        "approve_quote",
+        "collect_payment",
+        "start_fulfillment",
+        "close_fulfillment",
+        "schedule_recurrence",
+        "issue_refund",
+        "reactivate_customer",
+        "assign_program",
+        "freeze_membership",
+        "renew_membership",
+        "offer_upsell"
+      ],
+      "events": [
+        "intent_captured",
+        "record_qualified",
+        "quote_created",
+        "deposit_requested",
+        "capacity_reserved",
+        "booking_confirmed",
+        "case_started",
+        "quote_approved",
+        "payment_collected",
+        "fulfillment_started",
+        "fulfillment_closed",
+        "recurrence_scheduled",
+        "refund_issued",
+        "customer_reactivated",
+        "program_assigned",
+        "membership_frozen",
+        "membership_renewed",
+        "upsell_accepted"
+      ],
+      "ledger_event_types": [
+        "charge_opened",
+        "deposit_collected",
+        "installment_due",
+        "payment_applied",
+        "credit_issued",
+        "refund_issued",
+        "write_off_registered"
+      ],
+      "invariants": [
+        "no activar membresia sin pago inicial",
+        "no confirmar clase sin cupo",
+        "no freeze sin motivo y fecha",
+        "todo pago debe referenciar quote, order o case activo",
+        "todo cambio crítico debe emitir evento y renglón de auditoría",
+        "ningún recurso se confirma dos veces en la misma ventana"
+      ],
+      "idempotency_keys": [
+        "command_key",
+        "payment_reference",
+        "booking_reference",
+        "external_message_id"
+      ]
+    },
+    "aggregates": {
+      "primary_record": {
+        "name": "programa sugerido",
+        "status_axis": [
+          "commercial",
+          "operations",
+          "finance",
+          "continuity"
+        ]
+      },
+      "quote": {
+        "name": "membership_quote",
+        "states": [
+          "draft",
+          "sent",
+          "accepted",
+          "expired",
+          "lost"
+        ]
+      },
+      "booking": {
+        "name": "trial_booking",
+        "states": [
+          "proposed",
+          "reserved",
+          "confirmed",
+          "attended_or_executed",
+          "missed_or_canceled"
+        ]
+      },
+      "execution": {
+        "name": "membership_activation",
+        "states": [
+          "pending",
+          "ready",
+          "in_progress",
+          "blocked",
+          "completed",
+          "closed"
+        ]
+      },
+      "payment_account": {
+        "name": "payment_account",
+        "states": [
+          "open",
+          "partially_paid",
+          "paid",
+          "overdue",
+          "refunded"
+        ]
+      },
+      "continuity": {
+        "name": "renewal_and_reactivation_plan",
+        "states": [
+          "not_started",
+          "active",
+          "at_risk",
+          "recovered",
+          "closed"
+        ]
+      }
+    },
+    "orchestration": {
+      "command_handlers": [
+        "handle_capture_intent",
+        "handle_qualify_record",
+        "handle_create_quote",
+        "handle_request_deposit",
+        "handle_reserve_capacity",
+        "handle_confirm_booking",
+        "handle_start_case",
+        "handle_approve_quote",
+        "handle_assign_program",
+        "handle_freeze_membership",
+        "handle_renew_membership",
+        "handle_offer_upsell"
+      ],
+      "sagas": [
+        "trial_to_signup",
+        "attendance_drop_recovery",
+        "freeze_to_reactivation"
+      ],
+      "money_guards": [
+        "quote_before_payment",
+        "capacity_before_confirmation",
+        "documents_before_execution",
+        "balance_before_close"
+      ],
+      "read_model_refresh": [
+        "on_every_event",
+        "nightly_reconciliation",
+        "pre_dashboard_cache"
+      ]
+    },
+    "finance": {
+      "money_objects": [
+        "inscription_fee",
+        "membership_charge",
+        "freeze_credit",
+        "upgrade_charge"
+      ],
+      "collection_modes": [
+        "mensualidad",
+        "pago adelantado",
+        "upgrade en chat"
+      ],
+      "refund_modes": [
+        "freeze_credit",
+        "class_compensation"
+      ],
+      "reconciliation_views": [
+        "expected_vs_collected",
+        "aging_balance",
+        "refund_exposure",
+        "cash_by_stage"
+      ]
+    },
+    "operations": {
+      "fulfillment_unit": "attendance_cycle",
+      "resource_locking": [
+        "coach",
+        "class_spot",
+        "studio_capacity"
+      ],
+      "dispatch_or_schedule_board": [
+        "queued",
+        "ready",
+        "assigned",
+        "in_progress",
+        "blocked",
+        "done"
+      ],
+      "handoff_rules": [
+        "human_handoff_on_exception",
+        "supervisor_handoff_on_money_risk",
+        "operator_handoff_on_compliance_gap"
+      ]
+    },
+    "audit_compliance": {
+      "timeline_entities": [
+        "programa sugerido",
+        "membership_quote",
+        "trial_booking",
+        "membership_activation",
+        "payment_account"
+      ],
+      "consent_gates": [
+        "health_disclosure",
+        "gym_rules_acceptance",
+        "freeze_request"
+      ],
+      "required_evidence": [
+        "timeline_event",
+        "actor",
+        "timestamp",
+        "before_after_snapshot"
+      ],
+      "retention_rules": [
+        "audit_log_append_only",
+        "documents_linked_to_primary_record",
+        "payment_trace_non_destructive"
+      ]
+    },
+    "transaction_views": {
+      "commercial": [
+        "lead",
+        "trial",
+        "conversion"
+      ],
+      "operations": [
+        "attendance",
+        "coach_load",
+        "freeze"
+      ],
+      "finance": [
+        "mrr",
+        "renewals",
+        "arrears"
+      ],
+      "continuity": [
+        "churn_risk",
+        "reactivation",
+        "upsell"
+      ]
+    },
+    "command_catalog": [
+      {
+        "command": "capture_intent",
+        "writes": "programa sugerido",
+        "emits": "intent_captured",
+        "guard": "no activar membresia sin pago inicial"
+      },
+      {
+        "command": "qualify_record",
+        "writes": "programa sugerido",
+        "emits": "record_qualified",
+        "guard": "no confirmar clase sin cupo"
+      },
+      {
+        "command": "create_quote",
+        "writes": "programa sugerido",
+        "emits": "quote_created",
+        "guard": "no freeze sin motivo y fecha"
+      },
+      {
+        "command": "request_deposit",
+        "writes": "programa sugerido",
+        "emits": "deposit_requested",
+        "guard": "no activar membresia sin pago inicial"
+      },
+      {
+        "command": "reserve_capacity",
+        "writes": "programa sugerido",
+        "emits": "capacity_reserved",
+        "guard": "no confirmar clase sin cupo"
+      },
+      {
+        "command": "confirm_booking",
+        "writes": "programa sugerido",
+        "emits": "booking_confirmed",
+        "guard": "no freeze sin motivo y fecha"
+      },
+      {
+        "command": "start_case",
+        "writes": "programa sugerido",
+        "emits": "case_started",
+        "guard": "no activar membresia sin pago inicial"
+      },
+      {
+        "command": "approve_quote",
+        "writes": "programa sugerido",
+        "emits": "quote_approved",
+        "guard": "no confirmar clase sin cupo"
+      },
+      {
+        "command": "assign_program",
+        "writes": "programa sugerido",
+        "emits": "payment_collected",
+        "guard": "no freeze sin motivo y fecha"
+      },
+      {
+        "command": "freeze_membership",
+        "writes": "programa sugerido",
+        "emits": "fulfillment_started",
+        "guard": "no activar membresia sin pago inicial"
+      },
+      {
+        "command": "renew_membership",
+        "writes": "programa sugerido",
+        "emits": "fulfillment_closed",
+        "guard": "no confirmar clase sin cupo"
+      },
+      {
+        "command": "offer_upsell",
+        "writes": "programa sugerido",
+        "emits": "recurrence_scheduled",
+        "guard": "no freeze sin motivo y fecha"
+      }
+    ],
+    "event_catalog": [
+      {
+        "event": "intent_captured",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "trial_to_signup"
+      },
+      {
+        "event": "record_qualified",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "attendance_drop_recovery"
+      },
+      {
+        "event": "quote_created",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "freeze_to_reactivation"
+      },
+      {
+        "event": "deposit_requested",
+        "updates": [
+          "timeline",
+          "boards",
+          "ledger"
+        ],
+        "next_action": "trial_to_signup"
+      },
+      {
+        "event": "capacity_reserved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "attendance_drop_recovery"
+      },
+      {
+        "event": "booking_confirmed",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "freeze_to_reactivation"
+      },
+      {
+        "event": "case_started",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "trial_to_signup"
+      },
+      {
+        "event": "quote_approved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "attendance_drop_recovery"
+      },
+      {
+        "event": "program_assigned",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "freeze_to_reactivation"
+      },
+      {
+        "event": "membership_frozen",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "trial_to_signup"
+      },
+      {
+        "event": "membership_renewed",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "attendance_drop_recovery"
+      },
+      {
+        "event": "upsell_accepted",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "freeze_to_reactivation"
+      }
+    ]
+  },
+  "is_strongest_vertical": true,
+  "strongest_rank": 1,
+  "ten_x_score": 100,
+  "ten_x_narrative": "WAOS Fitness gana cuando controla captacion, trial, asistencia, freeze, renovacion y reactivacion desde WhatsApp.",
+  "ten_x_growth_loops": [
+    "trial a membresia",
+    "ausencia a reactivacion",
+    "renovacion a upgrade",
+    "coach match a permanencia"
+  ],
+  "recommended_subverticals": [
+    "gym tradicional",
+    "gimnasio boutique",
+    "entrenamiento funcional",
+    "cross training"
+  ],
+  "subvertical_profiles": [
+    {
+      "id": "gym-tradicional",
+      "name": "gym tradicional",
+      "strength_score": 100,
+      "promise": "Llenar pruebas, convertirlas en membresias y sostener asistencia semanal.",
+      "growth_motion": "trial_conversion",
+      "buyer": "Dueño de gimnasio o director comercial/operativo",
+      "monetizes": [
+        "inscripción",
+        "primer mes",
+        "paquetes",
+        "membresías"
+      ],
+      "service_bundle": [
+        "clase muestra",
+        "evaluacion inicial",
+        "membresia mensual",
+        "freeze controlado"
+      ],
+      "qualification_questions": [
+        "cual es tu objetivo principal",
+        "en que horario puedes venir",
+        "has entrenado antes",
+        "quieres clase muestra o plan directo"
+      ],
+      "objections": [
+        "precio",
+        "me da pena empezar",
+        "no tengo horario",
+        "ya he fallado antes"
+      ],
+      "automation_priorities": [
+        "seguimiento gym tradicional",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a prueba",
+        "prueba a membresía",
+        "asistencia 30 días",
+        "churn temprano",
+        "conversion gym tradicional",
+        "revenue gym tradicional"
+      ],
+      "recommended_commands": [
+        "pausar reactivaciones",
+        "abrir cupo extraordinario",
+        "avisar clase de hoy",
+        "solo humano en lesiones"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "gym-tradicional-lead",
+          "title": "Captacion gym tradicional",
+          "content": "Hola, te ayudo con gym tradicional. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "gym-tradicional-followup",
+          "title": "Seguimiento gym tradicional",
+          "content": "Te sigo con gym tradicional. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "gym-tradicional-reactivation",
+          "title": "Reactivacion gym tradicional",
+          "content": "Te escribo porque todavia podemos mover gym tradicional a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "enfocado y motivador",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de gym tradicional",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con gym tradicional. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "gimnasio-boutique",
+      "name": "gimnasio boutique",
+      "strength_score": 98,
+      "promise": "Convertir conversaciones de gimnasio boutique en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño de gimnasio o director comercial/operativo",
+      "monetizes": [
+        "inscripción",
+        "primer mes",
+        "paquetes",
+        "membresías"
+      ],
+      "service_bundle": [
+        "valoracion gimnasio boutique",
+        "clase muestra gimnasio boutique",
+        "paquete gimnasio boutique",
+        "seguimiento de asistencia"
+      ],
+      "qualification_questions": [
+        "cual es tu objetivo principal",
+        "en que horario puedes venir",
+        "has entrenado antes",
+        "quieres clase muestra o plan directo"
+      ],
+      "objections": [
+        "precio",
+        "no sé cuál me conviene",
+        "no tengo tiempo",
+        "me queda lejos"
+      ],
+      "automation_priorities": [
+        "seguimiento gimnasio boutique",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a prueba",
+        "prueba a membresía",
+        "asistencia 30 días",
+        "churn temprano",
+        "conversion gimnasio boutique",
+        "revenue gimnasio boutique"
+      ],
+      "recommended_commands": [
+        "pausar reactivaciones",
+        "abrir cupo extraordinario",
+        "avisar clase de hoy",
+        "solo humano en lesiones"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "gimnasio-boutique-lead",
+          "title": "Captacion gimnasio boutique",
+          "content": "Hola, te ayudo con gimnasio boutique. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "gimnasio-boutique-followup",
+          "title": "Seguimiento gimnasio boutique",
+          "content": "Te sigo con gimnasio boutique. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "gimnasio-boutique-reactivation",
+          "title": "Reactivacion gimnasio boutique",
+          "content": "Te escribo porque todavia podemos mover gimnasio boutique a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "enfocado y motivador",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de gimnasio boutique",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con gimnasio boutique. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "entrenamiento-funcional",
+      "name": "entrenamiento funcional",
+      "strength_score": 96,
+      "promise": "Convertir conversaciones de entrenamiento funcional en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño de gimnasio o director comercial/operativo",
+      "monetizes": [
+        "inscripción",
+        "primer mes",
+        "paquetes",
+        "membresías"
+      ],
+      "service_bundle": [
+        "valoracion entrenamiento funcional",
+        "clase muestra entrenamiento funcional",
+        "paquete entrenamiento funcional",
+        "seguimiento de asistencia"
+      ],
+      "qualification_questions": [
+        "cual es tu objetivo principal",
+        "en que horario puedes venir",
+        "has entrenado antes",
+        "quieres clase muestra o plan directo"
+      ],
+      "objections": [
+        "precio",
+        "no sé cuál me conviene",
+        "no tengo tiempo",
+        "me queda lejos"
+      ],
+      "automation_priorities": [
+        "seguimiento entrenamiento funcional",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a prueba",
+        "prueba a membresía",
+        "asistencia 30 días",
+        "churn temprano",
+        "conversion entrenamiento funcional",
+        "revenue entrenamiento funcional"
+      ],
+      "recommended_commands": [
+        "pausar reactivaciones",
+        "abrir cupo extraordinario",
+        "avisar clase de hoy",
+        "solo humano en lesiones"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "entrenamiento-funcional-lead",
+          "title": "Captacion entrenamiento funcional",
+          "content": "Hola, te ayudo con entrenamiento funcional. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "entrenamiento-funcional-followup",
+          "title": "Seguimiento entrenamiento funcional",
+          "content": "Te sigo con entrenamiento funcional. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "entrenamiento-funcional-reactivation",
+          "title": "Reactivacion entrenamiento funcional",
+          "content": "Te escribo porque todavia podemos mover entrenamiento funcional a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "enfocado y motivador",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de entrenamiento funcional",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con entrenamiento funcional. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "cross-training",
+      "name": "cross training",
+      "strength_score": 94,
+      "promise": "Convertir conversaciones de cross training en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño de gimnasio o director comercial/operativo",
+      "monetizes": [
+        "inscripción",
+        "primer mes",
+        "paquetes",
+        "membresías"
+      ],
+      "service_bundle": [
+        "valoracion cross training",
+        "clase muestra cross training",
+        "paquete cross training",
+        "seguimiento de asistencia"
+      ],
+      "qualification_questions": [
+        "cual es tu objetivo principal",
+        "en que horario puedes venir",
+        "has entrenado antes",
+        "quieres clase muestra o plan directo"
+      ],
+      "objections": [
+        "precio",
+        "no sé cuál me conviene",
+        "no tengo tiempo",
+        "me queda lejos"
+      ],
+      "automation_priorities": [
+        "seguimiento cross training",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a prueba",
+        "prueba a membresía",
+        "asistencia 30 días",
+        "churn temprano",
+        "conversion cross training",
+        "revenue cross training"
+      ],
+      "recommended_commands": [
+        "pausar reactivaciones",
+        "abrir cupo extraordinario",
+        "avisar clase de hoy",
+        "solo humano en lesiones"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "cross-training-lead",
+          "title": "Captacion cross training",
+          "content": "Hola, te ayudo con cross training. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "cross-training-followup",
+          "title": "Seguimiento cross training",
+          "content": "Te sigo con cross training. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "cross-training-reactivation",
+          "title": "Reactivacion cross training",
+          "content": "Te escribo porque todavia podemos mover cross training a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "enfocado y motivador",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de cross training",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con cross training. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "spinning",
+      "name": "spinning",
+      "strength_score": 92,
+      "promise": "Convertir conversaciones de spinning en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño de gimnasio o director comercial/operativo",
+      "monetizes": [
+        "inscripción",
+        "primer mes",
+        "paquetes",
+        "membresías"
+      ],
+      "service_bundle": [
+        "valoracion spinning",
+        "clase muestra spinning",
+        "paquete spinning",
+        "seguimiento de asistencia"
+      ],
+      "qualification_questions": [
+        "cual es tu objetivo principal",
+        "en que horario puedes venir",
+        "has entrenado antes",
+        "quieres clase muestra o plan directo"
+      ],
+      "objections": [
+        "precio",
+        "no sé cuál me conviene",
+        "no tengo tiempo",
+        "me queda lejos"
+      ],
+      "automation_priorities": [
+        "seguimiento spinning",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a prueba",
+        "prueba a membresía",
+        "asistencia 30 días",
+        "churn temprano",
+        "conversion spinning",
+        "revenue spinning"
+      ],
+      "recommended_commands": [
+        "pausar reactivaciones",
+        "abrir cupo extraordinario",
+        "avisar clase de hoy",
+        "solo humano en lesiones"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "spinning-lead",
+          "title": "Captacion spinning",
+          "content": "Hola, te ayudo con spinning. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "spinning-followup",
+          "title": "Seguimiento spinning",
+          "content": "Te sigo con spinning. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "spinning-reactivation",
+          "title": "Reactivacion spinning",
+          "content": "Te escribo porque todavia podemos mover spinning a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "enfocado y motivador",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de spinning",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con spinning. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "personal-training",
+      "name": "personal training",
+      "strength_score": 90,
+      "promise": "Vender evaluacion, plan y continuidad de sesiones con ticket alto.",
+      "growth_motion": "high_ticket_package",
+      "buyer": "Dueño de gimnasio o director comercial/operativo",
+      "monetizes": [
+        "inscripción",
+        "primer mes",
+        "paquetes",
+        "membresías"
+      ],
+      "service_bundle": [
+        "assessment",
+        "plan inicial",
+        "bloque 8 sesiones",
+        "nutricion complementaria"
+      ],
+      "qualification_questions": [
+        "cual es tu objetivo principal",
+        "en que horario puedes venir",
+        "has entrenado antes",
+        "quieres clase muestra o plan directo"
+      ],
+      "objections": [
+        "quiero pensarlo",
+        "es caro",
+        "no se si tendre constancia",
+        "prefiero empezar despues"
+      ],
+      "automation_priorities": [
+        "seguimiento personal training",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a prueba",
+        "prueba a membresía",
+        "asistencia 30 días",
+        "churn temprano",
+        "conversion personal training",
+        "revenue personal training"
+      ],
+      "recommended_commands": [
+        "pausar reactivaciones",
+        "abrir cupo extraordinario",
+        "avisar clase de hoy",
+        "solo humano en lesiones"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "personal-training-lead",
+          "title": "Captacion personal training",
+          "content": "Hola, te ayudo con personal training. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "personal-training-followup",
+          "title": "Seguimiento personal training",
+          "content": "Te sigo con personal training. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "personal-training-reactivation",
+          "title": "Reactivacion personal training",
+          "content": "Te escribo porque todavia podemos mover personal training a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "enfocado y motivador",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de personal training",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con personal training. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "boxeo",
+      "name": "boxeo",
+      "strength_score": 88,
+      "promise": "Convertir energia de primer contacto en prueba inmediata y permanencia por coach/horario.",
+      "growth_motion": "show_up_and_upgrade",
+      "buyer": "Dueño de gimnasio o director comercial/operativo",
+      "monetizes": [
+        "inscripción",
+        "primer mes",
+        "paquetes",
+        "membresías"
+      ],
+      "service_bundle": [
+        "clase de prueba",
+        "inscripcion",
+        "membresia combate",
+        "personal boxing"
+      ],
+      "qualification_questions": [
+        "cual es tu objetivo principal",
+        "en que horario puedes venir",
+        "has entrenado antes",
+        "quieres clase muestra o plan directo"
+      ],
+      "objections": [
+        "nunca he boxeado",
+        "me da miedo lesionarme",
+        "quiero bajar peso",
+        "solo puedo noches"
+      ],
+      "automation_priorities": [
+        "seguimiento boxeo",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a prueba",
+        "prueba a membresía",
+        "asistencia 30 días",
+        "churn temprano",
+        "conversion boxeo",
+        "revenue boxeo"
+      ],
+      "recommended_commands": [
+        "pausar reactivaciones",
+        "abrir cupo extraordinario",
+        "avisar clase de hoy",
+        "solo humano en lesiones"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "boxeo-lead",
+          "title": "Captacion boxeo",
+          "content": "Hola, te ayudo con boxeo. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "boxeo-followup",
+          "title": "Seguimiento boxeo",
+          "content": "Te sigo con boxeo. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "boxeo-reactivation",
+          "title": "Reactivacion boxeo",
+          "content": "Te escribo porque todavia podemos mover boxeo a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "enfocado y motivador",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de boxeo",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con boxeo. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "mma",
+      "name": "MMA",
+      "strength_score": 86,
+      "promise": "Convertir conversaciones de MMA en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño de gimnasio o director comercial/operativo",
+      "monetizes": [
+        "inscripción",
+        "primer mes",
+        "paquetes",
+        "membresías"
+      ],
+      "service_bundle": [
+        "valoracion MMA",
+        "clase muestra MMA",
+        "paquete MMA",
+        "seguimiento de asistencia"
+      ],
+      "qualification_questions": [
+        "cual es tu objetivo principal",
+        "en que horario puedes venir",
+        "has entrenado antes",
+        "quieres clase muestra o plan directo"
+      ],
+      "objections": [
+        "precio",
+        "no sé cuál me conviene",
+        "no tengo tiempo",
+        "me queda lejos"
+      ],
+      "automation_priorities": [
+        "seguimiento MMA",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a prueba",
+        "prueba a membresía",
+        "asistencia 30 días",
+        "churn temprano",
+        "conversion MMA",
+        "revenue MMA"
+      ],
+      "recommended_commands": [
+        "pausar reactivaciones",
+        "abrir cupo extraordinario",
+        "avisar clase de hoy",
+        "solo humano en lesiones"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "mma-lead",
+          "title": "Captacion MMA",
+          "content": "Hola, te ayudo con MMA. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "mma-followup",
+          "title": "Seguimiento MMA",
+          "content": "Te sigo con MMA. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "mma-reactivation",
+          "title": "Reactivacion MMA",
+          "content": "Te escribo porque todavia podemos mover MMA a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "enfocado y motivador",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de MMA",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con MMA. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "jiu-jitsu",
+      "name": "jiu-jitsu",
+      "strength_score": 84,
+      "promise": "Convertir conversaciones de jiu-jitsu en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño de gimnasio o director comercial/operativo",
+      "monetizes": [
+        "inscripción",
+        "primer mes",
+        "paquetes",
+        "membresías"
+      ],
+      "service_bundle": [
+        "valoracion jiu-jitsu",
+        "clase muestra jiu-jitsu",
+        "paquete jiu-jitsu",
+        "seguimiento de asistencia"
+      ],
+      "qualification_questions": [
+        "cual es tu objetivo principal",
+        "en que horario puedes venir",
+        "has entrenado antes",
+        "quieres clase muestra o plan directo"
+      ],
+      "objections": [
+        "precio",
+        "no sé cuál me conviene",
+        "no tengo tiempo",
+        "me queda lejos"
+      ],
+      "automation_priorities": [
+        "seguimiento jiu-jitsu",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a prueba",
+        "prueba a membresía",
+        "asistencia 30 días",
+        "churn temprano",
+        "conversion jiu-jitsu",
+        "revenue jiu-jitsu"
+      ],
+      "recommended_commands": [
+        "pausar reactivaciones",
+        "abrir cupo extraordinario",
+        "avisar clase de hoy",
+        "solo humano en lesiones"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "jiu-jitsu-lead",
+          "title": "Captacion jiu-jitsu",
+          "content": "Hola, te ayudo con jiu-jitsu. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "jiu-jitsu-followup",
+          "title": "Seguimiento jiu-jitsu",
+          "content": "Te sigo con jiu-jitsu. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "jiu-jitsu-reactivation",
+          "title": "Reactivacion jiu-jitsu",
+          "content": "Te escribo porque todavia podemos mover jiu-jitsu a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "enfocado y motivador",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de jiu-jitsu",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con jiu-jitsu. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "taekwondo",
+      "name": "taekwondo",
+      "strength_score": 82,
+      "promise": "Convertir conversaciones de taekwondo en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño de gimnasio o director comercial/operativo",
+      "monetizes": [
+        "inscripción",
+        "primer mes",
+        "paquetes",
+        "membresías"
+      ],
+      "service_bundle": [
+        "valoracion taekwondo",
+        "clase muestra taekwondo",
+        "paquete taekwondo",
+        "seguimiento de asistencia"
+      ],
+      "qualification_questions": [
+        "cual es tu objetivo principal",
+        "en que horario puedes venir",
+        "has entrenado antes",
+        "quieres clase muestra o plan directo"
+      ],
+      "objections": [
+        "precio",
+        "no sé cuál me conviene",
+        "no tengo tiempo",
+        "me queda lejos"
+      ],
+      "automation_priorities": [
+        "seguimiento taekwondo",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a prueba",
+        "prueba a membresía",
+        "asistencia 30 días",
+        "churn temprano",
+        "conversion taekwondo",
+        "revenue taekwondo"
+      ],
+      "recommended_commands": [
+        "pausar reactivaciones",
+        "abrir cupo extraordinario",
+        "avisar clase de hoy",
+        "solo humano en lesiones"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "taekwondo-lead",
+          "title": "Captacion taekwondo",
+          "content": "Hola, te ayudo con taekwondo. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "taekwondo-followup",
+          "title": "Seguimiento taekwondo",
+          "content": "Te sigo con taekwondo. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "taekwondo-reactivation",
+          "title": "Reactivacion taekwondo",
+          "content": "Te escribo porque todavia podemos mover taekwondo a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "enfocado y motivador",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de taekwondo",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con taekwondo. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "pilates",
+      "name": "pilates",
+      "strength_score": 80,
+      "promise": "Vender cupos premium y continuidad por bloques de sesiones.",
+      "growth_motion": "package_retention",
+      "buyer": "Dueño de gimnasio o director comercial/operativo",
+      "monetizes": [
+        "inscripción",
+        "primer mes",
+        "paquetes",
+        "membresías"
+      ],
+      "service_bundle": [
+        "clase muestra pilates",
+        "paquete 4 sesiones",
+        "paquete 8 sesiones",
+        "seguimiento post clase"
+      ],
+      "qualification_questions": [
+        "cual es tu objetivo principal",
+        "en que horario puedes venir",
+        "has entrenado antes",
+        "quieres clase muestra o plan directo"
+      ],
+      "objections": [
+        "es caro",
+        "soy principiante",
+        "no se si me sirva",
+        "solo puedo ciertos horarios"
+      ],
+      "automation_priorities": [
+        "seguimiento pilates",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a prueba",
+        "prueba a membresía",
+        "asistencia 30 días",
+        "churn temprano",
+        "conversion pilates",
+        "revenue pilates"
+      ],
+      "recommended_commands": [
+        "pausar reactivaciones",
+        "abrir cupo extraordinario",
+        "avisar clase de hoy",
+        "solo humano en lesiones"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "pilates-lead",
+          "title": "Captacion pilates",
+          "content": "Hola, te ayudo con pilates. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "pilates-followup",
+          "title": "Seguimiento pilates",
+          "content": "Te sigo con pilates. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "pilates-reactivation",
+          "title": "Reactivacion pilates",
+          "content": "Te escribo porque todavia podemos mover pilates a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "enfocado y motivador",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de pilates",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con pilates. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "yoga",
+      "name": "yoga",
+      "strength_score": 78,
+      "promise": "Convertir conversaciones de yoga en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño de gimnasio o director comercial/operativo",
+      "monetizes": [
+        "inscripción",
+        "primer mes",
+        "paquetes",
+        "membresías"
+      ],
+      "service_bundle": [
+        "valoracion yoga",
+        "clase muestra yoga",
+        "paquete yoga",
+        "seguimiento de asistencia"
+      ],
+      "qualification_questions": [
+        "cual es tu objetivo principal",
+        "en que horario puedes venir",
+        "has entrenado antes",
+        "quieres clase muestra o plan directo"
+      ],
+      "objections": [
+        "precio",
+        "no sé cuál me conviene",
+        "no tengo tiempo",
+        "me queda lejos"
+      ],
+      "automation_priorities": [
+        "seguimiento yoga",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a prueba",
+        "prueba a membresía",
+        "asistencia 30 días",
+        "churn temprano",
+        "conversion yoga",
+        "revenue yoga"
+      ],
+      "recommended_commands": [
+        "pausar reactivaciones",
+        "abrir cupo extraordinario",
+        "avisar clase de hoy",
+        "solo humano en lesiones"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "yoga-lead",
+          "title": "Captacion yoga",
+          "content": "Hola, te ayudo con yoga. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "yoga-followup",
+          "title": "Seguimiento yoga",
+          "content": "Te sigo con yoga. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "yoga-reactivation",
+          "title": "Reactivacion yoga",
+          "content": "Te escribo porque todavia podemos mover yoga a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "enfocado y motivador",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de yoga",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con yoga. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "running-club",
+      "name": "running club",
+      "strength_score": 76,
+      "promise": "Convertir conversaciones de running club en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño de gimnasio o director comercial/operativo",
+      "monetizes": [
+        "inscripción",
+        "primer mes",
+        "paquetes",
+        "membresías"
+      ],
+      "service_bundle": [
+        "valoracion running club",
+        "clase muestra running club",
+        "paquete running club",
+        "seguimiento de asistencia"
+      ],
+      "qualification_questions": [
+        "cual es tu objetivo principal",
+        "en que horario puedes venir",
+        "has entrenado antes",
+        "quieres clase muestra o plan directo"
+      ],
+      "objections": [
+        "precio",
+        "no sé cuál me conviene",
+        "no tengo tiempo",
+        "me queda lejos"
+      ],
+      "automation_priorities": [
+        "seguimiento running club",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a prueba",
+        "prueba a membresía",
+        "asistencia 30 días",
+        "churn temprano",
+        "conversion running club",
+        "revenue running club"
+      ],
+      "recommended_commands": [
+        "pausar reactivaciones",
+        "abrir cupo extraordinario",
+        "avisar clase de hoy",
+        "solo humano en lesiones"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "running-club-lead",
+          "title": "Captacion running club",
+          "content": "Hola, te ayudo con running club. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "running-club-followup",
+          "title": "Seguimiento running club",
+          "content": "Te sigo con running club. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "running-club-reactivation",
+          "title": "Reactivacion running club",
+          "content": "Te escribo porque todavia podemos mover running club a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "enfocado y motivador",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de running club",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con running club. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "academias-deportivas",
+      "name": "academias deportivas",
+      "strength_score": 74,
+      "promise": "Convertir conversaciones de academias deportivas en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño de gimnasio o director comercial/operativo",
+      "monetizes": [
+        "inscripción",
+        "primer mes",
+        "paquetes",
+        "membresías"
+      ],
+      "service_bundle": [
+        "valoracion academias deportivas",
+        "clase muestra academias deportivas",
+        "paquete academias deportivas",
+        "seguimiento de asistencia"
+      ],
+      "qualification_questions": [
+        "cual es tu objetivo principal",
+        "en que horario puedes venir",
+        "has entrenado antes",
+        "quieres clase muestra o plan directo"
+      ],
+      "objections": [
+        "precio",
+        "no sé cuál me conviene",
+        "no tengo tiempo",
+        "me queda lejos"
+      ],
+      "automation_priorities": [
+        "seguimiento academias deportivas",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a prueba",
+        "prueba a membresía",
+        "asistencia 30 días",
+        "churn temprano",
+        "conversion academias deportivas",
+        "revenue academias deportivas"
+      ],
+      "recommended_commands": [
+        "pausar reactivaciones",
+        "abrir cupo extraordinario",
+        "avisar clase de hoy",
+        "solo humano en lesiones"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "academias-deportivas-lead",
+          "title": "Captacion academias deportivas",
+          "content": "Hola, te ayudo con academias deportivas. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "academias-deportivas-followup",
+          "title": "Seguimiento academias deportivas",
+          "content": "Te sigo con academias deportivas. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "academias-deportivas-reactivation",
+          "title": "Reactivacion academias deportivas",
+          "content": "Te escribo porque todavia podemos mover academias deportivas a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "enfocado y motivador",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de academias deportivas",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con academias deportivas. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    }
+  ],
+  "ten_x_operational_pack": {
+    "recommended_commands": [
+      "pausar reactivaciones",
+      "abrir cupo extraordinario",
+      "avisar clase de hoy",
+      "solo humano en lesiones"
+    ],
+    "launch_sequence": [
+      "escoger subvertical",
+      "aplicar pack",
+      "simular conversaciones",
+      "publicar y medir"
+    ],
+    "why_this_vertical": "WAOS Fitness gana cuando controla captacion, trial, asistencia, freeze, renovacion y reactivacion desde WhatsApp."
+  }
+}

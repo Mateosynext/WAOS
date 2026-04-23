@@ -1,0 +1,1370 @@
+{
+  "id": "real-estate",
+  "name": "WAOS Real Estate",
+  "short_name": "Inmobiliaria & property lifecycle",
+  "description": "Sistema operativo conversacional para inmobiliaria y lifecycle de propiedades.",
+  "problem": "Inmobiliaria pierde tiempo y cierres por leads mal calificados, mucho trabajo manual del asesor, poco seguimiento post visita y reactivación débil.",
+  "subverticals": [
+    "venta residencial",
+    "renta residencial",
+    "desarrollos",
+    "preventa",
+    "lujo",
+    "brokers hipotecarios",
+    "property management",
+    "administración de rentas",
+    "comercial",
+    "inversión inmobiliaria"
+  ],
+  "objects": [
+    "propiedad",
+    "desarrollo",
+    "zona",
+    "presupuesto",
+    "intención",
+    "tipo de operación",
+    "asesor",
+    "visita",
+    "documentos",
+    "propietario",
+    "inquilino",
+    "renovación",
+    "zona de interés",
+    "urgencia de compra",
+    "perfil financiero",
+    "broker",
+    "visita / open house"
+  ],
+  "flows": [
+    "lead -> perfilado",
+    "perfilado -> inventario",
+    "inventario -> visita",
+    "visita -> seguimiento",
+    "seguimiento -> cierre o reactivación"
+  ],
+  "kpis": [
+    "lead calificado",
+    "visita agendada",
+    "visita asistida",
+    "conversión por asesor",
+    "reactivación",
+    "cierre atribuido a WhatsApp",
+    "oferta emitida",
+    "cierre por asesor",
+    "tiempo a cierre"
+  ],
+  "recommended_integrations": [
+    "whatsapp",
+    "calendar",
+    "crm",
+    "media",
+    "reporting"
+  ],
+  "default_services": [
+    "asesoria de compra",
+    "visita guiada",
+    "renta asistida",
+    "precalificacion hipotecaria",
+    "property management"
+  ],
+  "default_faqs": [
+    {
+      "q": "¿Como me ayudan a encontrar propiedad?",
+      "a": "Podemos perfilar presupuesto, zona e intencion para sugerirte opciones relevantes."
+    },
+    {
+      "q": "¿Puedo agendar visita?",
+      "a": "Si, el bot puede proponerte visita o llamada con el asesor correcto."
+    },
+    {
+      "q": "¿Que documentos necesito?",
+      "a": "Podemos orientarte sobre documentacion basica segun compra, renta o propiedad administrada."
+    },
+    {
+      "q": "¿Tambien gestionan rentas?",
+      "a": "Si, si operas property management podemos llevar renovaciones e incidencias basicas."
+    }
+  ],
+  "behavior": {
+    "tone": "consultivo y ejecutivo",
+    "response_length": "media",
+    "use_emojis": false,
+    "sales_intensity": "alta",
+    "offer_promotions_when": "after_budget_detected",
+    "escalate_when": [
+      "queja legal",
+      "incidencia de inmueble",
+      "oferta formal"
+    ],
+    "insistence_policy": "respectful",
+    "can_share_price_directly": true,
+    "can_negotiate": false,
+    "can_mention_stock": true,
+    "auto_send_images": true,
+    "bot_mode": "calificacion_y_cierre",
+    "active_channels": [
+      "whatsapp",
+      "webchat"
+    ],
+    "forbidden_topics": [
+      "asesoria legal definitiva",
+      "promesas de aprobacion hipotecaria"
+    ],
+    "required_phrases": [
+      "te ayudo a perfilar tu busqueda",
+      "puedo coordinar llamada o visita",
+      "te sigo",
+      "si la pregunta viene rara, igual te la aterrizo",
+      "te lo aterrizo a tu caso"
+    ],
+    "fallback_message": "Te ayudo a filtrar propiedades, agendar visita y avanzar con el asesor correcto. Si la pregunta viene rara, en broma o medio fuera de tema, igual te sigo y la aterrizamos al negocio.",
+    "humor_policy": "light_contextual",
+    "strange_question_policy": "respond_validate_reframe_sell_move"
+  },
+  "followup_rules": [
+    {
+      "type": "no_response",
+      "delay_minutes": 180,
+      "max_attempts": 2,
+      "message_template": "¿Quieres que te comparta opciones segun tu presupuesto o prefieres agendar llamada con asesor?"
+    },
+    {
+      "type": "post_quote",
+      "delay_minutes": 1440,
+      "max_attempts": 2,
+      "message_template": "Sigo pendiente por si quieres retomar visita, propuesta o documentacion para avanzar."
+    },
+    {
+      "type": "reactivation",
+      "delay_minutes": 20160,
+      "max_attempts": 1,
+      "message_template": "Tengo nuevas opciones o disponibilidad para visita. ¿Quieres que retomemos tu busqueda?"
+    }
+  ],
+  "templates": [
+    {
+      "template_key": "lead_profile",
+      "title": "Perfilado de lead",
+      "content": "Para recomendarte mejor, dime presupuesto, zona, compra o renta y cuando quieres mudarte o invertir.",
+      "variables": []
+    },
+    {
+      "template_key": "visit_booking",
+      "title": "Agendar visita",
+      "content": "Puedo coordinar tu visita a {{property_name}}. ¿Te funciona {{date_option_1}} o {{date_option_2}}?",
+      "variables": [
+        "property_name",
+        "date_option_1",
+        "date_option_2"
+      ]
+    },
+    {
+      "template_key": "post_visit",
+      "title": "Seguimiento post visita",
+      "content": "¿Como te sentiste con la propiedad? Si quieres, avanzamos con propuesta, dudas o nuevas opciones.",
+      "variables": []
+    },
+    {
+      "template_key": "document_collection",
+      "title": "Solicitud de documentos",
+      "content": "Para avanzar, te comparto la lista inicial de documentos segun tu tipo de operacion.",
+      "variables": []
+    },
+    {
+      "template_key": "cold_lead_reactivation",
+      "title": "Reactivacion lead frio",
+      "content": "Retomo tu busqueda para compartirte opciones actualizadas segun tu presupuesto y zona ideal.",
+      "variables": []
+    }
+  ],
+  "config_overrides": {
+    "objective_secondary": [
+      "calificar",
+      "agendar",
+      "reactivar"
+    ],
+    "policies": [
+      "No prometer aprobacion financiera",
+      "Escalar temas legales o disputas"
+    ],
+    "can_say": [
+      "propiedades",
+      "rentas",
+      "visitas",
+      "documentos",
+      "asesor asignado"
+    ],
+    "cannot_say": [
+      "promesas legales",
+      "garantia de credito",
+      "cierre asegurado"
+    ],
+    "whatsapp_flows": [
+      "perfilado_inmobiliario",
+      "agenda_visita",
+      "seguimiento_post_visita",
+      "documentacion_basica"
+    ],
+    "appointment_duration_minutes": 45,
+    "handoff_keywords": [
+      "oferta formal",
+      "contrato",
+      "queja",
+      "incidencia"
+    ],
+    "high_score_threshold": 78
+  },
+  "portfolio_tier": "tier_1",
+  "master_thesis": "Sistema operativo conversacional para inmobiliaria y lifecycle de propiedades que perfila, recomienda, agenda visitas, sigue y reactiva oportunidades largas.",
+  "buyer": {
+    "primary": "Director comercial o broker principal",
+    "secondary": [
+      "asesores",
+      "coordinación de visitas",
+      "property manager"
+    ]
+  },
+  "one_pager": {
+    "headline": "WAOS Real Estate",
+    "thesis": "WhatsApp se convierte en SDR inmobiliario operativo para calificar, mostrar inventario, agendar visitas y sostener funnels largos.",
+    "problem": "Demasiados leads sin intención clara, poco seguimiento posterior y mucho tiempo desperdiciado por asesores caros.",
+    "promise": "Cada conversación termina en visita, propuesta, reubicación de inventario o reactivación futura.",
+    "monetizes": [
+      "visita",
+      "llamada calificada",
+      "cierre de venta",
+      "cierre de renta",
+      "administración posterior",
+      "renovación"
+    ],
+    "packaging": [
+      "setup real estate",
+      "matching de inventario",
+      "seguimiento post visita",
+      "property management conversacional"
+    ],
+    "strategic_care": "Vertical de ticket alto y muy alineada a la auditoría; debe posicionarse como control de pipeline y follow-up, no como simple chat de propiedades."
+  },
+  "demo_flow": [
+    "El lead entra por una propiedad, zona, precio o requisitos.",
+    "WAOS detecta compra o renta, presupuesto, timing e intención real.",
+    "Recomienda inventario relevante y comparte fichas o assets.",
+    "Agenda llamada o visita y confirma.",
+    "Después de la visita recoge objeciones y reubica inventario si hace falta.",
+    "Acompaña documentación, cierre o reactivación cuando cambian condiciones."
+  ],
+  "native_objects": {
+    "core": [
+      "lead",
+      "propiedad",
+      "desarrollo",
+      "zona",
+      "asesor"
+    ],
+    "commercial": [
+      "tipo de operación",
+      "presupuesto",
+      "intención",
+      "visita",
+      "propuesta"
+    ],
+    "operations": [
+      "estatus documental",
+      "propietario",
+      "inquilino",
+      "renovación",
+      "incidencia"
+    ]
+  },
+  "pipeline": {
+    "primary": {
+      "name": "Comercialización",
+      "states": [
+        "lead nuevo",
+        "lead perfilado",
+        "lead calificado",
+        "inventario enviado",
+        "llamada agendada",
+        "visita agendada",
+        "visita asistida",
+        "seguimiento post visita",
+        "documentación en curso",
+        "propuesta",
+        "cierre pendiente",
+        "cerrado",
+        "perdido o reactivable"
+      ]
+    },
+    "secondary": [
+      {
+        "name": "Property lifecycle",
+        "states": [
+          "propiedad activa",
+          "renta vigente",
+          "renovación pendiente",
+          "renovada",
+          "incidencia abierta",
+          "incidencia resuelta"
+        ]
+      }
+    ]
+  },
+  "bot_playbook": {
+    "must_do": [
+      "perfilar presupuesto",
+      "detectar zona e intención",
+      "recomendar opciones",
+      "agendar visitas",
+      "recordar citas",
+      "seguir post visita",
+      "reactivar leads fríos",
+      "nunca quedarse seco ante bromas, preguntas raras o cambios bruscos de tema",
+      "usar humor ligero cuando sume, sin sonar payaso ni poco serio",
+      "validar el momento y luego reencauzar la conversacion al negocio",
+      "cerrar siempre con una pregunta util o siguiente paso"
+    ],
+    "must_ask": [
+      "compra o renta",
+      "presupuesto",
+      "zona",
+      "tiempo de decisión",
+      "tipo de inmueble",
+      "forma de pago",
+      "que parte del negocio se esta atorando mas",
+      "si quiere que se lo aterrice a su caso"
+    ],
+    "objections": [
+      "precio",
+      "ubicación",
+      "tiempos",
+      "financiamiento",
+      "solo estoy viendo",
+      "quiero compararlo"
+    ],
+    "escalate_when": [
+      "negociación seria",
+      "cierre",
+      "tema legal",
+      "lead premium",
+      "inversionista sofisticado"
+    ],
+    "forbidden": [
+      "prometer disponibilidad no confirmada",
+      "asesoría legal definitiva"
+    ],
+    "success_signals": [
+      "quiero visitar",
+      "mándame opciones",
+      "me interesa esa zona",
+      "¿qué requisitos piden?",
+      "quiero avanzar"
+    ],
+    "style": [
+      "humor ligero",
+      "manejo de preguntas raras",
+      "reencuadre comercial"
+    ]
+  },
+  "automation_sequences": [
+    {
+      "key": "re_welcome",
+      "name": "Seguimiento post inventario",
+      "trigger": "opciones enviadas",
+      "goal": "mover a visita",
+      "steps": [
+        "preguntar opción favorita",
+        "ofrecer llamada",
+        "cerrar visita"
+      ]
+    },
+    {
+      "key": "re_visit",
+      "name": "Visita",
+      "trigger": "visita agendada",
+      "goal": "show-up y seguimiento posterior",
+      "steps": [
+        "confirmar",
+        "recordatorio",
+        "follow-up post visita"
+      ]
+    },
+    {
+      "key": "re_inventory_reactivation",
+      "name": "Reactivación por inventario",
+      "trigger": "entra nueva propiedad similar",
+      "goal": "reactivar leads fríos",
+      "steps": [
+        "avisar novedad",
+        "presentar match",
+        "proponer visita"
+      ]
+    },
+    {
+      "key": "re_rental_renewal",
+      "name": "Renovación de renta",
+      "trigger": "contrato cercano a vencer",
+      "goal": "retener renta y coordinar renovación",
+      "steps": [
+        "recordar vencimiento",
+        "resolver dudas",
+        "cerrar renovación"
+      ]
+    }
+  ],
+  "dashboard": {
+    "north_star": "Visitas asistidas que avanzan a propuesta o cierre.",
+    "sections": [
+      {
+        "name": "Funnel",
+        "metrics": [
+          "lead nuevo",
+          "lead calificado",
+          "visita agendada",
+          "visita asistida",
+          "visita a cierre"
+        ]
+      },
+      {
+        "name": "Asesores",
+        "metrics": [
+          "conversión por asesor",
+          "velocidad de seguimiento",
+          "tiempo a primer contacto",
+          "cierre atribuido"
+        ]
+      },
+      {
+        "name": "Inventario",
+        "metrics": [
+          "propiedades más consultadas",
+          "propiedades con más visitas",
+          "leads perdidos por precio/zona",
+          "reactivación por nuevo inventario"
+        ]
+      },
+      {
+        "name": "Revenue",
+        "metrics": [
+          "cierres atribuidos",
+          "comisión estimada",
+          "renta renovada",
+          "property management activo"
+        ]
+      }
+    ]
+  },
+  "hardening_model": {
+    "goal": "Pasar de preset inteligente a sistema especialista",
+    "wave": "ola_2",
+    "entity_queen": "propiedad",
+    "core_common": true,
+    "domain_by_vertical": true,
+    "playbooks_by_subvertical": true,
+    "kpis_by_vertical": true,
+    "pricing_by_vertical": true,
+    "journeys_by_vertical": true,
+    "reusable_modules": [
+      "intake / calificación",
+      "agenda / recursos",
+      "cotización / propuesta",
+      "pago / anticipo / membresía",
+      "seguimiento / recurrencia",
+      "reporting vertical"
+    ],
+    "minimum_viable_hardening": [
+      "1 entidad reina",
+      "1 pipeline propio",
+      "1 cotización propia",
+      "1 recurrencia propia",
+      "1 dashboard propio"
+    ],
+    "hard_checklist": [
+      "tiene entidad principal propia",
+      "tiene pipeline específico",
+      "tiene cotización o pricing del nicho",
+      "tiene agenda o recursos del nicho",
+      "tiene postventa o recurrencia del nicho",
+      "tiene documentos o compliance del nicho",
+      "tiene KPIs del nicho",
+      "tiene 3 automatizaciones que mueven dinero",
+      "tiene 2 pruebas e2e de negocio",
+      "tiene subplaybooks por subvertical",
+      "entidad principal propia",
+      "pipeline específico",
+      "pricing del nicho",
+      "agenda y recursos del nicho",
+      "postventa o recurrencia del nicho",
+      "documentos o compliance del nicho",
+      "KPIs del nicho",
+      "3 automatizaciones que mueven dinero",
+      "2 pruebas e2e de negocio",
+      "subplaybooks por subvertical",
+      "runtime ejecutable por vertical"
+    ]
+  },
+  "specialist_layers": {
+    "persistent_entities": [
+      "propiedad",
+      "tipo de operación",
+      "presupuesto",
+      "zona de interés",
+      "urgencia de compra",
+      "perfil financiero",
+      "broker",
+      "visita / open house"
+    ],
+    "business_pipeline": {
+      "primary_entity": "propiedad",
+      "primary_pipeline": {
+        "name": "Comercialización",
+        "states": [
+          "lead nuevo",
+          "lead perfilado",
+          "lead calificado",
+          "inventario enviado",
+          "llamada agendada",
+          "visita agendada",
+          "visita asistida",
+          "seguimiento post visita",
+          "documentación en curso",
+          "propuesta",
+          "cierre pendiente",
+          "cerrado",
+          "perdido o reactivable"
+        ]
+      },
+      "secondary_pipelines": [
+        {
+          "name": "Property lifecycle",
+          "states": [
+            "propiedad activa",
+            "renta vigente",
+            "renovación pendiente",
+            "renovada",
+            "incidencia abierta",
+            "incidencia resuelta"
+          ]
+        }
+      ]
+    },
+    "pricing_and_quotes": [
+      "cotización por operación",
+      "proyección de inversión",
+      "reserva / apartado"
+    ],
+    "agenda_and_resources": [
+      "broker",
+      "inventario",
+      "agenda de visitas",
+      "open house",
+      "slot de cierre"
+    ],
+    "post_sale_and_recurrence": [
+      "seguimiento de objeciones",
+      "nurture de lead según tiempo de compra",
+      "reactivación de búsqueda"
+    ],
+    "documents_compliance": [
+      "ficha de propiedad",
+      "expediente de documentos",
+      "propuesta / oferta",
+      "perfil financiero"
+    ],
+    "kpis_that_matter": [
+      "lead calificado",
+      "visita agendada",
+      "visita asistida",
+      "conversión por asesor",
+      "reactivación",
+      "cierre atribuido a WhatsApp",
+      "oferta emitida",
+      "cierre por asesor",
+      "tiempo a cierre"
+    ],
+    "money_automations": [
+      "matching de propiedades",
+      "seguimiento post visita",
+      "reactivación de leads sin oferta"
+    ]
+  },
+  "domain_contract": {
+    "vertical_entity_types": [
+      "propiedad",
+      "tipo de operación",
+      "presupuesto",
+      "zona de interés",
+      "urgencia de compra",
+      "perfil financiero",
+      "broker",
+      "visita / open house"
+    ],
+    "vertical_pipeline_stages": {
+      "primary": [
+        "lead nuevo",
+        "lead perfilado",
+        "lead calificado",
+        "inventario enviado",
+        "llamada agendada",
+        "visita agendada",
+        "visita asistida",
+        "seguimiento post visita",
+        "documentación en curso",
+        "propuesta",
+        "cierre pendiente",
+        "cerrado",
+        "perdido o reactivable"
+      ],
+      "secondary": [
+        [
+          "propiedad activa",
+          "renta vigente",
+          "renovación pendiente",
+          "renovada",
+          "incidencia abierta",
+          "incidencia resuelta"
+        ]
+      ]
+    },
+    "vertical_quote_types": [
+      "renta",
+      "venta",
+      "preventa",
+      "inversión",
+      "honorarios de corretaje"
+    ],
+    "vertical_resource_types": [
+      "broker",
+      "inventario",
+      "agenda de visitas",
+      "open house",
+      "slot de cierre"
+    ],
+    "vertical_followup_policies": [
+      "seguimiento de objeciones",
+      "nurture de lead según tiempo de compra",
+      "reactivación de búsqueda"
+    ],
+    "vertical_kpi_definitions": [
+      "lead calificado",
+      "visita agendada",
+      "visita asistida",
+      "conversión por asesor",
+      "reactivación",
+      "cierre atribuido a WhatsApp",
+      "oferta emitida",
+      "cierre por asesor",
+      "tiempo a cierre"
+    ],
+    "vertical_playbooks": [
+      "residencial",
+      "lujo",
+      "inversión",
+      "renta",
+      "preventa"
+    ],
+    "vertical_document_types": [
+      "ficha de propiedad",
+      "expediente de documentos",
+      "propuesta / oferta",
+      "perfil financiero"
+    ]
+  },
+  "subvertical_playbooks": [
+    {
+      "name": "residencial",
+      "focus": "Playbook operativo y comercial para residencial"
+    },
+    {
+      "name": "lujo",
+      "focus": "Playbook operativo y comercial para lujo"
+    },
+    {
+      "name": "inversión",
+      "focus": "Playbook operativo y comercial para inversión"
+    },
+    {
+      "name": "renta",
+      "focus": "Playbook operativo y comercial para renta"
+    },
+    {
+      "name": "preventa",
+      "focus": "Playbook operativo y comercial para preventa"
+    }
+  ],
+  "business_e2e_tests": [
+    {
+      "name": "lead calificado recibe matching, agenda visita y emite oferta",
+      "status": "designed"
+    },
+    {
+      "name": "cliente reactivado vuelve a búsqueda y agenda open house",
+      "status": "designed"
+    }
+  ],
+  "vertical_runtime": {
+    "pipeline_machine": {
+      "primary_pipeline": "Comercialización",
+      "entity": "oportunidad inmobiliaria",
+      "states": [
+        "lead nuevo",
+        "lead perfilado",
+        "lead calificado",
+        "inventario enviado",
+        "llamada agendada",
+        "visita agendada",
+        "visita asistida",
+        "seguimiento post visita",
+        "documentación en curso",
+        "propuesta",
+        "cierre pendiente",
+        "cerrado",
+        "perdido o reactivable"
+      ],
+      "transitions": [
+        {
+          "from": "lead nuevo",
+          "to": "lead perfilado",
+          "trigger": "qualification_complete",
+          "business_effect": "advance opportunity"
+        },
+        {
+          "from": "lead perfilado",
+          "to": "lead calificado",
+          "trigger": "offer_pending",
+          "business_effect": "open commercial step"
+        },
+        {
+          "from": "cerrado",
+          "to": "perdido o reactivable",
+          "trigger": "successful_outcome",
+          "business_effect": "realize revenue or continuity"
+        },
+        {
+          "from": "cerrado",
+          "to": "at_risk",
+          "trigger": "inventory_match_found",
+          "business_effect": "activate retention sequence"
+        }
+      ],
+      "at_risk_state": "at_risk",
+      "closed_states": [
+        "perdido o reactivable"
+      ]
+    },
+    "pricing_engine": {
+      "quote_types": [
+        "reserva",
+        "oferta",
+        "plan de pagos",
+        "broker fee scenario"
+      ],
+      "pricing_basis": "operation_type + property_price + commission + financing stage",
+      "rules": [
+        {
+          "rule": "base price by operación type",
+          "effect": "set base_price"
+        },
+        {
+          "rule": "premium or urgent add-ons increase quote",
+          "effect": "add surcharge"
+        },
+        {
+          "rule": "bundle, membership or financing can lower immediate friction",
+          "effect": "recommend package or installments"
+        }
+      ],
+      "deposit_policy": "request advance when capacity, specialist time or inventory must be secured"
+    },
+    "resource_capacity": {
+      "resource_types": [
+        "broker",
+        "propiedad",
+        "slot de visita",
+        "open house",
+        "sala de cierre"
+      ],
+      "capacity_basis": "broker calendars, property availability and visit windows",
+      "constraints": [
+        "avoid double booking of critical resources",
+        "respect service duration and cleanup/buffer time",
+        "prioritize higher urgency and higher close probability cases"
+      ],
+      "priority_queue": "broker, inventario y visita"
+    },
+    "recurrence_engine": {
+      "policies": [
+        {
+          "type": "inventory_nurture",
+          "interval_days": 14,
+          "anchor": "oportunidad inmobiliaria"
+        },
+        {
+          "type": "visit_followup",
+          "interval_days": 2,
+          "anchor": "oportunidad inmobiliaria"
+        },
+        {
+          "type": "investor_reactivation",
+          "interval_days": 30,
+          "anchor": "oportunidad inmobiliaria"
+        }
+      ],
+      "reactivation_window_days": 30,
+      "goal": "protect retention, repeat revenue and continuity"
+    },
+    "kpi_engine": {
+      "north_star": "Visitas asistidas que avanzan a propuesta o cierre.",
+      "definitions": [
+        {
+          "name": "visit_show_rate",
+          "formula": "visits_attended / visits_booked"
+        },
+        {
+          "name": "offer_rate",
+          "formula": "offers_sent / visits_completed"
+        },
+        {
+          "name": "close_by_broker",
+          "formula": "closed_deals / active_broker_opportunities"
+        }
+      ],
+      "leading_indicators": [
+        "inventory_match_found",
+        "visit_completed",
+        "no_response_7d"
+      ]
+    },
+    "automation_engine": {
+      "money_automation_policies": [
+        {
+          "trigger": "inventory_match_found",
+          "actions": [
+            "send_followup",
+            "escalate_owner",
+            "offer_relevant_next_step"
+          ],
+          "goal": "save conversion or retention"
+        },
+        {
+          "trigger": "visit_completed",
+          "actions": [
+            "send_quote_or_payment_link",
+            "remind_deadline",
+            "notify_human"
+          ],
+          "goal": "move revenue forward"
+        },
+        {
+          "trigger": "finance_docs_missing",
+          "actions": [
+            "schedule_recurrence",
+            "cross_sell_next_best_offer",
+            "create_task"
+          ],
+          "goal": "increase LTV"
+        }
+      ],
+      "quiet_hours": "21:00-08:00"
+    },
+    "document_flow": {
+      "required_documents": [
+        "ficha de propiedad",
+        "precalificacion financiera",
+        "oferta",
+        "expediente de cierre"
+      ],
+      "lifecycle_rules": [
+        {
+          "document": "ficha de propiedad",
+          "required_before": "first committed step",
+          "signature_required": true
+        },
+        {
+          "document": "expediente de cierre",
+          "required_before": "handoff or continuity step",
+          "signature_required": false
+        }
+      ]
+    },
+    "matching_engine": {
+      "entity": "oportunidad inmobiliaria",
+      "rules": [
+        "budget_range overlaps property.price",
+        "zone_preference match",
+        "operation_type match",
+        "financing_readiness fit"
+      ],
+      "next_best_match_outputs": [
+        "best_owner",
+        "best_resource_slot",
+        "best_offer"
+      ]
+    }
+  },
+  "transactional_motor_v12": {
+    "version": "v12_full_transactional",
+    "aggregate_root": "property_deal_account",
+    "main_business_entity": "propiedad",
+    "transaction_unit": "visit_offer_cycle",
+    "system_of_record": {
+      "write_model": [
+        "commands",
+        "events",
+        "ledger",
+        "aggregate_snapshots"
+      ],
+      "read_models": [
+        "commercial_board",
+        "operations_board",
+        "finance_board",
+        "continuity_board",
+        "resource_load_board",
+        "document_readiness_board",
+        "revenue_levers_board"
+      ],
+      "idempotency_scope": [
+        "organization_id",
+        "vertical_id",
+        "external_reference",
+        "command_key"
+      ],
+      "audit_mode": "append_only_with_snapshots"
+    },
+    "transaction_primitives": {
+      "commands": [
+        "capture_intent",
+        "qualify_record",
+        "create_quote",
+        "request_deposit",
+        "reserve_capacity",
+        "confirm_booking",
+        "start_case",
+        "approve_quote",
+        "collect_payment",
+        "start_fulfillment",
+        "close_fulfillment",
+        "schedule_recurrence",
+        "issue_refund",
+        "reactivate_customer",
+        "match_inventory",
+        "reserve_visit",
+        "submit_offer",
+        "collect_reservation_deposit"
+      ],
+      "events": [
+        "intent_captured",
+        "record_qualified",
+        "quote_created",
+        "deposit_requested",
+        "capacity_reserved",
+        "booking_confirmed",
+        "case_started",
+        "quote_approved",
+        "payment_collected",
+        "fulfillment_started",
+        "fulfillment_closed",
+        "recurrence_scheduled",
+        "refund_issued",
+        "customer_reactivated",
+        "inventory_matched",
+        "visit_reserved",
+        "offer_submitted",
+        "reservation_deposit_collected"
+      ],
+      "ledger_event_types": [
+        "charge_opened",
+        "deposit_collected",
+        "installment_due",
+        "payment_applied",
+        "credit_issued",
+        "refund_issued",
+        "write_off_registered"
+      ],
+      "invariants": [
+        "no visita sin lead calificado",
+        "no apartar propiedad sin depósito",
+        "no emitir propuesta sin perfil financiero",
+        "todo pago debe referenciar quote, order o case activo",
+        "todo cambio crítico debe emitir evento y renglón de auditoría",
+        "ningún recurso se confirma dos veces en la misma ventana"
+      ],
+      "idempotency_keys": [
+        "command_key",
+        "payment_reference",
+        "booking_reference",
+        "external_message_id"
+      ]
+    },
+    "aggregates": {
+      "primary_record": {
+        "name": "propiedad",
+        "status_axis": [
+          "commercial",
+          "operations",
+          "finance",
+          "continuity"
+        ]
+      },
+      "quote": {
+        "name": "deal_proposal",
+        "states": [
+          "draft",
+          "sent",
+          "accepted",
+          "expired",
+          "lost"
+        ]
+      },
+      "booking": {
+        "name": "property_visit_booking",
+        "states": [
+          "proposed",
+          "reserved",
+          "confirmed",
+          "attended_or_executed",
+          "missed_or_canceled"
+        ]
+      },
+      "execution": {
+        "name": "deal_progression",
+        "states": [
+          "pending",
+          "ready",
+          "in_progress",
+          "blocked",
+          "completed",
+          "closed"
+        ]
+      },
+      "payment_account": {
+        "name": "payment_account",
+        "states": [
+          "open",
+          "partially_paid",
+          "paid",
+          "overdue",
+          "refunded"
+        ]
+      },
+      "continuity": {
+        "name": "nurture_and_inventory_match",
+        "states": [
+          "not_started",
+          "active",
+          "at_risk",
+          "recovered",
+          "closed"
+        ]
+      }
+    },
+    "orchestration": {
+      "command_handlers": [
+        "handle_capture_intent",
+        "handle_qualify_record",
+        "handle_create_quote",
+        "handle_request_deposit",
+        "handle_reserve_capacity",
+        "handle_confirm_booking",
+        "handle_start_case",
+        "handle_approve_quote",
+        "handle_match_inventory",
+        "handle_reserve_visit",
+        "handle_submit_offer",
+        "handle_collect_reservation_deposit"
+      ],
+      "sagas": [
+        "inventory_matching",
+        "visit_to_offer",
+        "offer_to_close"
+      ],
+      "money_guards": [
+        "quote_before_payment",
+        "capacity_before_confirmation",
+        "documents_before_execution",
+        "balance_before_close"
+      ],
+      "read_model_refresh": [
+        "on_every_event",
+        "nightly_reconciliation",
+        "pre_dashboard_cache"
+      ]
+    },
+    "finance": {
+      "money_objects": [
+        "reservation_deposit",
+        "broker_fee_collection",
+        "rent_guarantee_charge",
+        "document_fee"
+      ],
+      "collection_modes": [
+        "apartado",
+        "honorarios",
+        "renta inicial"
+      ],
+      "refund_modes": [
+        "reservation_release",
+        "credit_note"
+      ],
+      "reconciliation_views": [
+        "expected_vs_collected",
+        "aging_balance",
+        "refund_exposure",
+        "cash_by_stage"
+      ]
+    },
+    "operations": {
+      "fulfillment_unit": "visit_offer_cycle",
+      "resource_locking": [
+        "broker",
+        "visit_slot",
+        "property_inventory_hold"
+      ],
+      "dispatch_or_schedule_board": [
+        "queued",
+        "ready",
+        "assigned",
+        "in_progress",
+        "blocked",
+        "done"
+      ],
+      "handoff_rules": [
+        "human_handoff_on_exception",
+        "supervisor_handoff_on_money_risk",
+        "operator_handoff_on_compliance_gap"
+      ]
+    },
+    "audit_compliance": {
+      "timeline_entities": [
+        "propiedad",
+        "deal_proposal",
+        "property_visit_booking",
+        "deal_progression",
+        "payment_account"
+      ],
+      "consent_gates": [
+        "id_and_financial_profile",
+        "offer_letter",
+        "reservation_agreement"
+      ],
+      "required_evidence": [
+        "timeline_event",
+        "actor",
+        "timestamp",
+        "before_after_snapshot"
+      ],
+      "retention_rules": [
+        "audit_log_append_only",
+        "documents_linked_to_primary_record",
+        "payment_trace_non_destructive"
+      ]
+    },
+    "transaction_views": {
+      "commercial": [
+        "qualification",
+        "visits",
+        "offers"
+      ],
+      "operations": [
+        "inventory_match",
+        "visit_attendance",
+        "followup"
+      ],
+      "finance": [
+        "reservation_pipeline",
+        "fees_collected",
+        "deal_value"
+      ],
+      "continuity": [
+        "nurture",
+        "inventory_refresh",
+        "reactivation"
+      ]
+    },
+    "command_catalog": [
+      {
+        "command": "capture_intent",
+        "writes": "propiedad",
+        "emits": "intent_captured",
+        "guard": "no visita sin lead calificado"
+      },
+      {
+        "command": "qualify_record",
+        "writes": "propiedad",
+        "emits": "record_qualified",
+        "guard": "no apartar propiedad sin depósito"
+      },
+      {
+        "command": "create_quote",
+        "writes": "propiedad",
+        "emits": "quote_created",
+        "guard": "no emitir propuesta sin perfil financiero"
+      },
+      {
+        "command": "request_deposit",
+        "writes": "propiedad",
+        "emits": "deposit_requested",
+        "guard": "no visita sin lead calificado"
+      },
+      {
+        "command": "reserve_capacity",
+        "writes": "propiedad",
+        "emits": "capacity_reserved",
+        "guard": "no apartar propiedad sin depósito"
+      },
+      {
+        "command": "confirm_booking",
+        "writes": "propiedad",
+        "emits": "booking_confirmed",
+        "guard": "no emitir propuesta sin perfil financiero"
+      },
+      {
+        "command": "start_case",
+        "writes": "propiedad",
+        "emits": "case_started",
+        "guard": "no visita sin lead calificado"
+      },
+      {
+        "command": "approve_quote",
+        "writes": "propiedad",
+        "emits": "quote_approved",
+        "guard": "no apartar propiedad sin depósito"
+      },
+      {
+        "command": "match_inventory",
+        "writes": "propiedad",
+        "emits": "payment_collected",
+        "guard": "no emitir propuesta sin perfil financiero"
+      },
+      {
+        "command": "reserve_visit",
+        "writes": "propiedad",
+        "emits": "fulfillment_started",
+        "guard": "no visita sin lead calificado"
+      },
+      {
+        "command": "submit_offer",
+        "writes": "propiedad",
+        "emits": "fulfillment_closed",
+        "guard": "no apartar propiedad sin depósito"
+      },
+      {
+        "command": "collect_reservation_deposit",
+        "writes": "propiedad",
+        "emits": "recurrence_scheduled",
+        "guard": "no emitir propuesta sin perfil financiero"
+      }
+    ],
+    "event_catalog": [
+      {
+        "event": "intent_captured",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "inventory_matching"
+      },
+      {
+        "event": "record_qualified",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "visit_to_offer"
+      },
+      {
+        "event": "quote_created",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "offer_to_close"
+      },
+      {
+        "event": "deposit_requested",
+        "updates": [
+          "timeline",
+          "boards",
+          "ledger"
+        ],
+        "next_action": "inventory_matching"
+      },
+      {
+        "event": "capacity_reserved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "visit_to_offer"
+      },
+      {
+        "event": "booking_confirmed",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "offer_to_close"
+      },
+      {
+        "event": "case_started",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "inventory_matching"
+      },
+      {
+        "event": "quote_approved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "visit_to_offer"
+      },
+      {
+        "event": "inventory_matched",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "offer_to_close"
+      },
+      {
+        "event": "visit_reserved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "inventory_matching"
+      },
+      {
+        "event": "offer_submitted",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "visit_to_offer"
+      },
+      {
+        "event": "reservation_deposit_collected",
+        "updates": [
+          "timeline",
+          "boards",
+          "ledger"
+        ],
+        "next_action": "offer_to_close"
+      }
+    ]
+  },
+  "subvertical_profiles": [],
+  "recommended_subverticals": []
+}

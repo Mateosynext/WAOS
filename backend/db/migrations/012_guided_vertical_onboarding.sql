@@ -47,3 +47,19 @@ CREATE TABLE IF NOT EXISTS vertical_onboarding_step_runs (
 CREATE INDEX IF NOT EXISTS idx_vertical_onboarding_wizards_org ON vertical_onboarding_wizards(organization_id, status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_vertical_onboarding_wizards_bot ON vertical_onboarding_wizards(bot_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_vertical_onboarding_step_runs_wizard ON vertical_onboarding_step_runs(wizard_id, step_key);
+
+
+CREATE TABLE IF NOT EXISTS vertical_onboarding_wizard_events (
+    id TEXT PRIMARY KEY,
+    wizard_id TEXT NOT NULL,
+    organization_id TEXT NOT NULL,
+    bot_id TEXT,
+    event_type TEXT NOT NULL,
+    step_key TEXT,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (wizard_id) REFERENCES vertical_onboarding_wizards(id),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (bot_id) REFERENCES bots(id)
+);
+CREATE INDEX IF NOT EXISTS idx_vertical_onboarding_wizard_events_wizard ON vertical_onboarding_wizard_events(wizard_id, created_at DESC);

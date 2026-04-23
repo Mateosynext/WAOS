@@ -1,0 +1,1374 @@
+{
+  "id": "professional-intake",
+  "name": "WAOS Professional Intake",
+  "short_name": "Servicios profesionales de alto seguimiento",
+  "description": "Sistema operativo conversacional para servicios profesionales de alto seguimiento.",
+  "problem": "Servicios profesionales pierden tiempo caro en leads mal calificados, intake incompleto, asignación débil de especialista, documentos desordenados y consultas no cobradas.",
+  "subverticals": [
+    "legal",
+    "migración",
+    "contabilidad",
+    "fiscal",
+    "seguros no complejos",
+    "consultoría especializada",
+    "notarial",
+    "gestoría",
+    "compliance ligero",
+    "brokers financieros simples"
+  ],
+  "objects": [
+    "tipo de caso",
+    "especialidad",
+    "elegibilidad",
+    "consulta",
+    "fee",
+    "documento",
+    "milestone",
+    "vencimiento",
+    "asesor",
+    "renovación",
+    "caso / asunto",
+    "expediente",
+    "tipo de consulta",
+    "calificación inicial",
+    "documentos requeridos",
+    "conflicto / elegibilidad",
+    "profesional asignado",
+    "honorarios / propuesta"
+  ],
+  "flows": [
+    "lead -> intake",
+    "intake -> elegibilidad",
+    "elegibilidad -> consulta",
+    "consulta -> expediente",
+    "expediente -> renovación"
+  ],
+  "kpis": [
+    "lead calificado",
+    "consulta cobrada",
+    "documento completo",
+    "conversión a cliente",
+    "tiempo de asignación",
+    "renovación",
+    "consulta agendada",
+    "consulta asistida",
+    "contratación",
+    "tiempo a propuesta"
+  ],
+  "recommended_integrations": [
+    "whatsapp",
+    "calendar",
+    "payments",
+    "crm",
+    "documents"
+  ],
+  "default_services": [
+    "consulta inicial",
+    "revision de caso",
+    "expediente",
+    "seguimiento",
+    "renovacion o continuidad"
+  ],
+  "default_faqs": [
+    {
+      "q": "¿Como clasifican mi caso?",
+      "a": "El bot hace intake inicial y puede dirigirte con la especialidad correcta."
+    },
+    {
+      "q": "¿Pueden pedir documentos?",
+      "a": "Si, podemos solicitar documentos iniciales para preparar la consulta o expediente."
+    },
+    {
+      "q": "¿La consulta se paga?",
+      "a": "Si, si tu operacion lo requiere, podemos cobrar consulta o anticipo desde el chat."
+    },
+    {
+      "q": "¿Dan seguimiento a vencimientos?",
+      "a": "Si, el bot puede recordar milestones, renovaciones o vencimientos importantes."
+    }
+  ],
+  "behavior": {
+    "tone": "serio y profesional",
+    "response_length": "media",
+    "use_emojis": false,
+    "sales_intensity": "media",
+    "offer_promotions_when": "never",
+    "escalate_when": [
+      "urgencia legal",
+      "riesgo regulatorio",
+      "caso sensible"
+    ],
+    "insistence_policy": "respectful",
+    "can_share_price_directly": true,
+    "can_negotiate": false,
+    "can_mention_stock": false,
+    "auto_send_images": false,
+    "bot_mode": "intake_profesional",
+    "active_channels": [
+      "whatsapp",
+      "webchat"
+    ],
+    "forbidden_topics": [
+      "asesoria definitiva por chat",
+      "promesas de resultado"
+    ],
+    "required_phrases": [
+      "te ayudo a clasificar tu caso",
+      "si quieres, agendamos consulta con el especialista correcto",
+      "te sigo",
+      "si la pregunta viene rara, igual te la aterrizo",
+      "te lo aterrizo a tu caso"
+    ],
+    "fallback_message": "Te ayudo a ordenar tu caso, pedir lo necesario y llevarte con el especialista correcto. Si la pregunta viene rara, en broma o medio fuera de tema, igual te sigo y la aterrizamos al negocio.",
+    "humor_policy": "light_contextual",
+    "strange_question_policy": "respond_validate_reframe_sell_move"
+  },
+  "followup_rules": [
+    {
+      "type": "no_response",
+      "delay_minutes": 240,
+      "max_attempts": 2,
+      "message_template": "¿Quieres que retomemos tu caso y revisemos la consulta o documentacion inicial?"
+    },
+    {
+      "type": "post_quote",
+      "delay_minutes": 1440,
+      "max_attempts": 2,
+      "message_template": "Sigo atento por si quieres avanzar con consulta, fee o envio de documentos."
+    },
+    {
+      "type": "reactivation",
+      "delay_minutes": 43200,
+      "max_attempts": 1,
+      "message_template": "Te recordamos que tu expediente o renovacion sigue abierto. ¿Quieres retomarlo hoy?"
+    }
+  ],
+  "templates": [
+    {
+      "template_key": "case_intake",
+      "title": "Intake de caso",
+      "content": "Para orientarte mejor, dime tipo de caso, urgencia, pais o jurisdiccion y objetivo principal.",
+      "variables": []
+    },
+    {
+      "template_key": "consult_booking",
+      "title": "Agendar consulta",
+      "content": "Puedo coordinar tu consulta con {{specialty}} para {{date}}. ¿Te funciona?",
+      "variables": [
+        "specialty",
+        "date"
+      ]
+    },
+    {
+      "template_key": "document_request",
+      "title": "Solicitud de documentos",
+      "content": "Antes de la consulta, te comparto la documentacion inicial sugerida para avanzar con tu caso.",
+      "variables": []
+    },
+    {
+      "template_key": "fee_collection",
+      "title": "Cobro de consulta",
+      "content": "Si quieres asegurar tu espacio o abrir expediente, te envio el link de pago ahora mismo.",
+      "variables": []
+    },
+    {
+      "template_key": "renewal_due",
+      "title": "Recordatorio de vencimiento",
+      "content": "Tu siguiente vencimiento o renovacion se acerca. ¿Quieres que te ayudemos a continuarlo?",
+      "variables": []
+    }
+  ],
+  "config_overrides": {
+    "objective_secondary": [
+      "calificar",
+      "agendar",
+      "renovar"
+    ],
+    "policies": [
+      "No dar asesoria definitiva por chat",
+      "Escalar casos sensibles o de alto riesgo"
+    ],
+    "can_say": [
+      "consulta",
+      "especialidad",
+      "fee",
+      "documentos",
+      "vencimientos"
+    ],
+    "cannot_say": [
+      "resultado garantizado",
+      "asesoria definitiva",
+      "promesas legales"
+    ],
+    "whatsapp_flows": [
+      "intake_caso",
+      "agenda_consulta",
+      "documentos_iniciales",
+      "recordatorio_vencimiento"
+    ],
+    "appointment_duration_minutes": 45,
+    "handoff_keywords": [
+      "urgencia",
+      "demanda",
+      "auditoria",
+      "vencimiento inmediato"
+    ],
+    "high_score_threshold": 92
+  },
+  "portfolio_tier": "tier_2",
+  "master_thesis": "Sistema operativo conversacional para servicios profesionales de alto seguimiento que protege tiempo experto mediante intake, filtro, consulta, documentos y renovación.",
+  "buyer": {
+    "primary": "Socio, director o gerente de intake/comercial",
+    "secondary": [
+      "paralegals o coordinadores",
+      "recepción",
+      "asesores senior"
+    ]
+  },
+  "one_pager": {
+    "headline": "WAOS Professional Intake",
+    "thesis": "WhatsApp se vuelve intake estructurado y filtro que protege horas de especialistas caros.",
+    "problem": "Mucho lead no elegible y poca estructura documental o de cobro inicial.",
+    "promise": "Cada lead termina como no elegible, consulta cobrada, expediente activo o renovación.",
+    "monetizes": [
+      "consulta",
+      "anticipo",
+      "expediente",
+      "renovación anual",
+      "continuidad del servicio"
+    ],
+    "packaging": [
+      "setup intake profesional",
+      "filtro por especialidad",
+      "fee + documentos + hitos",
+      "renovación anual"
+    ],
+    "strategic_care": "La auditoría lo valida especialmente para legal intake; el bot debe hacer intake y filtro, no asesoría profesional compleja."
+  },
+  "demo_flow": [
+    "El lead entra con un caso, trámite o necesidad.",
+    "WAOS hace intake estructurado y filtra elegibilidad.",
+    "Asigna especialidad y agenda consulta.",
+    "Cobra fee o anticipo.",
+    "Persigue documentos y actualiza hitos.",
+    "Recuerda vencimientos y renueva o amplía servicio."
+  ],
+  "native_objects": {
+    "core": [
+      "lead",
+      "tipo de caso",
+      "especialidad",
+      "elegibilidad",
+      "caso / expediente"
+    ],
+    "commercial": [
+      "consulta",
+      "fee",
+      "anticipo",
+      "documento",
+      "expediente"
+    ],
+    "operations": [
+      "hito",
+      "vencimiento",
+      "renovación",
+      "asesor",
+      "caso pausado"
+    ]
+  },
+  "pipeline": {
+    "primary": {
+      "name": "Intake y expediente",
+      "states": [
+        "lead nuevo",
+        "intake en curso",
+        "elegibilidad evaluada",
+        "calificado",
+        "consulta agendada",
+        "consulta pagada",
+        "documentos pendientes",
+        "documentos completos",
+        "expediente activo",
+        "hito alcanzado",
+        "cierre/entrega",
+        "renovación pendiente",
+        "renovado",
+        "no elegible"
+      ]
+    },
+    "secondary": [
+      {
+        "name": "Reactivación de casos",
+        "states": [
+          "expediente inactivo",
+          "seguimiento",
+          "reactivado",
+          "cerrado"
+        ]
+      }
+    ]
+  },
+  "bot_playbook": {
+    "must_do": [
+      "hacer intake ordenado",
+      "filtrar elegibilidad",
+      "asignar área correcta",
+      "agendar consulta",
+      "cobrar fee",
+      "perseguir documentos",
+      "recordar hitos",
+      "renovar",
+      "nunca quedarse seco ante bromas, preguntas raras o cambios bruscos de tema",
+      "usar humor ligero cuando sume, sin sonar payaso ni poco serio",
+      "validar el momento y luego reencauzar la conversacion al negocio",
+      "cerrar siempre con una pregunta util o siguiente paso"
+    ],
+    "must_ask": [
+      "tipo de asunto",
+      "urgencia",
+      "contexto general",
+      "ubicación o jurisdicción",
+      "si ya tiene documentos",
+      "si ya trabajó antes con la firma/despacho",
+      "que parte del negocio se esta atorando mas",
+      "si quiere que se lo aterrice a su caso"
+    ],
+    "objections": [
+      "precio de consulta",
+      "solo quiero orientación",
+      "no sé si califico",
+      "necesito pensarlo",
+      "quiero hablar directo con el experto"
+    ],
+    "escalate_when": [
+      "alta complejidad",
+      "caso sensible",
+      "riesgo reputacional",
+      "negociación premium",
+      "reclamación"
+    ],
+    "forbidden": [
+      "dar asesoría compleja definitiva por chat",
+      "prometer resultado legal/fiscal"
+    ],
+    "success_signals": [
+      "quiero consulta",
+      "sí califico",
+      "¿qué documentos llevo?",
+      "mándame el fee",
+      "quiero abrir expediente"
+    ],
+    "style": [
+      "humor ligero",
+      "manejo de preguntas raras",
+      "reencuadre comercial"
+    ]
+  },
+  "automation_sequences": [
+    {
+      "key": "pi_followup",
+      "name": "Seguimiento post intake",
+      "trigger": "lead con intake parcial o completo",
+      "goal": "cerrar consulta",
+      "steps": [
+        "resolver duda",
+        "confirmar elegibilidad",
+        "proponer agenda"
+      ]
+    },
+    {
+      "key": "pi_fee",
+      "name": "Fee pendiente",
+      "trigger": "consulta agendada sin pago",
+      "goal": "cobrar consulta",
+      "steps": [
+        "recordar fee",
+        "enviar link",
+        "confirmar pago"
+      ]
+    },
+    {
+      "key": "pi_docs",
+      "name": "Documentos faltantes",
+      "trigger": "expediente abierto",
+      "goal": "completar expediente",
+      "steps": [
+        "listar faltantes",
+        "recordar fecha",
+        "confirmar recepción"
+      ]
+    },
+    {
+      "key": "pi_renewal",
+      "name": "Renovación o vencimiento",
+      "trigger": "vencimiento próximo",
+      "goal": "retener servicio",
+      "steps": [
+        "recordar hito",
+        "proponer renovación",
+        "cerrar siguiente paso"
+      ]
+    }
+  ],
+  "dashboard": {
+    "north_star": "Consulta pagada que abre expediente elegible.",
+    "sections": [
+      {
+        "name": "Funnel",
+        "metrics": [
+          "leads nuevos",
+          "elegibilidad",
+          "consulta agendada",
+          "consulta pagada",
+          "caso abierto"
+        ]
+      },
+      {
+        "name": "Operación",
+        "metrics": [
+          "documentos pendientes",
+          "tiempo a asignación",
+          "hitos cumplidos",
+          "expedientes inactivos"
+        ]
+      },
+      {
+        "name": "Revenue",
+        "metrics": [
+          "fee cobrado",
+          "anticipo",
+          "renovación",
+          "LTV por cliente"
+        ]
+      },
+      {
+        "name": "Calidad",
+        "metrics": [
+          "tasa de no elegibles",
+          "tiempo de respuesta",
+          "abandono en intake",
+          "conversión por especialidad"
+        ]
+      }
+    ]
+  },
+  "hardening_model": {
+    "goal": "Pasar de preset inteligente a sistema especialista",
+    "wave": "ola_3",
+    "entity_queen": "caso / expediente",
+    "core_common": true,
+    "domain_by_vertical": true,
+    "playbooks_by_subvertical": true,
+    "kpis_by_vertical": true,
+    "pricing_by_vertical": true,
+    "journeys_by_vertical": true,
+    "reusable_modules": [
+      "intake / calificación",
+      "agenda / recursos",
+      "cotización / propuesta",
+      "pago / anticipo / membresía",
+      "seguimiento / recurrencia",
+      "reporting vertical"
+    ],
+    "minimum_viable_hardening": [
+      "1 entidad reina",
+      "1 pipeline propio",
+      "1 cotización propia",
+      "1 recurrencia propia",
+      "1 dashboard propio"
+    ],
+    "hard_checklist": [
+      "tiene entidad principal propia",
+      "tiene pipeline específico",
+      "tiene cotización o pricing del nicho",
+      "tiene agenda o recursos del nicho",
+      "tiene postventa o recurrencia del nicho",
+      "tiene documentos o compliance del nicho",
+      "tiene KPIs del nicho",
+      "tiene 3 automatizaciones que mueven dinero",
+      "tiene 2 pruebas e2e de negocio",
+      "tiene subplaybooks por subvertical",
+      "entidad principal propia",
+      "pipeline específico",
+      "pricing del nicho",
+      "agenda y recursos del nicho",
+      "postventa o recurrencia del nicho",
+      "documentos o compliance del nicho",
+      "KPIs del nicho",
+      "3 automatizaciones que mueven dinero",
+      "2 pruebas e2e de negocio",
+      "subplaybooks por subvertical",
+      "runtime ejecutable por vertical"
+    ]
+  },
+  "specialist_layers": {
+    "persistent_entities": [
+      "caso / asunto",
+      "expediente",
+      "tipo de consulta",
+      "calificación inicial",
+      "documentos requeridos",
+      "conflicto / elegibilidad",
+      "profesional asignado",
+      "honorarios / propuesta"
+    ],
+    "business_pipeline": {
+      "primary_entity": "caso / expediente",
+      "primary_pipeline": {
+        "name": "Intake y expediente",
+        "states": [
+          "lead nuevo",
+          "intake en curso",
+          "elegibilidad evaluada",
+          "calificado",
+          "consulta agendada",
+          "consulta pagada",
+          "documentos pendientes",
+          "documentos completos",
+          "expediente activo",
+          "hito alcanzado",
+          "cierre/entrega",
+          "renovación pendiente",
+          "renovado",
+          "no elegible"
+        ]
+      },
+      "secondary_pipelines": [
+        {
+          "name": "Reactivación de casos",
+          "states": [
+            "expediente inactivo",
+            "seguimiento",
+            "reactivado",
+            "cerrado"
+          ]
+        }
+      ]
+    },
+    "pricing_and_quotes": [
+      "propuesta por tipo de caso",
+      "honorarios",
+      "consulta pagada"
+    ],
+    "agenda_and_resources": [
+      "profesional",
+      "agenda de consulta",
+      "especialidad",
+      "capacidad semanal",
+      "ventana de revisión"
+    ],
+    "post_sale_and_recurrence": [
+      "seguimiento de propuesta",
+      "handoff trazado a humano",
+      "continuidad de caso"
+    ],
+    "documents_compliance": [
+      "checklist documental",
+      "conflicto / elegibilidad",
+      "propuesta",
+      "expediente inicial"
+    ],
+    "kpis_that_matter": [
+      "lead calificado",
+      "consulta cobrada",
+      "documento completo",
+      "conversión a cliente",
+      "tiempo de asignación",
+      "renovación",
+      "consulta agendada",
+      "consulta asistida",
+      "contratación",
+      "tiempo a propuesta"
+    ],
+    "money_automations": [
+      "intake a consulta",
+      "consulta a propuesta",
+      "reactivación de propuesta no firmada"
+    ]
+  },
+  "domain_contract": {
+    "vertical_entity_types": [
+      "caso / asunto",
+      "expediente",
+      "tipo de consulta",
+      "calificación inicial",
+      "documentos requeridos",
+      "conflicto / elegibilidad",
+      "profesional asignado",
+      "honorarios / propuesta"
+    ],
+    "vertical_pipeline_stages": {
+      "primary": [
+        "lead nuevo",
+        "intake en curso",
+        "elegibilidad evaluada",
+        "calificado",
+        "consulta agendada",
+        "consulta pagada",
+        "documentos pendientes",
+        "documentos completos",
+        "expediente activo",
+        "hito alcanzado",
+        "cierre/entrega",
+        "renovación pendiente",
+        "renovado",
+        "no elegible"
+      ],
+      "secondary": [
+        [
+          "expediente inactivo",
+          "seguimiento",
+          "reactivado",
+          "cerrado"
+        ]
+      ]
+    },
+    "vertical_quote_types": [
+      "consulta inicial",
+      "propuesta",
+      "honorarios",
+      "fee mensual",
+      "paquete de servicios"
+    ],
+    "vertical_resource_types": [
+      "profesional",
+      "agenda de consulta",
+      "especialidad",
+      "capacidad semanal",
+      "ventana de revisión"
+    ],
+    "vertical_followup_policies": [
+      "seguimiento de propuesta",
+      "handoff trazado a humano",
+      "continuidad de caso"
+    ],
+    "vertical_kpi_definitions": [
+      "lead calificado",
+      "consulta cobrada",
+      "documento completo",
+      "conversión a cliente",
+      "tiempo de asignación",
+      "renovación",
+      "consulta agendada",
+      "consulta asistida",
+      "contratación",
+      "tiempo a propuesta"
+    ],
+    "vertical_playbooks": [
+      "legal",
+      "fiscal",
+      "contable",
+      "consultoría",
+      "psicología intake",
+      "nutrición intake"
+    ],
+    "vertical_document_types": [
+      "checklist documental",
+      "conflicto / elegibilidad",
+      "propuesta",
+      "expediente inicial"
+    ]
+  },
+  "subvertical_playbooks": [
+    {
+      "name": "legal",
+      "focus": "Playbook operativo y comercial para legal"
+    },
+    {
+      "name": "fiscal",
+      "focus": "Playbook operativo y comercial para fiscal"
+    },
+    {
+      "name": "contable",
+      "focus": "Playbook operativo y comercial para contable"
+    },
+    {
+      "name": "consultoría",
+      "focus": "Playbook operativo y comercial para consultoría"
+    },
+    {
+      "name": "psicología intake",
+      "focus": "Playbook operativo y comercial para psicología intake"
+    },
+    {
+      "name": "nutrición intake",
+      "focus": "Playbook operativo y comercial para nutrición intake"
+    }
+  ],
+  "business_e2e_tests": [
+    {
+      "name": "lead completa intake, agenda consulta y firma propuesta",
+      "status": "designed"
+    },
+    {
+      "name": "caso incompleto sube documentos y avanza a contratación",
+      "status": "designed"
+    }
+  ],
+  "vertical_runtime": {
+    "pipeline_machine": {
+      "primary_pipeline": "Intake y expediente",
+      "entity": "expediente",
+      "states": [
+        "lead nuevo",
+        "intake en curso",
+        "elegibilidad evaluada",
+        "calificado",
+        "consulta agendada",
+        "consulta pagada",
+        "documentos pendientes",
+        "documentos completos",
+        "expediente activo",
+        "hito alcanzado",
+        "cierre/entrega",
+        "renovación pendiente",
+        "renovado",
+        "no elegible"
+      ],
+      "transitions": [
+        {
+          "from": "lead nuevo",
+          "to": "intake en curso",
+          "trigger": "qualification_complete",
+          "business_effect": "advance opportunity"
+        },
+        {
+          "from": "intake en curso",
+          "to": "elegibilidad evaluada",
+          "trigger": "consultation_done",
+          "business_effect": "open commercial step"
+        },
+        {
+          "from": "renovado",
+          "to": "no elegible",
+          "trigger": "successful_outcome",
+          "business_effect": "realize revenue or continuity"
+        },
+        {
+          "from": "renovado",
+          "to": "at_risk",
+          "trigger": "intake_completed",
+          "business_effect": "activate retention sequence"
+        }
+      ],
+      "at_risk_state": "at_risk",
+      "closed_states": [
+        "no elegible"
+      ]
+    },
+    "pricing_engine": {
+      "quote_types": [
+        "consulta inicial",
+        "propuesta de honorarios",
+        "retainer",
+        "plan mensual"
+      ],
+      "pricing_basis": "case_type + complexity + seniority + retainer scope",
+      "rules": [
+        {
+          "rule": "base price by caso type",
+          "effect": "set base_price"
+        },
+        {
+          "rule": "premium or urgent add-ons increase quote",
+          "effect": "add surcharge"
+        },
+        {
+          "rule": "bundle, membership or financing can lower immediate friction",
+          "effect": "recommend package or installments"
+        }
+      ],
+      "deposit_policy": "request advance when capacity, specialist time or inventory must be secured"
+    },
+    "resource_capacity": {
+      "resource_types": [
+        "profesional",
+        "slot de consulta",
+        "revisor documental",
+        "backoffice"
+      ],
+      "capacity_basis": "professional calendar, consultation length and case load",
+      "constraints": [
+        "avoid double booking of critical resources",
+        "respect service duration and cleanup/buffer time",
+        "prioritize higher urgency and higher close probability cases"
+      ],
+      "priority_queue": "profesional, elegibilidad y propuesta"
+    },
+    "recurrence_engine": {
+      "policies": [
+        {
+          "type": "proposal_followup",
+          "interval_days": 3,
+          "anchor": "expediente"
+        },
+        {
+          "type": "case_update",
+          "interval_days": 14,
+          "anchor": "expediente"
+        },
+        {
+          "type": "retainer_renewal",
+          "interval_days": 30,
+          "anchor": "expediente"
+        }
+      ],
+      "reactivation_window_days": 30,
+      "goal": "protect retention, repeat revenue and continuity"
+    },
+    "kpi_engine": {
+      "north_star": "Consulta pagada que abre expediente elegible.",
+      "definitions": [
+        {
+          "name": "consultation_show_rate",
+          "formula": "consultations_attended / consultations_booked"
+        },
+        {
+          "name": "hire_rate",
+          "formula": "retained_clients / proposals_sent"
+        },
+        {
+          "name": "time_to_proposal",
+          "formula": "proposals_sent within SLA / qualified_cases"
+        }
+      ],
+      "leading_indicators": [
+        "intake_completed",
+        "docs_requested",
+        "no_response_7d"
+      ]
+    },
+    "automation_engine": {
+      "money_automation_policies": [
+        {
+          "trigger": "intake_completed",
+          "actions": [
+            "send_followup",
+            "escalate_owner",
+            "offer_relevant_next_step"
+          ],
+          "goal": "save conversion or retention"
+        },
+        {
+          "trigger": "docs_requested",
+          "actions": [
+            "send_quote_or_payment_link",
+            "remind_deadline",
+            "notify_human"
+          ],
+          "goal": "move revenue forward"
+        },
+        {
+          "trigger": "proposal_pending",
+          "actions": [
+            "schedule_recurrence",
+            "cross_sell_next_best_offer",
+            "create_task"
+          ],
+          "goal": "increase LTV"
+        }
+      ],
+      "quiet_hours": "21:00-08:00"
+    },
+    "document_flow": {
+      "required_documents": [
+        "intake form",
+        "documentos del caso",
+        "conflict check",
+        "propuesta"
+      ],
+      "lifecycle_rules": [
+        {
+          "document": "intake form",
+          "required_before": "first committed step",
+          "signature_required": true
+        },
+        {
+          "document": "propuesta",
+          "required_before": "handoff or continuity step",
+          "signature_required": false
+        }
+      ]
+    },
+    "matching_engine": {
+      "entity": "expediente",
+      "rules": [
+        "case_type -> professional_specialty",
+        "conflict_check == clear",
+        "budget_fit",
+        "urgency_match"
+      ],
+      "next_best_match_outputs": [
+        "best_owner",
+        "best_resource_slot",
+        "best_offer"
+      ]
+    }
+  },
+  "transactional_motor_v12": {
+    "version": "v12_full_transactional",
+    "aggregate_root": "professional_case_account",
+    "main_business_entity": "caso / expediente",
+    "transaction_unit": "intake_consultation_cycle",
+    "system_of_record": {
+      "write_model": [
+        "commands",
+        "events",
+        "ledger",
+        "aggregate_snapshots"
+      ],
+      "read_models": [
+        "commercial_board",
+        "operations_board",
+        "finance_board",
+        "continuity_board",
+        "resource_load_board",
+        "document_readiness_board",
+        "revenue_levers_board"
+      ],
+      "idempotency_scope": [
+        "organization_id",
+        "vertical_id",
+        "external_reference",
+        "command_key"
+      ],
+      "audit_mode": "append_only_with_snapshots"
+    },
+    "transaction_primitives": {
+      "commands": [
+        "capture_intent",
+        "qualify_record",
+        "create_quote",
+        "request_deposit",
+        "reserve_capacity",
+        "confirm_booking",
+        "start_case",
+        "approve_quote",
+        "collect_payment",
+        "start_fulfillment",
+        "close_fulfillment",
+        "schedule_recurrence",
+        "issue_refund",
+        "reactivate_customer",
+        "open_case_file",
+        "run_conflict_check",
+        "issue_engagement_proposal",
+        "handoff_to_professional"
+      ],
+      "events": [
+        "intent_captured",
+        "record_qualified",
+        "quote_created",
+        "deposit_requested",
+        "capacity_reserved",
+        "booking_confirmed",
+        "case_started",
+        "quote_approved",
+        "payment_collected",
+        "fulfillment_started",
+        "fulfillment_closed",
+        "recurrence_scheduled",
+        "refund_issued",
+        "customer_reactivated",
+        "case_file_opened",
+        "conflict_checked",
+        "engagement_proposal_issued",
+        "professional_handoff_completed"
+      ],
+      "ledger_event_types": [
+        "charge_opened",
+        "deposit_collected",
+        "installment_due",
+        "payment_applied",
+        "credit_issued",
+        "refund_issued",
+        "write_off_registered"
+      ],
+      "invariants": [
+        "no propuesta sin conflicto revisado",
+        "no consulta sin intake mínimo",
+        "no contratación sin engagement letter",
+        "todo pago debe referenciar quote, order o case activo",
+        "todo cambio crítico debe emitir evento y renglón de auditoría",
+        "ningún recurso se confirma dos veces en la misma ventana"
+      ],
+      "idempotency_keys": [
+        "command_key",
+        "payment_reference",
+        "booking_reference",
+        "external_message_id"
+      ]
+    },
+    "aggregates": {
+      "primary_record": {
+        "name": "caso / expediente",
+        "status_axis": [
+          "commercial",
+          "operations",
+          "finance",
+          "continuity"
+        ]
+      },
+      "quote": {
+        "name": "engagement_proposal",
+        "states": [
+          "draft",
+          "sent",
+          "accepted",
+          "expired",
+          "lost"
+        ]
+      },
+      "booking": {
+        "name": "consultation_booking",
+        "states": [
+          "proposed",
+          "reserved",
+          "confirmed",
+          "attended_or_executed",
+          "missed_or_canceled"
+        ]
+      },
+      "execution": {
+        "name": "engagement_progress",
+        "states": [
+          "pending",
+          "ready",
+          "in_progress",
+          "blocked",
+          "completed",
+          "closed"
+        ]
+      },
+      "payment_account": {
+        "name": "payment_account",
+        "states": [
+          "open",
+          "partially_paid",
+          "paid",
+          "overdue",
+          "refunded"
+        ]
+      },
+      "continuity": {
+        "name": "case_followup_plan",
+        "states": [
+          "not_started",
+          "active",
+          "at_risk",
+          "recovered",
+          "closed"
+        ]
+      }
+    },
+    "orchestration": {
+      "command_handlers": [
+        "handle_capture_intent",
+        "handle_qualify_record",
+        "handle_create_quote",
+        "handle_request_deposit",
+        "handle_reserve_capacity",
+        "handle_confirm_booking",
+        "handle_start_case",
+        "handle_approve_quote",
+        "handle_open_case_file",
+        "handle_run_conflict_check",
+        "handle_issue_engagement_proposal",
+        "handle_handoff_to_professional"
+      ],
+      "sagas": [
+        "intake_to_consultation",
+        "consultation_to_proposal",
+        "engagement_followup"
+      ],
+      "money_guards": [
+        "quote_before_payment",
+        "capacity_before_confirmation",
+        "documents_before_execution",
+        "balance_before_close"
+      ],
+      "read_model_refresh": [
+        "on_every_event",
+        "nightly_reconciliation",
+        "pre_dashboard_cache"
+      ]
+    },
+    "finance": {
+      "money_objects": [
+        "consultation_charge",
+        "retainer_deposit",
+        "proposal_collection",
+        "followup_charge"
+      ],
+      "collection_modes": [
+        "consulta",
+        "anticipo",
+        "iguala"
+      ],
+      "refund_modes": [
+        "consultation_credit",
+        "engagement_adjustment"
+      ],
+      "reconciliation_views": [
+        "expected_vs_collected",
+        "aging_balance",
+        "refund_exposure",
+        "cash_by_stage"
+      ]
+    },
+    "operations": {
+      "fulfillment_unit": "intake_consultation_cycle",
+      "resource_locking": [
+        "professional",
+        "consultation_slot",
+        "document_review_capacity"
+      ],
+      "dispatch_or_schedule_board": [
+        "queued",
+        "ready",
+        "assigned",
+        "in_progress",
+        "blocked",
+        "done"
+      ],
+      "handoff_rules": [
+        "human_handoff_on_exception",
+        "supervisor_handoff_on_money_risk",
+        "operator_handoff_on_compliance_gap"
+      ]
+    },
+    "audit_compliance": {
+      "timeline_entities": [
+        "caso / expediente",
+        "engagement_proposal",
+        "consultation_booking",
+        "engagement_progress",
+        "payment_account"
+      ],
+      "consent_gates": [
+        "intake_form",
+        "engagement_letter",
+        "required_case_documents"
+      ],
+      "required_evidence": [
+        "timeline_event",
+        "actor",
+        "timestamp",
+        "before_after_snapshot"
+      ],
+      "retention_rules": [
+        "audit_log_append_only",
+        "documents_linked_to_primary_record",
+        "payment_trace_non_destructive"
+      ]
+    },
+    "transaction_views": {
+      "commercial": [
+        "intake",
+        "qualification",
+        "proposal"
+      ],
+      "operations": [
+        "document_readiness",
+        "handoff",
+        "case_status"
+      ],
+      "finance": [
+        "proposal_value",
+        "retainers",
+        "aging_balance"
+      ],
+      "continuity": [
+        "followup",
+        "renewal",
+        "cross_sell"
+      ]
+    },
+    "command_catalog": [
+      {
+        "command": "capture_intent",
+        "writes": "caso / expediente",
+        "emits": "intent_captured",
+        "guard": "no propuesta sin conflicto revisado"
+      },
+      {
+        "command": "qualify_record",
+        "writes": "caso / expediente",
+        "emits": "record_qualified",
+        "guard": "no consulta sin intake mínimo"
+      },
+      {
+        "command": "create_quote",
+        "writes": "caso / expediente",
+        "emits": "quote_created",
+        "guard": "no contratación sin engagement letter"
+      },
+      {
+        "command": "request_deposit",
+        "writes": "caso / expediente",
+        "emits": "deposit_requested",
+        "guard": "no propuesta sin conflicto revisado"
+      },
+      {
+        "command": "reserve_capacity",
+        "writes": "caso / expediente",
+        "emits": "capacity_reserved",
+        "guard": "no consulta sin intake mínimo"
+      },
+      {
+        "command": "confirm_booking",
+        "writes": "caso / expediente",
+        "emits": "booking_confirmed",
+        "guard": "no contratación sin engagement letter"
+      },
+      {
+        "command": "start_case",
+        "writes": "caso / expediente",
+        "emits": "case_started",
+        "guard": "no propuesta sin conflicto revisado"
+      },
+      {
+        "command": "approve_quote",
+        "writes": "caso / expediente",
+        "emits": "quote_approved",
+        "guard": "no consulta sin intake mínimo"
+      },
+      {
+        "command": "open_case_file",
+        "writes": "caso / expediente",
+        "emits": "payment_collected",
+        "guard": "no contratación sin engagement letter"
+      },
+      {
+        "command": "run_conflict_check",
+        "writes": "caso / expediente",
+        "emits": "fulfillment_started",
+        "guard": "no propuesta sin conflicto revisado"
+      },
+      {
+        "command": "issue_engagement_proposal",
+        "writes": "caso / expediente",
+        "emits": "fulfillment_closed",
+        "guard": "no consulta sin intake mínimo"
+      },
+      {
+        "command": "handoff_to_professional",
+        "writes": "caso / expediente",
+        "emits": "recurrence_scheduled",
+        "guard": "no contratación sin engagement letter"
+      }
+    ],
+    "event_catalog": [
+      {
+        "event": "intent_captured",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "intake_to_consultation"
+      },
+      {
+        "event": "record_qualified",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "consultation_to_proposal"
+      },
+      {
+        "event": "quote_created",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "engagement_followup"
+      },
+      {
+        "event": "deposit_requested",
+        "updates": [
+          "timeline",
+          "boards",
+          "ledger"
+        ],
+        "next_action": "intake_to_consultation"
+      },
+      {
+        "event": "capacity_reserved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "consultation_to_proposal"
+      },
+      {
+        "event": "booking_confirmed",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "engagement_followup"
+      },
+      {
+        "event": "case_started",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "intake_to_consultation"
+      },
+      {
+        "event": "quote_approved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "consultation_to_proposal"
+      },
+      {
+        "event": "case_file_opened",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "engagement_followup"
+      },
+      {
+        "event": "conflict_checked",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "intake_to_consultation"
+      },
+      {
+        "event": "engagement_proposal_issued",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "consultation_to_proposal"
+      },
+      {
+        "event": "professional_handoff_completed",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "engagement_followup"
+      }
+    ]
+  },
+  "subvertical_profiles": [],
+  "recommended_subverticals": []
+}

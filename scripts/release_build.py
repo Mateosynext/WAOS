@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
+sys.dont_write_bytecode = True
+
 import argparse
 import fnmatch
 import hashlib
@@ -11,6 +14,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
+
+from repo_policy import scan_source_tree
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DIST = ROOT / 'dist'
@@ -321,11 +326,18 @@ def main() -> int:
         shutil.rmtree(dist_dir)
     dist_dir.mkdir(parents=True, exist_ok=True)
 
+    source_scan = scan_source_tree(ROOT)
     hygiene_hits = collect_matches(ROOT, FORBIDDEN_SOURCE_PATTERNS)
     hygiene_report = {
         'source_tree_forbidden_hits': hygiene_hits,
-        'source_tree_clean': not hygiene_hits,
+        'source_tree_policy_scan': source_scan,
+        'source_tree_clean': source_scan['ok'] and not hygiene_hits,
     }
+    if hygiene_hits or not source_scan['ok']:
+        raise SystemExit(
+            'Source tree is not clean enough for release_build.py. '
+            'Run scripts/check_repo_hygiene.py and fix the reported offenders before building a release.'
+        )
 
     runtime_dir = dist_dir / RUNTIME_NAME
     docs_dir = dist_dir / DOCS_NAME

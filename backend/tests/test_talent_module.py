@@ -9,10 +9,10 @@ os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("ALLOW_SQLITE_FOR_TESTS", "true")
 
 from backend.app.db import SCHEMA_PATH
+from backend.app.migrations import apply_migrations
 from backend.app.talent_runtime import (
     confirm_candidate,
     detect_talent_intent,
-    ensure_talent_schema,
     generate_talent_reply,
     normalize_talent_config,
 )
@@ -23,7 +23,7 @@ def _conn():
     conn = sqlite3.connect(tmp.name)
     conn.row_factory = sqlite3.Row
     conn.executescript(Path(SCHEMA_PATH).read_text())
-    ensure_talent_schema(conn)
+    apply_migrations(conn)
     return conn, tmp.name
 
 

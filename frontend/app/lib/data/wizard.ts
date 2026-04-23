@@ -1,5 +1,6 @@
 import type { VerticalProfileContract } from "../contracts/verticals";
 import { apiFetch, apiFetchOrDefault } from "../api";
+import { buildWizardApplyBackendPath, buildWizardBackendBasePath, buildWizardBlueprintBackendPath, buildWizardDryRunBackendPath, buildWizardStepBackendPath, WIZARD_API_PREFIX } from "./wizardEndpoints";
 import { getVerticalProfile } from "./verticals";
 import type {
   WizardApplyResult,
@@ -29,22 +30,6 @@ const WIZARD_START_TIMEOUT_MS = 30000;
 const WIZARD_STEP_TIMEOUT_MS = 20000;
 const WIZARD_EXECUTION_TIMEOUT_MS = 45000;
 
-function appendIfPresent(params: URLSearchParams, key: string, value: unknown) {
-  const rendered = String(value || "").trim();
-  if (rendered) params.set(key, rendered);
-}
-
-export function buildWizardBlueprintBackendPath(request: WizardBlueprintRequest) {
-  const params = new URLSearchParams();
-  appendIfPresent(params, "organization_id", request.organizationId);
-  appendIfPresent(params, "vertical_id", request.verticalId);
-  appendIfPresent(params, "subvertical", request.subvertical);
-  appendIfPresent(params, "primary_objective", request.primaryObjective);
-  appendIfPresent(params, "bot_id", request.botId);
-  const query = params.toString();
-  return `/api/v1/onboarding/wizard/blueprint${query ? `?${query}` : ""}`;
-}
-
 export async function getWizardBlueprint(request: WizardBlueprintRequest): Promise<WizardBlueprint | null> {
   return apiFetchOrDefault<WizardBlueprint | null>(buildWizardBlueprintBackendPath(request), null);
 }
@@ -54,11 +39,11 @@ export async function getWizardVerticalProfile(request: WizardVerticalProfileReq
 }
 
 export async function getWizardInstance(wizardId: string): Promise<WizardInstance | null> {
-  return apiFetchOrDefault<WizardInstance | null>(`/api/v1/onboarding/wizard/${encodeURIComponent(wizardId)}`, null);
+  return apiFetchOrDefault<WizardInstance | null>(buildWizardBackendBasePath(wizardId), null);
 }
 
 export async function startWizard(payload: Record<string, unknown>): Promise<WizardInstance> {
-  return apiFetch<WizardInstance>("/api/v1/onboarding/wizard/start", {
+  return apiFetch<WizardInstance>(`${WIZARD_API_PREFIX}/start`, {
     method: "POST",
     body: JSON.stringify(payload || {}),
     timeoutMs: WIZARD_START_TIMEOUT_MS,
@@ -66,7 +51,7 @@ export async function startWizard(payload: Record<string, unknown>): Promise<Wiz
 }
 
 export async function saveWizardStep(wizardId: string, stepKey: string, payload: Record<string, unknown>, options: { expectedRevision?: number | null } = {}): Promise<WizardInstance> {
-  return apiFetch<WizardInstance>(`/api/v1/onboarding/wizard/${encodeURIComponent(wizardId)}/steps/${encodeURIComponent(stepKey)}`, {
+  return apiFetch<WizardInstance>(buildWizardStepBackendPath(wizardId, stepKey), {
     method: "POST",
     body: JSON.stringify({ payload, expected_revision: options.expectedRevision ?? null }),
     timeoutMs: WIZARD_STEP_TIMEOUT_MS,
@@ -74,14 +59,14 @@ export async function saveWizardStep(wizardId: string, stepKey: string, payload:
 }
 
 export async function runWizardDryRun(wizardId: string): Promise<WizardDryRunResult> {
-  return apiFetch<WizardDryRunResult>(`/api/v1/onboarding/wizard/${encodeURIComponent(wizardId)}/dry-run`, {
+  return apiFetch<WizardDryRunResult>(buildWizardDryRunBackendPath(wizardId), {
     method: "POST",
     timeoutMs: WIZARD_EXECUTION_TIMEOUT_MS,
   });
 }
 
 export async function applyWizard(wizardId: string): Promise<WizardApplyResult> {
-  return apiFetch<WizardApplyResult>(`/api/v1/onboarding/wizard/${encodeURIComponent(wizardId)}/apply`, {
+  return apiFetch<WizardApplyResult>(buildWizardApplyBackendPath(wizardId), {
     method: "POST",
     timeoutMs: WIZARD_EXECUTION_TIMEOUT_MS,
   });

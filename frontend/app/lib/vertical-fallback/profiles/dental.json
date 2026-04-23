@@ -1,0 +1,2242 @@
+{
+  "id": "dental",
+  "name": "WAOS Dental",
+  "short_name": "Clinicas dentales",
+  "description": "Sistema operativo conversacional para clínicas dentales.",
+  "problem": "Las clínicas dentales pierden dinero porque no separan urgencia de valoración, no persiguen presupuestos no aceptados, no sostienen tratamientos por fases y no activan recall suficiente.",
+  "subverticals": [
+    "odontología general",
+    "ortodoncia",
+    "alineadores",
+    "implantología",
+    "periodoncia",
+    "endodoncia",
+    "estética dental",
+    "odontopediatría",
+    "rehabilitación oral",
+    "cirugía dental"
+  ],
+  "objects": [
+    "sucursal",
+    "odontólogo",
+    "especialidad",
+    "urgencia",
+    "valoración",
+    "diagnóstico",
+    "plan de tratamiento",
+    "presupuesto",
+    "anticipo",
+    "financiamiento",
+    "cita de control",
+    "recall",
+    "paciente",
+    "odontólogo / especialista",
+    "caso clínico",
+    "motivo de consulta",
+    "plan de tratamiento por fases",
+    "presupuesto por caso",
+    "anticipo por fase",
+    "recall dental"
+  ],
+  "flows": [
+    "entrada -> urgencia o valoración",
+    "valoración -> propuesta",
+    "propuesta -> tratamiento",
+    "tratamiento -> controles",
+    "control -> recall"
+  ],
+  "kpis": [
+    "valoración agendada",
+    "valoración asistida",
+    "aceptación de tratamiento",
+    "ticket por tratamiento",
+    "fases completadas",
+    "recall",
+    "ticket por caso",
+    "recall reactivado",
+    "no-show a valoración"
+  ],
+  "recommended_integrations": [
+    "whatsapp",
+    "google_calendar",
+    "payments",
+    "crm",
+    "reporting"
+  ],
+  "default_services": [
+    "valoracion inicial",
+    "limpieza",
+    "radiografia",
+    "ortodoncia",
+    "implantes"
+  ],
+  "default_faqs": [
+    {
+      "q": "¿Es urgencia o valoracion?",
+      "a": "Podemos clasificar si necesitas atencion inmediata o una valoracion programada."
+    },
+    {
+      "q": "¿Pueden darme rango de precio?",
+      "a": "Si, el bot puede compartir un rango orientativo y explicarte que el cierre depende de la valoracion."
+    },
+    {
+      "q": "¿Se puede financiar?",
+      "a": "Podemos explicarte opciones de anticipo, fases y financiamiento si aplica."
+    },
+    {
+      "q": "¿Dan seguimiento al tratamiento?",
+      "a": "Si, recordamos citas, controles y seguimientos por fases."
+    }
+  ],
+  "behavior": {
+    "tone": "claro y tranquilizador",
+    "response_length": "media",
+    "use_emojis": false,
+    "sales_intensity": "media",
+    "offer_promotions_when": "after_assessment_booked",
+    "escalate_when": [
+      "dolor fuerte",
+      "sangrado",
+      "urgencia",
+      "contraindicacion"
+    ],
+    "insistence_policy": "respectful",
+    "can_share_price_directly": true,
+    "can_negotiate": false,
+    "can_mention_stock": false,
+    "auto_send_images": false,
+    "bot_mode": "valoracion_y_cierre",
+    "active_channels": [
+      "whatsapp",
+      "webchat"
+    ],
+    "forbidden_topics": [
+      "diagnostico clinico definitivo por chat",
+      "prescripciones"
+    ],
+    "required_phrases": [
+      "la valoracion define el plan ideal",
+      "si es una urgencia te canalizo de inmediato",
+      "te sigo",
+      "si la pregunta viene rara, igual te la aterrizo",
+      "te lo aterrizo a tu caso"
+    ],
+    "fallback_message": "Te ayudo a distinguir si es urgencia o valoracion y a agendar con el especialista correcto. Si la pregunta viene rara, en broma o medio fuera de tema, igual te sigo y la aterrizamos al negocio.",
+    "humor_policy": "light_contextual",
+    "strange_question_policy": "respond_validate_reframe_sell_move"
+  },
+  "followup_rules": [
+    {
+      "type": "no_response",
+      "delay_minutes": 120,
+      "max_attempts": 2,
+      "message_template": "¿Quieres que te ayude a apartar tu valoracion o a resolver si tu caso es urgencia?"
+    },
+    {
+      "type": "post_quote",
+      "delay_minutes": 1440,
+      "max_attempts": 2,
+      "message_template": "Quedo pendiente por si quieres retomar tu plan de tratamiento o resolver dudas antes de avanzar."
+    },
+    {
+      "type": "reactivation",
+      "delay_minutes": 43200,
+      "max_attempts": 1,
+      "message_template": "Te recordamos tu siguiente limpieza o control. Si quieres, te ayudo a agendar."
+    }
+  ],
+  "templates": [
+    {
+      "template_key": "assessment_booking",
+      "title": "Agendar valoracion",
+      "content": "Te ayudo a apartar tu valoracion con {{specialist}}. ¿Prefieres {{date_option_1}} o {{date_option_2}}?",
+      "variables": [
+        "specialist",
+        "date_option_1",
+        "date_option_2"
+      ]
+    },
+    {
+      "template_key": "urgency_triage",
+      "title": "Triage dental",
+      "content": "Para orientarte mejor, dime si hay dolor fuerte, inflamacion, sangrado o trauma reciente.",
+      "variables": []
+    },
+    {
+      "template_key": "treatment_followup",
+      "title": "Seguimiento tratamiento",
+      "content": "Te escribimos para dar continuidad a tu tratamiento. ¿Quieres que retomemos tu siguiente fase o control?",
+      "variables": []
+    },
+    {
+      "template_key": "recall_cleaning",
+      "title": "Recall limpieza",
+      "content": "Ya toca tu siguiente limpieza y control. Si quieres, te comparto horarios disponibles.",
+      "variables": []
+    },
+    {
+      "template_key": "deposit_request",
+      "title": "Solicitud de anticipo",
+      "content": "Para asegurar tu cita o fase de tratamiento, puedo enviarte el link de anticipo ahora mismo.",
+      "variables": []
+    }
+  ],
+  "config_overrides": {
+    "objective_secondary": [
+      "agendar",
+      "calificar",
+      "reactivar"
+    ],
+    "policies": [
+      "No emitir diagnosticos definitivos por chat",
+      "Escalar urgencias dentales y contraindicaciones"
+    ],
+    "can_say": [
+      "valoracion",
+      "especialista",
+      "rango orientativo",
+      "financiamiento",
+      "agendar"
+    ],
+    "cannot_say": [
+      "diagnostico definitivo",
+      "promesas clinicas absolutas",
+      "medicacion"
+    ],
+    "whatsapp_flows": [
+      "triage_dental",
+      "agenda_valoracion",
+      "seguimiento_tratamiento",
+      "recall_limpieza"
+    ],
+    "appointment_duration_minutes": 40,
+    "handoff_keywords": [
+      "urgencia",
+      "sangrado",
+      "dolor",
+      "infeccion"
+    ],
+    "high_score_threshold": 85
+  },
+  "portfolio_tier": "tier_1",
+  "master_thesis": "Sistema operativo conversacional para clínicas dentales que mueve al paciente desde urgencia o valoración hasta tratamiento por fases, control y recall.",
+  "buyer": {
+    "primary": "Director de clínica dental o gerente comercial",
+    "secondary": [
+      "coordinación de recepción",
+      "especialistas",
+      "equipo de seguimiento"
+    ]
+  },
+  "one_pager": {
+    "headline": "WAOS Dental",
+    "thesis": "WhatsApp se vuelve el frente comercial y operativo del tratamiento: valoración, propuesta, anticipo, fases y recall.",
+    "problem": "La clínica responde, pero no opera el tratamiento como proceso comercial completo.",
+    "promise": "Cada paciente avanza con un siguiente paso claro: urgencia, valoración, aceptación, siguiente fase o control.",
+    "monetizes": [
+      "valoración",
+      "anticipo",
+      "tratamiento por fases",
+      "financiamiento",
+      "controles",
+      "recalls"
+    ],
+    "packaging": [
+      "setup dental por especialidad",
+      "triage + agenda + seguimiento",
+      "presupuesto pendiente + recall",
+      "operación mensual con cierres"
+    ],
+    "strategic_care": "Es una de las verticales más naturales para WAOS por agenda, seguimiento, cobro y recall; debe venderse como control del tratamiento, no como agenda aislada."
+  },
+  "demo_flow": [
+    "El paciente entra por dolor, limpieza, brackets, implantes o precio.",
+    "WAOS separa urgencia de valoración y asigna especialista correcto.",
+    "Agenda valoración, confirma y comparte instrucciones previas.",
+    "Tras la visita, sigue presupuesto, objeciones de precio y opciones por fases o financiamiento.",
+    "Si acepta, agenda tratamiento y cobra anticipo.",
+    "Después sostiene controles, recall de limpieza y reactivación de tratamientos pausados."
+  ],
+  "native_objects": {
+    "core": [
+      "paciente",
+      "sucursal",
+      "especialista",
+      "motivo de consulta",
+      "urgencia",
+      "caso clínico dental"
+    ],
+    "commercial": [
+      "valoración",
+      "diagnóstico",
+      "presupuesto",
+      "plan por fases",
+      "anticipo",
+      "financiamiento"
+    ],
+    "operations": [
+      "tratamiento activo",
+      "tratamiento pausado",
+      "cita de control",
+      "recall",
+      "paciente reactivable"
+    ]
+  },
+  "pipeline": {
+    "primary": {
+      "name": "Valoración y cierre",
+      "states": [
+        "lead nuevo",
+        "urgencia detectada o valoración solicitada",
+        "valoración agendada",
+        "valoración confirmada",
+        "valoración asistida",
+        "diagnóstico emitido",
+        "propuesta enviada",
+        "presupuesto pendiente",
+        "tratamiento aceptado",
+        "anticipo pagado",
+        "tratamiento en progreso",
+        "tratamiento terminado",
+        "recall programado"
+      ]
+    },
+    "secondary": [
+      {
+        "name": "Reactivación clínica",
+        "states": [
+          "presupuesto no aceptado",
+          "tratamiento pausado",
+          "seguimiento activo",
+          "reactivado",
+          "cerrado"
+        ]
+      }
+    ]
+  },
+  "bot_playbook": {
+    "must_do": [
+      "separar urgencia de consulta normal",
+      "asignar especialista",
+      "agendar valoración",
+      "explicar proceso",
+      "seguir presupuesto",
+      "cobrar valoración o anticipo",
+      "activar recall",
+      "nunca quedarse seco ante bromas, preguntas raras o cambios bruscos de tema",
+      "usar humor ligero cuando sume, sin sonar payaso ni poco serio",
+      "validar el momento y luego reencauzar la conversacion al negocio",
+      "cerrar siempre con una pregunta util o siguiente paso"
+    ],
+    "must_ask": [
+      "motivo principal",
+      "si hay dolor o sangrado",
+      "tipo de tratamiento buscado",
+      "sucursal",
+      "disponibilidad",
+      "si ya es paciente",
+      "que parte del negocio se esta atorando mas",
+      "si quiere que se lo aterrice a su caso"
+    ],
+    "objections": [
+      "precio",
+      "miedo al dolor",
+      "quiero pensarlo",
+      "no puedo pagarlo completo",
+      "no sé si lo necesito ya"
+    ],
+    "escalate_when": [
+      "urgencia médica real",
+      "dolor fuerte",
+      "discusión clínica específica",
+      "retrabajo",
+      "queja"
+    ],
+    "forbidden": [
+      "diagnóstico clínico definitivo por chat",
+      "prescripciones",
+      "promesas clínicas absolutas"
+    ],
+    "success_signals": [
+      "quiero valoración",
+      "¿con quién me atiendo?",
+      "mándame opciones",
+      "quiero apartar",
+      "¿aceptan financiamiento?"
+    ],
+    "style": [
+      "humor ligero",
+      "manejo de preguntas raras",
+      "reencuadre comercial"
+    ]
+  },
+  "automation_sequences": [
+    {
+      "key": "dental_assessment",
+      "name": "Confirmación de valoración",
+      "trigger": "valoración agendada",
+      "goal": "reducir no-show",
+      "steps": [
+        "confirmación inmediata",
+        "recordatorio 24h",
+        "recordatorio 2h"
+      ]
+    },
+    {
+      "key": "dental_budget_followup",
+      "name": "Seguimiento a presupuesto",
+      "trigger": "propuesta enviada",
+      "goal": "recuperar tratamientos no cerrados",
+      "steps": [
+        "resolver dudas",
+        "manejar objeción",
+        "ofrecer fases o financiamiento"
+      ]
+    },
+    {
+      "key": "dental_treatment_active",
+      "name": "Tratamiento activo",
+      "trigger": "tratamiento aceptado",
+      "goal": "sostener continuidad por fases",
+      "steps": [
+        "recordar siguiente fase",
+        "recordar control",
+        "cerrar fase pendiente"
+      ]
+    },
+    {
+      "key": "dental_recall",
+      "name": "Recall de limpieza y revisión",
+      "trigger": "paciente sin visita periódica",
+      "goal": "recurrencia",
+      "steps": [
+        "recordatorio",
+        "agendar control",
+        "cerrar visita"
+      ]
+    }
+  ],
+  "dashboard": {
+    "north_star": "Aceptación de tratamiento sobre valoraciones asistidas.",
+    "sections": [
+      {
+        "name": "Conversión",
+        "metrics": [
+          "valoración agendada",
+          "valoración asistida",
+          "diagnóstico a aceptación",
+          "anticipo cobrado"
+        ]
+      },
+      {
+        "name": "Revenue",
+        "metrics": [
+          "ticket por tratamiento",
+          "revenue por especialidad",
+          "financiamiento aceptado",
+          "fases cobradas"
+        ]
+      },
+      {
+        "name": "Operación",
+        "metrics": [
+          "no-show valoración",
+          "tiempo a seguimiento",
+          "tratamientos activos vs pausados",
+          "fases completadas"
+        ]
+      },
+      {
+        "name": "Retención",
+        "metrics": [
+          "recall rate",
+          "limpieza recurrente",
+          "pacientes reactivados",
+          "ingreso por paciente recurrente"
+        ]
+      }
+    ]
+  },
+  "hardening_model": {
+    "goal": "Pasar de preset inteligente a sistema especialista",
+    "wave": "ola_1",
+    "entity_queen": "caso clínico dental",
+    "core_common": true,
+    "domain_by_vertical": true,
+    "playbooks_by_subvertical": true,
+    "kpis_by_vertical": true,
+    "pricing_by_vertical": true,
+    "journeys_by_vertical": true,
+    "reusable_modules": [
+      "intake / calificación",
+      "agenda / recursos",
+      "cotización / propuesta",
+      "pago / anticipo / membresía",
+      "seguimiento / recurrencia",
+      "reporting vertical"
+    ],
+    "minimum_viable_hardening": [
+      "1 entidad reina",
+      "1 pipeline propio",
+      "1 cotización propia",
+      "1 recurrencia propia",
+      "1 dashboard propio"
+    ],
+    "hard_checklist": [
+      "tiene entidad principal propia",
+      "tiene pipeline específico",
+      "tiene cotización o pricing del nicho",
+      "tiene agenda o recursos del nicho",
+      "tiene postventa o recurrencia del nicho",
+      "tiene documentos o compliance del nicho",
+      "tiene KPIs del nicho",
+      "tiene 3 automatizaciones que mueven dinero",
+      "tiene 2 pruebas e2e de negocio",
+      "tiene subplaybooks por subvertical",
+      "entidad principal propia",
+      "pipeline específico",
+      "pricing del nicho",
+      "agenda y recursos del nicho",
+      "postventa o recurrencia del nicho",
+      "documentos o compliance del nicho",
+      "KPIs del nicho",
+      "3 automatizaciones que mueven dinero",
+      "2 pruebas e2e de negocio",
+      "subplaybooks por subvertical",
+      "runtime ejecutable por vertical"
+    ]
+  },
+  "specialist_layers": {
+    "persistent_entities": [
+      "paciente",
+      "odontólogo / especialista",
+      "caso clínico",
+      "motivo de consulta",
+      "plan de tratamiento por fases",
+      "presupuesto por caso",
+      "anticipo por fase",
+      "recall dental"
+    ],
+    "business_pipeline": {
+      "primary_entity": "caso clínico dental",
+      "primary_pipeline": {
+        "name": "Valoración y cierre",
+        "states": [
+          "lead nuevo",
+          "urgencia detectada o valoración solicitada",
+          "valoración agendada",
+          "valoración confirmada",
+          "valoración asistida",
+          "diagnóstico emitido",
+          "propuesta enviada",
+          "presupuesto pendiente",
+          "tratamiento aceptado",
+          "anticipo pagado",
+          "tratamiento en progreso",
+          "tratamiento terminado",
+          "recall programado"
+        ]
+      },
+      "secondary_pipelines": [
+        {
+          "name": "Reactivación clínica",
+          "states": [
+            "presupuesto no aceptado",
+            "tratamiento pausado",
+            "seguimiento activo",
+            "reactivado",
+            "cerrado"
+          ]
+        }
+      ]
+    },
+    "pricing_and_quotes": [
+      "cotización por fases",
+      "anticipo por fase",
+      "financiamiento de tratamiento"
+    ],
+    "agenda_and_resources": [
+      "odontólogo",
+      "especialista",
+      "sillón",
+      "gabinete",
+      "slot de urgencia"
+    ],
+    "post_sale_and_recurrence": [
+      "recall de limpieza",
+      "control de ajuste / retenedores",
+      "reactivación de tratamiento no cerrado"
+    ],
+    "documents_compliance": [
+      "consentimiento informado",
+      "radiografías / estudios",
+      "plan de tratamiento",
+      "expediente clínico"
+    ],
+    "kpis_that_matter": [
+      "valoración agendada",
+      "valoración asistida",
+      "aceptación de tratamiento",
+      "ticket por tratamiento",
+      "fases completadas",
+      "recall",
+      "ticket por caso",
+      "recall reactivado",
+      "no-show a valoración"
+    ],
+    "money_automations": [
+      "seguimiento de plan enviado",
+      "recuperación de valoración no-show",
+      "recall clínico anual/semestral"
+    ]
+  },
+  "domain_contract": {
+    "vertical_entity_types": [
+      "paciente",
+      "odontólogo / especialista",
+      "caso clínico",
+      "motivo de consulta",
+      "plan de tratamiento por fases",
+      "presupuesto por caso",
+      "anticipo por fase",
+      "recall dental"
+    ],
+    "vertical_pipeline_stages": {
+      "primary": [
+        "lead nuevo",
+        "urgencia detectada o valoración solicitada",
+        "valoración agendada",
+        "valoración confirmada",
+        "valoración asistida",
+        "diagnóstico emitido",
+        "propuesta enviada",
+        "presupuesto pendiente",
+        "tratamiento aceptado",
+        "anticipo pagado",
+        "tratamiento en progreso",
+        "tratamiento terminado",
+        "recall programado"
+      ],
+      "secondary": [
+        [
+          "presupuesto no aceptado",
+          "tratamiento pausado",
+          "seguimiento activo",
+          "reactivado",
+          "cerrado"
+        ]
+      ]
+    },
+    "vertical_quote_types": [
+      "presupuesto por fase",
+      "tratamiento integral",
+      "financiamiento / mensualidades",
+      "anticipo inicial"
+    ],
+    "vertical_resource_types": [
+      "odontólogo",
+      "especialista",
+      "sillón",
+      "gabinete",
+      "slot de urgencia"
+    ],
+    "vertical_followup_policies": [
+      "recall de limpieza",
+      "control de ajuste / retenedores",
+      "reactivación de tratamiento no cerrado"
+    ],
+    "vertical_kpi_definitions": [
+      "valoración agendada",
+      "valoración asistida",
+      "aceptación de tratamiento",
+      "ticket por tratamiento",
+      "fases completadas",
+      "recall",
+      "ticket por caso",
+      "recall reactivado",
+      "no-show a valoración"
+    ],
+    "vertical_playbooks": [
+      "ortodoncia",
+      "implantes",
+      "estética dental",
+      "endodoncia",
+      "odontopediatría"
+    ],
+    "vertical_document_types": [
+      "consentimiento informado",
+      "radiografías / estudios",
+      "plan de tratamiento",
+      "expediente clínico"
+    ]
+  },
+  "subvertical_playbooks": [
+    {
+      "name": "ortodoncia",
+      "focus": "Playbook operativo y comercial para ortodoncia"
+    },
+    {
+      "name": "implantes",
+      "focus": "Playbook operativo y comercial para implantes"
+    },
+    {
+      "name": "estética dental",
+      "focus": "Playbook operativo y comercial para estética dental"
+    },
+    {
+      "name": "endodoncia",
+      "focus": "Playbook operativo y comercial para endodoncia"
+    },
+    {
+      "name": "odontopediatría",
+      "focus": "Playbook operativo y comercial para odontopediatría"
+    }
+  ],
+  "business_e2e_tests": [
+    {
+      "name": "lead de ortodoncia agenda valoración, acepta plan y paga anticipo",
+      "status": "designed"
+    },
+    {
+      "name": "paciente en recall recibe seguimiento y agenda limpieza",
+      "status": "designed"
+    }
+  ],
+  "vertical_runtime": {
+    "pipeline_machine": {
+      "primary_pipeline": "Valoración y cierre",
+      "entity": "caso clínico dental",
+      "states": [
+        "lead nuevo",
+        "urgencia detectada o valoración solicitada",
+        "valoración agendada",
+        "valoración confirmada",
+        "valoración asistida",
+        "diagnóstico emitido",
+        "propuesta enviada",
+        "presupuesto pendiente",
+        "tratamiento aceptado",
+        "anticipo pagado",
+        "tratamiento en progreso",
+        "tratamiento terminado",
+        "recall programado"
+      ],
+      "transitions": [
+        {
+          "from": "lead nuevo",
+          "to": "urgencia detectada o valoración solicitada",
+          "trigger": "qualification_complete",
+          "business_effect": "advance opportunity"
+        },
+        {
+          "from": "urgencia detectada o valoración solicitada",
+          "to": "valoración agendada",
+          "trigger": "deposit_unpaid",
+          "business_effect": "open commercial step"
+        },
+        {
+          "from": "tratamiento terminado",
+          "to": "recall programado",
+          "trigger": "successful_outcome",
+          "business_effect": "realize revenue or continuity"
+        },
+        {
+          "from": "tratamiento terminado",
+          "to": "at_risk",
+          "trigger": "treatment_pending",
+          "business_effect": "activate retention sequence"
+        }
+      ],
+      "at_risk_state": "at_risk",
+      "closed_states": [
+        "recall programado"
+      ]
+    },
+    "pricing_engine": {
+      "quote_types": [
+        "valoracion",
+        "plan por fases",
+        "anticipo",
+        "financiamiento"
+      ],
+      "pricing_basis": "treatment_type + phases + specialist + financing",
+      "rules": [
+        {
+          "rule": "base price by tratamiento type",
+          "effect": "set base_price"
+        },
+        {
+          "rule": "premium or urgent add-ons increase quote",
+          "effect": "add surcharge"
+        },
+        {
+          "rule": "bundle, membership or financing can lower immediate friction",
+          "effect": "recommend package or installments"
+        }
+      ],
+      "deposit_policy": "request advance when capacity, specialist time or inventory must be secured"
+    },
+    "resource_capacity": {
+      "resource_types": [
+        "odontologo",
+        "especialista",
+        "gabinete",
+        "radiografia",
+        "quirófano menor"
+      ],
+      "capacity_basis": "specialist chair time, room type and clinical block duration",
+      "constraints": [
+        "avoid double booking of critical resources",
+        "respect service duration and cleanup/buffer time",
+        "prioritize higher urgency and higher close probability cases"
+      ],
+      "priority_queue": "especialista, gabinete y fase"
+    },
+    "recurrence_engine": {
+      "policies": [
+        {
+          "type": "cleaning_recall",
+          "interval_days": 180,
+          "anchor": "caso clínico dental"
+        },
+        {
+          "type": "orthodontic_control",
+          "interval_days": 30,
+          "anchor": "caso clínico dental"
+        },
+        {
+          "type": "retainer_review",
+          "interval_days": 180,
+          "anchor": "caso clínico dental"
+        }
+      ],
+      "reactivation_window_days": 180,
+      "goal": "protect retention, repeat revenue and continuity"
+    },
+    "kpi_engine": {
+      "north_star": "Aceptación de tratamiento sobre valoraciones asistidas.",
+      "definitions": [
+        {
+          "name": "treatment_acceptance",
+          "formula": "accepted_treatments / proposed_treatments"
+        },
+        {
+          "name": "ticket_per_case",
+          "formula": "treatment_revenue / closed_cases"
+        },
+        {
+          "name": "recall_reactivation",
+          "formula": "recalled_cases_booked / recall_due"
+        }
+      ],
+      "leading_indicators": [
+        "treatment_pending",
+        "control_due",
+        "no_response_7d"
+      ]
+    },
+    "automation_engine": {
+      "money_automation_policies": [
+        {
+          "trigger": "treatment_pending",
+          "actions": [
+            "send_followup",
+            "escalate_owner",
+            "offer_relevant_next_step"
+          ],
+          "goal": "save conversion or retention"
+        },
+        {
+          "trigger": "control_due",
+          "actions": [
+            "send_quote_or_payment_link",
+            "remind_deadline",
+            "notify_human"
+          ],
+          "goal": "move revenue forward"
+        },
+        {
+          "trigger": "phase_completed",
+          "actions": [
+            "schedule_recurrence",
+            "cross_sell_next_best_offer",
+            "create_task"
+          ],
+          "goal": "increase LTV"
+        }
+      ],
+      "quiet_hours": "21:00-08:00"
+    },
+    "document_flow": {
+      "required_documents": [
+        "consentimiento informado",
+        "radiografias",
+        "plan de tratamiento",
+        "pagare o financiamiento"
+      ],
+      "lifecycle_rules": [
+        {
+          "document": "consentimiento informado",
+          "required_before": "first committed step",
+          "signature_required": true
+        },
+        {
+          "document": "pagare o financiamiento",
+          "required_before": "handoff or continuity step",
+          "signature_required": false
+        }
+      ]
+    },
+    "matching_engine": {
+      "entity": "caso clínico dental",
+      "rules": [
+        "reason_for_visit -> specialty",
+        "urgency_level -> priority_queue",
+        "budget_fit",
+        "branch_match"
+      ],
+      "next_best_match_outputs": [
+        "best_owner",
+        "best_resource_slot",
+        "best_offer"
+      ]
+    }
+  },
+  "transactional_motor_v12": {
+    "version": "v12_full_transactional",
+    "aggregate_root": "dental_case_account",
+    "main_business_entity": "caso clínico dental",
+    "transaction_unit": "treatment_phase",
+    "system_of_record": {
+      "write_model": [
+        "commands",
+        "events",
+        "ledger",
+        "aggregate_snapshots"
+      ],
+      "read_models": [
+        "commercial_board",
+        "operations_board",
+        "finance_board",
+        "continuity_board",
+        "resource_load_board",
+        "document_readiness_board",
+        "revenue_levers_board"
+      ],
+      "idempotency_scope": [
+        "organization_id",
+        "vertical_id",
+        "external_reference",
+        "command_key"
+      ],
+      "audit_mode": "append_only_with_snapshots"
+    },
+    "transaction_primitives": {
+      "commands": [
+        "capture_intent",
+        "qualify_record",
+        "create_quote",
+        "request_deposit",
+        "reserve_capacity",
+        "confirm_booking",
+        "start_case",
+        "approve_quote",
+        "collect_payment",
+        "start_fulfillment",
+        "close_fulfillment",
+        "schedule_recurrence",
+        "issue_refund",
+        "reactivate_customer",
+        "approve_treatment_plan",
+        "collect_phase_deposit",
+        "start_treatment_phase",
+        "schedule_recall"
+      ],
+      "events": [
+        "intent_captured",
+        "record_qualified",
+        "quote_created",
+        "deposit_requested",
+        "capacity_reserved",
+        "booking_confirmed",
+        "case_started",
+        "quote_approved",
+        "payment_collected",
+        "fulfillment_started",
+        "fulfillment_closed",
+        "recurrence_scheduled",
+        "refund_issued",
+        "customer_reactivated",
+        "treatment_plan_approved",
+        "phase_deposit_collected",
+        "treatment_phase_started",
+        "recall_due"
+      ],
+      "ledger_event_types": [
+        "charge_opened",
+        "deposit_collected",
+        "installment_due",
+        "payment_applied",
+        "credit_issued",
+        "refund_issued",
+        "write_off_registered"
+      ],
+      "invariants": [
+        "no iniciar fase sin consentimiento",
+        "no agendar procedimiento sin estudios requeridos",
+        "no cerrar caso con saldo pendiente",
+        "todo pago debe referenciar quote, order o case activo",
+        "todo cambio crítico debe emitir evento y renglón de auditoría",
+        "ningún recurso se confirma dos veces en la misma ventana"
+      ],
+      "idempotency_keys": [
+        "command_key",
+        "payment_reference",
+        "booking_reference",
+        "external_message_id"
+      ]
+    },
+    "aggregates": {
+      "primary_record": {
+        "name": "caso clínico dental",
+        "status_axis": [
+          "commercial",
+          "operations",
+          "finance",
+          "continuity"
+        ]
+      },
+      "quote": {
+        "name": "treatment_plan_quote",
+        "states": [
+          "draft",
+          "sent",
+          "accepted",
+          "expired",
+          "lost"
+        ]
+      },
+      "booking": {
+        "name": "valuation_booking",
+        "states": [
+          "proposed",
+          "reserved",
+          "confirmed",
+          "attended_or_executed",
+          "missed_or_canceled"
+        ]
+      },
+      "execution": {
+        "name": "treatment_phase_execution",
+        "states": [
+          "pending",
+          "ready",
+          "in_progress",
+          "blocked",
+          "completed",
+          "closed"
+        ]
+      },
+      "payment_account": {
+        "name": "payment_account",
+        "states": [
+          "open",
+          "partially_paid",
+          "paid",
+          "overdue",
+          "refunded"
+        ]
+      },
+      "continuity": {
+        "name": "recall_plan",
+        "states": [
+          "not_started",
+          "active",
+          "at_risk",
+          "recovered",
+          "closed"
+        ]
+      }
+    },
+    "orchestration": {
+      "command_handlers": [
+        "handle_capture_intent",
+        "handle_qualify_record",
+        "handle_create_quote",
+        "handle_request_deposit",
+        "handle_reserve_capacity",
+        "handle_confirm_booking",
+        "handle_start_case",
+        "handle_approve_quote",
+        "handle_approve_treatment_plan",
+        "handle_collect_phase_deposit",
+        "handle_start_treatment_phase",
+        "handle_schedule_recall"
+      ],
+      "sagas": [
+        "valuation_to_acceptance",
+        "phase_financing_collection",
+        "recall_reactivation"
+      ],
+      "money_guards": [
+        "quote_before_payment",
+        "capacity_before_confirmation",
+        "documents_before_execution",
+        "balance_before_close"
+      ],
+      "read_model_refresh": [
+        "on_every_event",
+        "nightly_reconciliation",
+        "pre_dashboard_cache"
+      ]
+    },
+    "finance": {
+      "money_objects": [
+        "valuation_charge",
+        "phase_deposit",
+        "monthly_installment",
+        "balance_collection"
+      ],
+      "collection_modes": [
+        "anticipo por fase",
+        "mensualidades",
+        "liquidación final"
+      ],
+      "refund_modes": [
+        "clinical_credit",
+        "phase_reversal"
+      ],
+      "reconciliation_views": [
+        "expected_vs_collected",
+        "aging_balance",
+        "refund_exposure",
+        "cash_by_stage"
+      ]
+    },
+    "operations": {
+      "fulfillment_unit": "treatment_phase",
+      "resource_locking": [
+        "specialist",
+        "chair",
+        "operatory_time"
+      ],
+      "dispatch_or_schedule_board": [
+        "queued",
+        "ready",
+        "assigned",
+        "in_progress",
+        "blocked",
+        "done"
+      ],
+      "handoff_rules": [
+        "human_handoff_on_exception",
+        "supervisor_handoff_on_money_risk",
+        "operator_handoff_on_compliance_gap"
+      ]
+    },
+    "audit_compliance": {
+      "timeline_entities": [
+        "caso clínico dental",
+        "treatment_plan_quote",
+        "valuation_booking",
+        "treatment_phase_execution",
+        "payment_account"
+      ],
+      "consent_gates": [
+        "informed_consent",
+        "clinical_study",
+        "treatment_plan_signature"
+      ],
+      "required_evidence": [
+        "timeline_event",
+        "actor",
+        "timestamp",
+        "before_after_snapshot"
+      ],
+      "retention_rules": [
+        "audit_log_append_only",
+        "documents_linked_to_primary_record",
+        "payment_trace_non_destructive"
+      ]
+    },
+    "transaction_views": {
+      "commercial": [
+        "valuation",
+        "acceptance",
+        "phase_conversion"
+      ],
+      "operations": [
+        "chair_load",
+        "phase_progress",
+        "followups"
+      ],
+      "finance": [
+        "ticket_per_case",
+        "installments",
+        "outstanding_balance"
+      ],
+      "continuity": [
+        "recall",
+        "retention",
+        "reactivation"
+      ]
+    },
+    "command_catalog": [
+      {
+        "command": "capture_intent",
+        "writes": "caso clínico dental",
+        "emits": "intent_captured",
+        "guard": "no iniciar fase sin consentimiento"
+      },
+      {
+        "command": "qualify_record",
+        "writes": "caso clínico dental",
+        "emits": "record_qualified",
+        "guard": "no agendar procedimiento sin estudios requeridos"
+      },
+      {
+        "command": "create_quote",
+        "writes": "caso clínico dental",
+        "emits": "quote_created",
+        "guard": "no cerrar caso con saldo pendiente"
+      },
+      {
+        "command": "request_deposit",
+        "writes": "caso clínico dental",
+        "emits": "deposit_requested",
+        "guard": "no iniciar fase sin consentimiento"
+      },
+      {
+        "command": "reserve_capacity",
+        "writes": "caso clínico dental",
+        "emits": "capacity_reserved",
+        "guard": "no agendar procedimiento sin estudios requeridos"
+      },
+      {
+        "command": "confirm_booking",
+        "writes": "caso clínico dental",
+        "emits": "booking_confirmed",
+        "guard": "no cerrar caso con saldo pendiente"
+      },
+      {
+        "command": "start_case",
+        "writes": "caso clínico dental",
+        "emits": "case_started",
+        "guard": "no iniciar fase sin consentimiento"
+      },
+      {
+        "command": "approve_quote",
+        "writes": "caso clínico dental",
+        "emits": "quote_approved",
+        "guard": "no agendar procedimiento sin estudios requeridos"
+      },
+      {
+        "command": "approve_treatment_plan",
+        "writes": "caso clínico dental",
+        "emits": "payment_collected",
+        "guard": "no cerrar caso con saldo pendiente"
+      },
+      {
+        "command": "collect_phase_deposit",
+        "writes": "caso clínico dental",
+        "emits": "fulfillment_started",
+        "guard": "no iniciar fase sin consentimiento"
+      },
+      {
+        "command": "start_treatment_phase",
+        "writes": "caso clínico dental",
+        "emits": "fulfillment_closed",
+        "guard": "no agendar procedimiento sin estudios requeridos"
+      },
+      {
+        "command": "schedule_recall",
+        "writes": "caso clínico dental",
+        "emits": "recurrence_scheduled",
+        "guard": "no cerrar caso con saldo pendiente"
+      }
+    ],
+    "event_catalog": [
+      {
+        "event": "intent_captured",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "valuation_to_acceptance"
+      },
+      {
+        "event": "record_qualified",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "phase_financing_collection"
+      },
+      {
+        "event": "quote_created",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "recall_reactivation"
+      },
+      {
+        "event": "deposit_requested",
+        "updates": [
+          "timeline",
+          "boards",
+          "ledger"
+        ],
+        "next_action": "valuation_to_acceptance"
+      },
+      {
+        "event": "capacity_reserved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "phase_financing_collection"
+      },
+      {
+        "event": "booking_confirmed",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "recall_reactivation"
+      },
+      {
+        "event": "case_started",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "valuation_to_acceptance"
+      },
+      {
+        "event": "quote_approved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "phase_financing_collection"
+      },
+      {
+        "event": "treatment_plan_approved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "recall_reactivation"
+      },
+      {
+        "event": "phase_deposit_collected",
+        "updates": [
+          "timeline",
+          "boards",
+          "ledger"
+        ],
+        "next_action": "valuation_to_acceptance"
+      },
+      {
+        "event": "treatment_phase_started",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "phase_financing_collection"
+      },
+      {
+        "event": "recall_due",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "recall_reactivation"
+      }
+    ]
+  },
+  "is_strongest_vertical": true,
+  "strongest_rank": 2,
+  "ten_x_score": 99,
+  "ten_x_narrative": "WAOS Dental gana cuando convierte valoracion en tratamiento por fases, anticipo, documentos y recall.",
+  "ten_x_growth_loops": [
+    "urgencia a valoracion",
+    "valoracion a plan",
+    "plan a anticipo",
+    "fase cerrada a recall"
+  ],
+  "recommended_subverticals": [
+    "odontología general",
+    "ortodoncia",
+    "alineadores",
+    "implantología"
+  ],
+  "subvertical_profiles": [
+    {
+      "id": "odontología-general",
+      "name": "odontología general",
+      "strength_score": 99,
+      "promise": "Convertir conversaciones de odontología general en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Director de clínica dental o gerente comercial",
+      "monetizes": [
+        "valoración",
+        "anticipo",
+        "tratamiento por fases",
+        "financiamiento"
+      ],
+      "service_bundle": [
+        "valoracion odontología general",
+        "plan odontología general",
+        "control odontología general",
+        "recall"
+      ],
+      "qualification_questions": [
+        "es urgencia o valoracion",
+        "que te preocupa mas",
+        "cuando te gustaria venir",
+        "necesitas facilidades de pago"
+      ],
+      "objections": [
+        "precio",
+        "miedo al dolor",
+        "quiero pensarlo",
+        "no puedo pagarlo completo"
+      ],
+      "automation_priorities": [
+        "seguimiento odontología general",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "valoración agendada",
+        "valoración asistida",
+        "aceptación de tratamiento",
+        "ticket por tratamiento",
+        "conversion odontología general",
+        "revenue odontología general"
+      ],
+      "recommended_commands": [
+        "avisar recalls vencidos",
+        "bloquear agenda de cirugia",
+        "modo solo humano por urgencia",
+        "reactivar seguimiento de presupuestos"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "odontología-general-lead",
+          "title": "Captacion odontología general",
+          "content": "Hola, te ayudo con odontología general. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "odontología-general-followup",
+          "title": "Seguimiento odontología general",
+          "content": "Te sigo con odontología general. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "odontología-general-reactivation",
+          "title": "Reactivacion odontología general",
+          "content": "Te escribo porque todavia podemos mover odontología general a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "claro y tranquilizador",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de odontología general",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con odontología general. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "ortodoncia",
+      "name": "ortodoncia",
+      "strength_score": 97,
+      "promise": "Mover valoracion a diagnostico, plan y anticipo con seguimiento disciplinado.",
+      "growth_motion": "diagnosis_to_advance",
+      "buyer": "Director de clínica dental o gerente comercial",
+      "monetizes": [
+        "valoración",
+        "anticipo",
+        "tratamiento por fases",
+        "financiamiento"
+      ],
+      "service_bundle": [
+        "valoracion ortodoncia",
+        "diagnostico digital",
+        "plan por fases",
+        "control mensual"
+      ],
+      "qualification_questions": [
+        "es urgencia o valoracion",
+        "que te preocupa mas",
+        "cuando te gustaria venir",
+        "necesitas facilidades de pago"
+      ],
+      "objections": [
+        "quiero comparar",
+        "esta caro",
+        "me da miedo el tiempo de tratamiento",
+        "necesito hablarlo"
+      ],
+      "automation_priorities": [
+        "seguimiento ortodoncia",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "valoración agendada",
+        "valoración asistida",
+        "aceptación de tratamiento",
+        "ticket por tratamiento",
+        "conversion ortodoncia",
+        "revenue ortodoncia"
+      ],
+      "recommended_commands": [
+        "avisar recalls vencidos",
+        "bloquear agenda de cirugia",
+        "modo solo humano por urgencia",
+        "reactivar seguimiento de presupuestos"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "ortodoncia-lead",
+          "title": "Captacion ortodoncia",
+          "content": "Hola, te ayudo con ortodoncia. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "ortodoncia-followup",
+          "title": "Seguimiento ortodoncia",
+          "content": "Te sigo con ortodoncia. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "ortodoncia-reactivation",
+          "title": "Reactivacion ortodoncia",
+          "content": "Te escribo porque todavia podemos mover ortodoncia a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "claro y tranquilizador",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de ortodoncia",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con ortodoncia. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "alineadores",
+      "name": "alineadores",
+      "strength_score": 95,
+      "promise": "Convertir conversaciones de alineadores en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Director de clínica dental o gerente comercial",
+      "monetizes": [
+        "valoración",
+        "anticipo",
+        "tratamiento por fases",
+        "financiamiento"
+      ],
+      "service_bundle": [
+        "valoracion alineadores",
+        "plan alineadores",
+        "control alineadores",
+        "recall"
+      ],
+      "qualification_questions": [
+        "es urgencia o valoracion",
+        "que te preocupa mas",
+        "cuando te gustaria venir",
+        "necesitas facilidades de pago"
+      ],
+      "objections": [
+        "precio",
+        "miedo al dolor",
+        "quiero pensarlo",
+        "no puedo pagarlo completo"
+      ],
+      "automation_priorities": [
+        "seguimiento alineadores",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "valoración agendada",
+        "valoración asistida",
+        "aceptación de tratamiento",
+        "ticket por tratamiento",
+        "conversion alineadores",
+        "revenue alineadores"
+      ],
+      "recommended_commands": [
+        "avisar recalls vencidos",
+        "bloquear agenda de cirugia",
+        "modo solo humano por urgencia",
+        "reactivar seguimiento de presupuestos"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "alineadores-lead",
+          "title": "Captacion alineadores",
+          "content": "Hola, te ayudo con alineadores. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "alineadores-followup",
+          "title": "Seguimiento alineadores",
+          "content": "Te sigo con alineadores. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "alineadores-reactivation",
+          "title": "Reactivacion alineadores",
+          "content": "Te escribo porque todavia podemos mover alineadores a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "claro y tranquilizador",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de alineadores",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con alineadores. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "implantología",
+      "name": "implantología",
+      "strength_score": 93,
+      "promise": "Convertir conversaciones de implantología en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Director de clínica dental o gerente comercial",
+      "monetizes": [
+        "valoración",
+        "anticipo",
+        "tratamiento por fases",
+        "financiamiento"
+      ],
+      "service_bundle": [
+        "valoracion implantología",
+        "plan implantología",
+        "control implantología",
+        "recall"
+      ],
+      "qualification_questions": [
+        "es urgencia o valoracion",
+        "que te preocupa mas",
+        "cuando te gustaria venir",
+        "necesitas facilidades de pago"
+      ],
+      "objections": [
+        "precio",
+        "miedo al dolor",
+        "quiero pensarlo",
+        "no puedo pagarlo completo"
+      ],
+      "automation_priorities": [
+        "seguimiento implantología",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "valoración agendada",
+        "valoración asistida",
+        "aceptación de tratamiento",
+        "ticket por tratamiento",
+        "conversion implantología",
+        "revenue implantología"
+      ],
+      "recommended_commands": [
+        "avisar recalls vencidos",
+        "bloquear agenda de cirugia",
+        "modo solo humano por urgencia",
+        "reactivar seguimiento de presupuestos"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "implantología-lead",
+          "title": "Captacion implantología",
+          "content": "Hola, te ayudo con implantología. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "implantología-followup",
+          "title": "Seguimiento implantología",
+          "content": "Te sigo con implantología. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "implantología-reactivation",
+          "title": "Reactivacion implantología",
+          "content": "Te escribo porque todavia podemos mover implantología a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "claro y tranquilizador",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de implantología",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con implantología. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "periodoncia",
+      "name": "periodoncia",
+      "strength_score": 91,
+      "promise": "Convertir conversaciones de periodoncia en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Director de clínica dental o gerente comercial",
+      "monetizes": [
+        "valoración",
+        "anticipo",
+        "tratamiento por fases",
+        "financiamiento"
+      ],
+      "service_bundle": [
+        "valoracion periodoncia",
+        "plan periodoncia",
+        "control periodoncia",
+        "recall"
+      ],
+      "qualification_questions": [
+        "es urgencia o valoracion",
+        "que te preocupa mas",
+        "cuando te gustaria venir",
+        "necesitas facilidades de pago"
+      ],
+      "objections": [
+        "precio",
+        "miedo al dolor",
+        "quiero pensarlo",
+        "no puedo pagarlo completo"
+      ],
+      "automation_priorities": [
+        "seguimiento periodoncia",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "valoración agendada",
+        "valoración asistida",
+        "aceptación de tratamiento",
+        "ticket por tratamiento",
+        "conversion periodoncia",
+        "revenue periodoncia"
+      ],
+      "recommended_commands": [
+        "avisar recalls vencidos",
+        "bloquear agenda de cirugia",
+        "modo solo humano por urgencia",
+        "reactivar seguimiento de presupuestos"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "periodoncia-lead",
+          "title": "Captacion periodoncia",
+          "content": "Hola, te ayudo con periodoncia. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "periodoncia-followup",
+          "title": "Seguimiento periodoncia",
+          "content": "Te sigo con periodoncia. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "periodoncia-reactivation",
+          "title": "Reactivacion periodoncia",
+          "content": "Te escribo porque todavia podemos mover periodoncia a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "claro y tranquilizador",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de periodoncia",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con periodoncia. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "endodoncia",
+      "name": "endodoncia",
+      "strength_score": 89,
+      "promise": "Convertir conversaciones de endodoncia en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Director de clínica dental o gerente comercial",
+      "monetizes": [
+        "valoración",
+        "anticipo",
+        "tratamiento por fases",
+        "financiamiento"
+      ],
+      "service_bundle": [
+        "valoracion endodoncia",
+        "plan endodoncia",
+        "control endodoncia",
+        "recall"
+      ],
+      "qualification_questions": [
+        "es urgencia o valoracion",
+        "que te preocupa mas",
+        "cuando te gustaria venir",
+        "necesitas facilidades de pago"
+      ],
+      "objections": [
+        "precio",
+        "miedo al dolor",
+        "quiero pensarlo",
+        "no puedo pagarlo completo"
+      ],
+      "automation_priorities": [
+        "seguimiento endodoncia",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "valoración agendada",
+        "valoración asistida",
+        "aceptación de tratamiento",
+        "ticket por tratamiento",
+        "conversion endodoncia",
+        "revenue endodoncia"
+      ],
+      "recommended_commands": [
+        "avisar recalls vencidos",
+        "bloquear agenda de cirugia",
+        "modo solo humano por urgencia",
+        "reactivar seguimiento de presupuestos"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "endodoncia-lead",
+          "title": "Captacion endodoncia",
+          "content": "Hola, te ayudo con endodoncia. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "endodoncia-followup",
+          "title": "Seguimiento endodoncia",
+          "content": "Te sigo con endodoncia. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "endodoncia-reactivation",
+          "title": "Reactivacion endodoncia",
+          "content": "Te escribo porque todavia podemos mover endodoncia a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "claro y tranquilizador",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de endodoncia",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con endodoncia. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "estética-dental",
+      "name": "estética dental",
+      "strength_score": 87,
+      "promise": "Convertir conversaciones de estética dental en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Director de clínica dental o gerente comercial",
+      "monetizes": [
+        "valoración",
+        "anticipo",
+        "tratamiento por fases",
+        "financiamiento"
+      ],
+      "service_bundle": [
+        "valoracion estética dental",
+        "plan estética dental",
+        "control estética dental",
+        "recall"
+      ],
+      "qualification_questions": [
+        "es urgencia o valoracion",
+        "que te preocupa mas",
+        "cuando te gustaria venir",
+        "necesitas facilidades de pago"
+      ],
+      "objections": [
+        "precio",
+        "miedo al dolor",
+        "quiero pensarlo",
+        "no puedo pagarlo completo"
+      ],
+      "automation_priorities": [
+        "seguimiento estética dental",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "valoración agendada",
+        "valoración asistida",
+        "aceptación de tratamiento",
+        "ticket por tratamiento",
+        "conversion estética dental",
+        "revenue estética dental"
+      ],
+      "recommended_commands": [
+        "avisar recalls vencidos",
+        "bloquear agenda de cirugia",
+        "modo solo humano por urgencia",
+        "reactivar seguimiento de presupuestos"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "estética-dental-lead",
+          "title": "Captacion estética dental",
+          "content": "Hola, te ayudo con estética dental. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "estética-dental-followup",
+          "title": "Seguimiento estética dental",
+          "content": "Te sigo con estética dental. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "estética-dental-reactivation",
+          "title": "Reactivacion estética dental",
+          "content": "Te escribo porque todavia podemos mover estética dental a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "claro y tranquilizador",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de estética dental",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con estética dental. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "odontopediatría",
+      "name": "odontopediatría",
+      "strength_score": 85,
+      "promise": "Convertir conversaciones de odontopediatría en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Director de clínica dental o gerente comercial",
+      "monetizes": [
+        "valoración",
+        "anticipo",
+        "tratamiento por fases",
+        "financiamiento"
+      ],
+      "service_bundle": [
+        "valoracion odontopediatría",
+        "plan odontopediatría",
+        "control odontopediatría",
+        "recall"
+      ],
+      "qualification_questions": [
+        "es urgencia o valoracion",
+        "que te preocupa mas",
+        "cuando te gustaria venir",
+        "necesitas facilidades de pago"
+      ],
+      "objections": [
+        "precio",
+        "miedo al dolor",
+        "quiero pensarlo",
+        "no puedo pagarlo completo"
+      ],
+      "automation_priorities": [
+        "seguimiento odontopediatría",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "valoración agendada",
+        "valoración asistida",
+        "aceptación de tratamiento",
+        "ticket por tratamiento",
+        "conversion odontopediatría",
+        "revenue odontopediatría"
+      ],
+      "recommended_commands": [
+        "avisar recalls vencidos",
+        "bloquear agenda de cirugia",
+        "modo solo humano por urgencia",
+        "reactivar seguimiento de presupuestos"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "odontopediatría-lead",
+          "title": "Captacion odontopediatría",
+          "content": "Hola, te ayudo con odontopediatría. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "odontopediatría-followup",
+          "title": "Seguimiento odontopediatría",
+          "content": "Te sigo con odontopediatría. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "odontopediatría-reactivation",
+          "title": "Reactivacion odontopediatría",
+          "content": "Te escribo porque todavia podemos mover odontopediatría a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "claro y tranquilizador",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de odontopediatría",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con odontopediatría. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "rehabilitación-oral",
+      "name": "rehabilitación oral",
+      "strength_score": 83,
+      "promise": "Convertir conversaciones de rehabilitación oral en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Director de clínica dental o gerente comercial",
+      "monetizes": [
+        "valoración",
+        "anticipo",
+        "tratamiento por fases",
+        "financiamiento"
+      ],
+      "service_bundle": [
+        "valoracion rehabilitación oral",
+        "plan rehabilitación oral",
+        "control rehabilitación oral",
+        "recall"
+      ],
+      "qualification_questions": [
+        "es urgencia o valoracion",
+        "que te preocupa mas",
+        "cuando te gustaria venir",
+        "necesitas facilidades de pago"
+      ],
+      "objections": [
+        "precio",
+        "miedo al dolor",
+        "quiero pensarlo",
+        "no puedo pagarlo completo"
+      ],
+      "automation_priorities": [
+        "seguimiento rehabilitación oral",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "valoración agendada",
+        "valoración asistida",
+        "aceptación de tratamiento",
+        "ticket por tratamiento",
+        "conversion rehabilitación oral",
+        "revenue rehabilitación oral"
+      ],
+      "recommended_commands": [
+        "avisar recalls vencidos",
+        "bloquear agenda de cirugia",
+        "modo solo humano por urgencia",
+        "reactivar seguimiento de presupuestos"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "rehabilitación-oral-lead",
+          "title": "Captacion rehabilitación oral",
+          "content": "Hola, te ayudo con rehabilitación oral. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "rehabilitación-oral-followup",
+          "title": "Seguimiento rehabilitación oral",
+          "content": "Te sigo con rehabilitación oral. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "rehabilitación-oral-reactivation",
+          "title": "Reactivacion rehabilitación oral",
+          "content": "Te escribo porque todavia podemos mover rehabilitación oral a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "claro y tranquilizador",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de rehabilitación oral",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con rehabilitación oral. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "cirugía-dental",
+      "name": "cirugía dental",
+      "strength_score": 81,
+      "promise": "Convertir conversaciones de cirugía dental en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Director de clínica dental o gerente comercial",
+      "monetizes": [
+        "valoración",
+        "anticipo",
+        "tratamiento por fases",
+        "financiamiento"
+      ],
+      "service_bundle": [
+        "valoracion cirugía dental",
+        "plan cirugía dental",
+        "control cirugía dental",
+        "recall"
+      ],
+      "qualification_questions": [
+        "es urgencia o valoracion",
+        "que te preocupa mas",
+        "cuando te gustaria venir",
+        "necesitas facilidades de pago"
+      ],
+      "objections": [
+        "precio",
+        "miedo al dolor",
+        "quiero pensarlo",
+        "no puedo pagarlo completo"
+      ],
+      "automation_priorities": [
+        "seguimiento cirugía dental",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "valoración agendada",
+        "valoración asistida",
+        "aceptación de tratamiento",
+        "ticket por tratamiento",
+        "conversion cirugía dental",
+        "revenue cirugía dental"
+      ],
+      "recommended_commands": [
+        "avisar recalls vencidos",
+        "bloquear agenda de cirugia",
+        "modo solo humano por urgencia",
+        "reactivar seguimiento de presupuestos"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "cirugía-dental-lead",
+          "title": "Captacion cirugía dental",
+          "content": "Hola, te ayudo con cirugía dental. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "cirugía-dental-followup",
+          "title": "Seguimiento cirugía dental",
+          "content": "Te sigo con cirugía dental. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "cirugía-dental-reactivation",
+          "title": "Reactivacion cirugía dental",
+          "content": "Te escribo porque todavia podemos mover cirugía dental a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "claro y tranquilizador",
+        "sales_intensity": "media",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de cirugía dental",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con cirugía dental. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    }
+  ],
+  "ten_x_operational_pack": {
+    "recommended_commands": [
+      "avisar recalls vencidos",
+      "bloquear agenda de cirugia",
+      "modo solo humano por urgencia",
+      "reactivar seguimiento de presupuestos"
+    ],
+    "launch_sequence": [
+      "escoger subvertical",
+      "aplicar pack",
+      "simular conversaciones",
+      "publicar y medir"
+    ],
+    "why_this_vertical": "WAOS Dental gana cuando convierte valoracion en tratamiento por fases, anticipo, documentos y recall."
+  }
+}

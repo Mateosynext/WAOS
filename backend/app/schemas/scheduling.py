@@ -84,3 +84,121 @@ class AgendaCapacityRuleRequest(BaseModel):
 class AppointmentResourceAssignRequest(BaseModel):
     resource_id: str
     note: str = Field(default="", max_length=500)
+
+
+from .response_models import FlexibleSchema
+
+
+class AgendaOverviewSummary(FlexibleSchema):
+    scheduled: int | None = None
+    confirmed: int | None = None
+    completed: int | None = None
+    cancelled: int | None = None
+    no_show: int | None = None
+    upcoming: int | None = None
+
+
+class AgendaOverviewResponse(FlexibleSchema):
+    organization_id: str | None = None
+    bot_id: str | None = None
+    summary: AgendaOverviewSummary | None = None
+    upcoming: list[FlexibleSchema] = Field(default_factory=list)
+    reminders: list[FlexibleSchema] = Field(default_factory=list)
+
+
+class AgendaReminderPreferencesResponse(FlexibleSchema):
+    organization_id: str | None = None
+    tone: str | None = None
+    hours_before: int | None = None
+    last_hours: int | None = None
+    count: int | None = None
+    updated_at: str | None = None
+
+
+class AgendaBlockedSlotResponse(FlexibleSchema):
+    id: str | None = None
+    organization_id: str | None = None
+    bot_id: str | None = None
+    start_at: str | None = None
+    end_at: str | None = None
+    reason: str | None = None
+    created_by_user_id: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class AgendaBlockedSlotDeleteResponse(FlexibleSchema):
+    ok: bool = True
+    id: str | None = None
+
+
+class AgendaResourceResponse(FlexibleSchema):
+    id: str | None = None
+    organization_id: str | None = None
+    bot_id: str | None = None
+    name: str | None = None
+    resource_type: str | None = None
+    branch: str | None = None
+    status: str | None = None
+    metadata_json: str | None = None
+    created_by: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class AgendaCapacityRuleResponse(FlexibleSchema):
+    id: str | None = None
+    organization_id: str | None = None
+    bot_id: str | None = None
+    resource_id: str | None = None
+    resource_name: str | None = None
+    resource_type: str | None = None
+    day_of_week: int | None = None
+    start_time: str | None = None
+    end_time: str | None = None
+    slot_capacity: int | None = None
+    status: str | None = None
+    created_by: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class AgendaCapacityResourceOverview(FlexibleSchema):
+    resource_id: str | None = None
+    name: str | None = None
+    resource_type: str | None = None
+    branch: str | None = None
+    weekly_slots: int | None = None
+    rules_count: int | None = None
+    assigned_appointments: int | None = None
+
+
+class AgendaCapacitySummary(FlexibleSchema):
+    resources: int | None = None
+    capacity_rules: int | None = None
+    declared_weekly_slots: int | None = None
+    upcoming_appointments: int | None = None
+    assigned_upcoming_appointments: int | None = None
+    unassigned_upcoming_appointments: int | None = None
+
+
+class AgendaCapacityOverviewResponse(FlexibleSchema):
+    organization_id: str | None = None
+    bot_id: str | None = None
+    summary: AgendaCapacitySummary | None = None
+    resources: list[AgendaCapacityResourceOverview] = Field(default_factory=list)
+    rules: list[AgendaCapacityRuleResponse] = Field(default_factory=list)
+    upcoming: list[FlexibleSchema] = Field(default_factory=list)
+
+
+class AppointmentResourceAssignmentResponse(FlexibleSchema):
+    id: str | None = None
+    organization_id: str | None = None
+    appointment_id: str | None = None
+    resource_id: str | None = None
+    resource_name: str | None = None
+    resource_type: str | None = None
+    assigned_by: str | None = None
+    note: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None

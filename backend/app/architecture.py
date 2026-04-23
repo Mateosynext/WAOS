@@ -14,7 +14,7 @@ ARCHITECTURE_SOURCES_OF_TRUTH = {
 }
 
 DEPRECATED_NAMESPACE = "backend.app.legacy"
-DEPRECATED_ROOT_MODULES = ["backend.app.v8"]
+DEPRECATED_ROOT_MODULES = ["backend.app.v7", "backend.app.v8", "backend.app.v9", "backend.app.platform_legacy", "backend.app.repositories_legacy", "backend.app.schemas_legacy"]
 
 ACTIVE_BOUNDARIES = {
     "api": "backend.app.api",
@@ -32,4 +32,19 @@ CANONICAL_REQUEST_FLOW = [
     "application service -> repositories/platform/providers",
     "application service -> runtime pipeline (understand / plan / ground / decide / render / verify / schedule)",
     "platform + providers -> external systems",
+]
+
+
+PLATFORM_OWNERSHIP = {
+    "platform_runtime": "backend.app.platform.runtime",
+    "platform_security": "backend.app.platform.security",
+    "platform_observability": "backend.app.platform.observability",
+    "http_security_boundary": "backend.app.security",
+}
+
+ROOT_ACTIVE_EXCEPTIONS = [
+    "backend.app.main",
+    "backend.app.config",
+    "backend.app.security",
+    "backend.app.observability",
 ]

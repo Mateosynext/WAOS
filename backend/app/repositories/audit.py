@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import sqlite3
 from typing import Any
 
-from ..db import execute
+from .base import ConnectionLike, execute
 from ..utils import new_id, to_json, utcnow_iso
 
 def create_audit_log(
-    conn: sqlite3.Connection,
+    conn: ConnectionLike,
     *,
     organization_id: str | None,
     actor_user_id: str | None,

@@ -8,8 +8,20 @@ from typing import Any
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
-from ..db import execute, fetch_all, fetch_one
 from ..repositories import create_audit_log, create_message, get_bot, get_contact, get_conversation
+from ..repositories.appointments_domain import (
+    appointment_dashboard_metrics,
+    get_appointment,
+    get_latest_conversation_for_contact,
+    get_outbox_message,
+    insert_appointment,
+    insert_outbox_message,
+    update_appointment_cancelled,
+    update_appointment_confirmed,
+    update_appointment_followup_sent,
+    update_appointment_no_show,
+    update_appointment_rescheduled,
+)
 from ..utils import add_minutes, from_json, new_id, parse_iso, to_json, utcnow_iso
 
 def _safe_filename(value: str) -> str:
@@ -36,11 +48,7 @@ def _queue_whatsapp_message(
     conversation = get_conversation(conn, conversation_id) if conversation_id else None
     resolved_conv_id = conversation_id or (conversation or {}).get("id")
     if not resolved_conv_id and contact_id and bot_id:
-        existing = fetch_one(
-            conn,
-            "SELECT * FROM conversations WHERE organization_id = ? AND bot_id = ? AND contact_id = ? ORDER BY created_at DESC LIMIT 1",
-            (organization_id, bot_id, contact_id),
-        )
+        existing = get_latest_conversation_for_contact(conn, organization_id=organization_id, bot_id=bot_id, contact_id=contact_id)
         resolved_conv_id = existing["id"] if existing else None
     if not resolved_conv_id:
         return {}
@@ -58,24 +66,18 @@ def _queue_whatsapp_message(
         metadata=metadata or {},
     )
     outbox_id = new_id("out")
-    execute(
+    insert_outbox_message(
         conn,
-        """
-        INSERT INTO outbox_messages (id, organization_id, bot_id, execution_run_id, conversation_id, channel, payload_json, status, attempts, last_error, provider_response_json, priority, next_attempt_at, locked_at, scheduled_for, sent_at, created_at)
-        VALUES (?, ?, ?, NULL, ?, 'whatsapp', ?, 'queued', 0, NULL, '{}', ?, NULL, NULL, ?, NULL, ?)
-        """,
-        (
-            outbox_id,
-            organization_id,
-            bot_id,
-            resolved_conv_id,
-            to_json({"message_id": message["id"], "contact_id": contact_id, "body": body, **(metadata or {})}),
-            priority,
-            scheduled,
-            now,
-        ),
+        outbox_id=outbox_id,
+        organization_id=organization_id,
+        bot_id=bot_id,
+        conversation_id=resolved_conv_id,
+        payload={"message_id": message["id"], "contact_id": contact_id, "body": body, **(metadata or {})},
+        priority=priority,
+        scheduled_for=scheduled,
+        created_at=now,
     )
-    return fetch_one(conn, "SELECT * FROM outbox_messages WHERE id = ?", (outbox_id,)) or {}
+    return get_outbox_message(conn, outbox_id) or {}
 
 
 def _default_reminder_at(scheduled_for: str) -> str:
@@ -111,30 +113,22 @@ def create_appointment_bundle(
     appointment_id = new_id("appt")
     now = utcnow_iso()
     reminder_scheduled_at = _default_reminder_at(scheduled_for)
-    execute(
+    insert_appointment(
         conn,
-        """
-        INSERT INTO appointments
-        (id, organization_id, bot_id, conversation_id, contact_id, scheduled_for, status, duration_minutes, timezone, notes, reminder_scheduled_at, followup_status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
-        """,
-        (
-            appointment_id,
-            organization_id,
-            bot_id,
-            conversation_id,
-            contact_id,
-            scheduled_for,
-            status,
-            duration_minutes,
-            timezone,
-            notes,
-            reminder_scheduled_at,
-            now,
-            now,
-        ),
+        appointment_id=appointment_id,
+        organization_id=organization_id,
+        bot_id=bot_id,
+        conversation_id=conversation_id,
+        contact_id=contact_id,
+        scheduled_for=scheduled_for,
+        status=status,
+        duration_minutes=duration_minutes,
+        timezone=timezone,
+        notes=notes,
+        reminder_scheduled_at=reminder_scheduled_at,
+        created_at=now,
     )
-    appointment = fetch_one(conn, "SELECT * FROM appointments WHERE id = ?", (appointment_id,))
+    appointment = get_appointment(conn, appointment_id)
     if appointment and contact_id:
         human_date = scheduled_for
         _queue_whatsapp_message(
@@ -169,11 +163,11 @@ def create_appointment_bundle(
             action="appointment.bundle_created",
             metadata={"scheduled_for": scheduled_for, "reminder_scheduled_at": reminder_scheduled_at},
         )
-    return fetch_one(conn, "SELECT * FROM appointments WHERE id = ?", (appointment_id,)) or {}
+    return get_appointment(conn, appointment_id) or {}
 
 
 def _appointment_row(conn, appointment_id: str) -> dict:
-    appointment = fetch_one(conn, "SELECT * FROM appointments WHERE id = ?", (appointment_id,))
+    appointment = get_appointment(conn, appointment_id)
     if not appointment:
         raise ValueError("appointment_not_found")
     return appointment
@@ -182,7 +176,7 @@ def _appointment_row(conn, appointment_id: str) -> dict:
 def confirm_appointment(conn, appointment_id: str, *, actor_user: dict | None = None) -> dict:
     appointment = _appointment_row(conn, appointment_id)
     now = utcnow_iso()
-    execute(conn, "UPDATE appointments SET status = 'confirmed', confirmed_at = ?, updated_at = ? WHERE id = ?", (now, now, appointment_id))
+    update_appointment_confirmed(conn, appointment_id=appointment_id, confirmed_at=now, updated_at=now)
     _queue_whatsapp_message(
         conn,
         organization_id=appointment["organization_id"],
@@ -195,22 +189,14 @@ def confirm_appointment(conn, appointment_id: str, *, actor_user: dict | None = 
     )
     if actor_user:
         create_audit_log(conn, organization_id=appointment["organization_id"], actor_user_id=actor_user.get("id"), actor_type="user", entity_type="appointment", entity_id=appointment_id, action="appointment.confirmed", metadata={})
-    return fetch_one(conn, "SELECT * FROM appointments WHERE id = ?", (appointment_id,)) or {}
+    return get_appointment(conn, appointment_id) or {}
 
 
 def reschedule_appointment(conn, appointment_id: str, *, scheduled_for: str, actor_user: dict | None = None) -> dict:
     appointment = _appointment_row(conn, appointment_id)
     now = utcnow_iso()
     reminder_scheduled_at = _default_reminder_at(scheduled_for)
-    execute(
-        conn,
-        """
-        UPDATE appointments
-        SET status = 'rescheduled', scheduled_for = ?, reminder_scheduled_at = ?, rescheduled_from_appointment_id = COALESCE(rescheduled_from_appointment_id, id), updated_at = ?
-        WHERE id = ?
-        """,
-        (scheduled_for, reminder_scheduled_at, now, appointment_id),
-    )
+    update_appointment_rescheduled(conn, appointment_id=appointment_id, scheduled_for=scheduled_for, reminder_scheduled_at=reminder_scheduled_at, updated_at=now)
     _queue_whatsapp_message(
         conn,
         organization_id=appointment["organization_id"],
@@ -234,7 +220,7 @@ def reschedule_appointment(conn, appointment_id: str, *, scheduled_for: str, act
     )
     if actor_user:
         create_audit_log(conn, organization_id=appointment["organization_id"], actor_user_id=actor_user.get("id"), actor_type="user", entity_type="appointment", entity_id=appointment_id, action="appointment.rescheduled", metadata={"scheduled_for": scheduled_for})
-    return fetch_one(conn, "SELECT * FROM appointments WHERE id = ?", (appointment_id,)) or {}
+    return get_appointment(conn, appointment_id) or {}
 
 
 def cancel_appointment(conn, appointment_id: str, *, reason: str = "", actor_user: dict | None = None) -> dict:
@@ -243,7 +229,7 @@ def cancel_appointment(conn, appointment_id: str, *, reason: str = "", actor_use
     notes = (appointment.get("notes") or "").strip()
     if reason:
         notes = f"{notes}\nCancelación: {reason}".strip()
-    execute(conn, "UPDATE appointments SET status = 'cancelled', cancelled_at = ?, notes = ?, updated_at = ? WHERE id = ?", (now, notes, now, appointment_id))
+    update_appointment_cancelled(conn, appointment_id=appointment_id, cancelled_at=now, notes=notes, updated_at=now)
     _queue_whatsapp_message(
         conn,
         organization_id=appointment["organization_id"],
@@ -256,13 +242,13 @@ def cancel_appointment(conn, appointment_id: str, *, reason: str = "", actor_use
     )
     if actor_user:
         create_audit_log(conn, organization_id=appointment["organization_id"], actor_user_id=actor_user.get("id"), actor_type="user", entity_type="appointment", entity_id=appointment_id, action="appointment.cancelled", metadata={"reason": reason})
-    return fetch_one(conn, "SELECT * FROM appointments WHERE id = ?", (appointment_id,)) or {}
+    return get_appointment(conn, appointment_id) or {}
 
 
 def mark_appointment_no_show(conn, appointment_id: str, *, actor_user: dict | None = None) -> dict:
     appointment = _appointment_row(conn, appointment_id)
     now = utcnow_iso()
-    execute(conn, "UPDATE appointments SET status = 'no_show', no_show_at = ?, followup_status = 'recommended', updated_at = ? WHERE id = ?", (now, now, appointment_id))
+    update_appointment_no_show(conn, appointment_id=appointment_id, no_show_at=now, updated_at=now)
     _queue_whatsapp_message(
         conn,
         organization_id=appointment["organization_id"],
@@ -276,13 +262,13 @@ def mark_appointment_no_show(conn, appointment_id: str, *, actor_user: dict | No
     )
     if actor_user:
         create_audit_log(conn, organization_id=appointment["organization_id"], actor_user_id=actor_user.get("id"), actor_type="user", entity_type="appointment", entity_id=appointment_id, action="appointment.no_show", metadata={})
-    return fetch_one(conn, "SELECT * FROM appointments WHERE id = ?", (appointment_id,)) or {}
+    return get_appointment(conn, appointment_id) or {}
 
 
 def send_appointment_followup(conn, appointment_id: str, *, actor_user: dict | None = None) -> dict:
     appointment = _appointment_row(conn, appointment_id)
     now = utcnow_iso()
-    execute(conn, "UPDATE appointments SET followup_status = 'queued', followup_sent_at = ?, updated_at = ? WHERE id = ?", (now, now, appointment_id))
+    update_appointment_followup_sent(conn, appointment_id=appointment_id, followup_sent_at=now, updated_at=now)
     _queue_whatsapp_message(
         conn,
         organization_id=appointment["organization_id"],
@@ -295,7 +281,7 @@ def send_appointment_followup(conn, appointment_id: str, *, actor_user: dict | N
     )
     if actor_user:
         create_audit_log(conn, organization_id=appointment["organization_id"], actor_user_id=actor_user.get("id"), actor_type="user", entity_type="appointment", entity_id=appointment_id, action="appointment.followup_sent", metadata={})
-    return fetch_one(conn, "SELECT * FROM appointments WHERE id = ?", (appointment_id,)) or {}
+    return get_appointment(conn, appointment_id) or {}
 
 
 def appointment_dashboard(conn, organization_id: str, bot_id: str | None = None) -> dict[str, Any]:
@@ -304,11 +290,12 @@ def appointment_dashboard(conn, organization_id: str, bot_id: str | None = None)
     if bot_id:
         where += " AND bot_id = ?"
         params.append(bot_id)
-    total = fetch_one(conn, f"SELECT COUNT(*) AS value FROM appointments WHERE {where}", params)
-    confirmed = fetch_one(conn, f"SELECT COUNT(*) AS value FROM appointments WHERE {where} AND status IN ('confirmed','completed')", params)
-    no_show = fetch_one(conn, f"SELECT COUNT(*) AS value FROM appointments WHERE {where} AND status = 'no_show'", params)
-    upcoming = fetch_all(conn, f"SELECT * FROM appointments WHERE {where} ORDER BY scheduled_for ASC LIMIT 10", params)
-    pending = fetch_one(conn, f"SELECT COUNT(*) AS value FROM appointments WHERE {where} AND status IN ('pending','scheduled','created')", params)
+    metrics = appointment_dashboard_metrics(conn, organization_id=organization_id, bot_id=bot_id)
+    total = metrics["total"]
+    confirmed = metrics["confirmed"]
+    no_show = metrics["no_show"]
+    upcoming = metrics["upcoming"]
+    pending = metrics["pending"]
     total_value = max(int(total.get("value") or 0), 1)
     show_rate = round((int(confirmed.get("value") or 0) / total_value) * 100, 1)
     no_show_rate = round((int(no_show.get("value") or 0) / total_value) * 100, 1)

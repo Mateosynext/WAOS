@@ -1,19 +1,20 @@
 from __future__ import annotations
 
 import os
-import sqlite3
 from typing import Any
+
+from .base import ConnectionLike
 
 from ..db import execute, fetch_all, fetch_one, has_column
 from ..defaults import default_bot_config
 from ..utils import from_json, hash_password, new_id, slugify, to_json, utcnow_iso
 from ..verticals import build_organization_settings
 
-def get_conversation(conn: sqlite3.Connection, conversation_id: str) -> dict | None:
+def get_conversation(conn: ConnectionLike, conversation_id: str) -> dict | None:
     return fetch_one(conn, "SELECT * FROM conversations WHERE id = ?", (conversation_id,))
 
 
-def upsert_conversation(conn: sqlite3.Connection, *, organization_id: str, bot_id: str, contact_id: str) -> dict:
+def upsert_conversation(conn: ConnectionLike, *, organization_id: str, bot_id: str, contact_id: str) -> dict:
     existing = fetch_one(
         conn,
         "SELECT * FROM conversations WHERE organization_id = ? AND bot_id = ? AND contact_id = ?",
@@ -37,7 +38,7 @@ def upsert_conversation(conn: sqlite3.Connection, *, organization_id: str, bot_i
 
 
 def create_message(
-    conn: sqlite3.Connection,
+    conn: ConnectionLike,
     *,
     organization_id: str,
     conversation_id: str,

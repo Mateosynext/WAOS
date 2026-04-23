@@ -4,7 +4,25 @@ from typing import Any
 
 import httpx
 
-from .db import execute, fetch_all, fetch_one
+from .db import fetch_all, fetch_one
+from .repositories.integrations_runtime import (
+    create_appointment_from_provider as repo_create_appointment_from_provider,
+    create_oauth_state as repo_create_oauth_state,
+    find_appointment_by_external_id as repo_find_appointment_by_external_id,
+    find_appointment_by_id as repo_find_appointment_by_id,
+    get_integration_by_id as repo_get_integration_by_id,
+    get_oauth_state_by_hash as repo_get_oauth_state_by_hash,
+    list_syncable_appointments as repo_list_syncable_appointments,
+    mark_appointment_cancelled_from_provider as repo_mark_appointment_cancelled_from_provider,
+    mark_appointment_provider_sync as repo_mark_appointment_provider_sync,
+    mark_fake_google_calendar_sync as repo_mark_fake_google_calendar_sync,
+    mark_integration_health as repo_mark_integration_health,
+    mark_integration_sync_completed as repo_mark_integration_sync_completed,
+    mark_oauth_state_consumed as repo_mark_oauth_state_consumed,
+    schedule_integration_sync_now as repo_schedule_integration_sync_now,
+    update_appointment_from_provider as repo_update_appointment_from_provider,
+    update_integration_config as repo_update_integration_config,
+)
 from .integration_observability import record_integration_event
 from .platform import resolve_secret
 from .utils import RetryableProviderError, add_minutes, hash_value, new_id, parse_iso, to_json, utcnow_iso
@@ -46,20 +64,7 @@ def _google_refresh_token(conn, integration: dict[str, Any]) -> str | None:
 
 
 def _update_integration_config(conn, integration_id: str, config: dict[str, Any], *, health_status: str | None = None, credential_status: str | None = None, last_error: str | None = None) -> dict[str, Any]:
-    updates = ["config_json = ?", "updated_at = ?"]
-    params: list[Any] = [to_json(config), utcnow_iso()]
-    if health_status is not None:
-        updates.append("health_status = ?")
-        params.append(health_status)
-    if credential_status is not None:
-        updates.append("credential_status = ?")
-        params.append(credential_status)
-    if last_error is not None:
-        updates.append("last_error = ?")
-        params.append(last_error)
-    params.append(integration_id)
-    execute(conn, f"UPDATE integration_connections SET {', '.join(updates)} WHERE id = ?", params)
-    return fetch_one(conn, "SELECT * FROM integration_connections WHERE id = ?", (integration_id,))
+    return repo_update_integration_config(conn, integration_id, config, health_status=health_status, credential_status=credential_status, last_error=last_error)
 
 
 def build_google_oauth_url(conn, integration: dict[str, Any]) -> dict[str, Any]:
@@ -70,10 +75,15 @@ def build_google_oauth_url(conn, integration: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("google_oauth_missing_client_id_or_redirect_uri")
     raw_state = new_id("oauthstate")
     scope = config.get("scopes") or DEFAULT_GOOGLE_SCOPES
-    execute(
+    repo_create_oauth_state(
         conn,
-        "INSERT INTO oauth_states (id, organization_id, integration_id, provider, state_token_hash, redirect_uri, scope, code_verifier, expires_at, consumed_at, created_at) VALUES (?, ?, ?, 'google_calendar', ?, ?, ?, NULL, ?, NULL, ?)",
-        (new_id("oauth"), integration["organization_id"], integration["id"], hash_value(raw_state), redirect_uri, " ".join(scope), add_minutes(utcnow_iso(), 10), utcnow_iso()),
+        organization_id=integration["organization_id"],
+        integration_id=integration["id"],
+        provider="google_calendar",
+        state_token_hash=hash_value(raw_state),
+        redirect_uri=redirect_uri,
+        scope=scope,
+        expires_at=add_minutes(utcnow_iso(), 10),
     )
     params = {
         "client_id": client_id,
@@ -91,13 +101,13 @@ def build_google_oauth_url(conn, integration: dict[str, Any]) -> dict[str, Any]:
 
 
 def exchange_google_oauth_code(conn, *, state: str, code: str) -> dict[str, Any]:
-    oauth_state = fetch_one(conn, "SELECT * FROM oauth_states WHERE state_token_hash = ?", (hash_value(state),))
+    oauth_state = repo_get_oauth_state_by_hash(conn, hash_value(state))
     if not oauth_state or oauth_state.get("consumed_at"):
         raise ValueError("oauth_state_invalid")
     expires = parse_iso(oauth_state.get("expires_at"))
     if not expires or expires <= parse_iso(utcnow_iso()):
         raise ValueError("oauth_state_expired")
-    integration = fetch_one(conn, "SELECT * FROM integration_connections WHERE id = ?", (oauth_state["integration_id"],))
+    integration = repo_get_integration_by_id(conn, oauth_state["integration_id"])
     if not integration:
         raise ValueError("integration_not_found")
     config = _integration_config(integration)
@@ -131,11 +141,10 @@ def exchange_google_oauth_code(conn, *, state: str, code: str) -> dict[str, Any]
         store_secret(conn, organization_id=integration["organization_id"], bot_id=integration.get("bot_id"), scope="bot" if integration.get("bot_id") else "tenant", key_name="GOOGLE_REFRESH_TOKEN", secret_value=refresh_token)
     config["token_expires_at"] = add_minutes(utcnow_iso(), max(1, expires_in // 60))
     config["oauth_connected_at"] = utcnow_iso()
-    execute(conn, "UPDATE oauth_states SET consumed_at = ? WHERE id = ?", (utcnow_iso(), oauth_state["id"]))
+    repo_mark_oauth_state_consumed(conn, oauth_state["id"], consumed_at=utcnow_iso())
     updated = _update_integration_config(conn, integration["id"], config, health_status="healthy", credential_status="connected", last_error=None)
     if int((updated or {}).get("auto_sync_enabled") or 0) == 1:
-        execute(conn, "UPDATE integration_connections SET next_sync_at = ?, updated_at = ? WHERE id = ?", (utcnow_iso(), utcnow_iso(), integration["id"]))
-        updated = fetch_one(conn, "SELECT * FROM integration_connections WHERE id = ?", (integration["id"],))
+        updated = repo_schedule_integration_sync_now(conn, integration["id"], timestamp=utcnow_iso())
     try:
         listing = list_google_calendars(conn, updated)
         if listing and not config.get("calendar_id"):
@@ -223,9 +232,23 @@ def _google_request(conn, integration: dict[str, Any], method: str, path: str, *
         return _google_request(conn, integration, method, path, event_type=event_type, request_payload=request_payload, allow_retry_on_401=False, **kwargs)
     if response.status_code >= 400:
         _record_google_event(conn, integration, event_type=event_type, status="failed", summary=f"google calendar {event_type} failed", request_payload=request_payload, response_payload=data, error_payload=data, provider_status_code=response.status_code)
-        execute(conn, "UPDATE integration_connections SET health_status = 'degraded', last_error = ?, last_provider_event_at = ?, last_provider_status_code = ?, updated_at = ? WHERE id = ?", (str(data), utcnow_iso(), response.status_code, utcnow_iso(), integration["id"]))
+        repo_mark_integration_health(
+            conn,
+            integration["id"],
+            health_status="degraded",
+            last_error=str(data),
+            last_provider_event_at=utcnow_iso(),
+            last_provider_status_code=response.status_code,
+        )
         raise RetryableProviderError(f"google_{event_type.replace('.', '_')}_failed", retryable=response.status_code >= 500 or response.status_code in {401, 429}, status_code=response.status_code, details=data)
-    execute(conn, "UPDATE integration_connections SET health_status = 'healthy', credential_status = 'connected', last_error = NULL, last_provider_event_at = ?, last_provider_status_code = ?, updated_at = ? WHERE id = ?", (utcnow_iso(), response.status_code, utcnow_iso(), integration["id"]))
+    repo_mark_integration_health(
+        conn,
+        integration["id"],
+        health_status="healthy",
+        credential_status="connected",
+        last_provider_event_at=utcnow_iso(),
+        last_provider_status_code=response.status_code,
+    )
     _record_google_event(conn, integration, event_type=event_type, status="ok", summary=f"google calendar {event_type} ok", request_payload=request_payload, response_payload=data, provider_status_code=response.status_code)
     return data
 
@@ -267,15 +290,11 @@ def sync_google_calendar(conn, integration: dict[str, Any]) -> dict[str, Any]:
     config = _integration_config(integration)
     calendar_id = config.get("calendar_id") or "primary"
     if _fake_providers_enabled():
-        rows = fetch_all(
-            conn,
-            "SELECT * FROM appointments WHERE organization_id = ? AND COALESCE(bot_id,'') = COALESCE(?, '') AND status IN ('scheduled','confirmed') ORDER BY scheduled_for ASC LIMIT 100",
-            (integration["organization_id"], integration.get("bot_id")),
-        )
+        rows = repo_list_syncable_appointments(conn, organization_id=integration["organization_id"], bot_id=integration.get("bot_id"))
         pushed = 0
         now = utcnow_iso()
         for appointment in rows:
-            execute(conn, "UPDATE appointments SET external_id = COALESCE(external_id, ?), provider = 'google_calendar', provider_payload_json = ?, integration_id = ?, synced_at = ?, updated_at = ? WHERE id = ?", (f"gcal_fake_{appointment["id"]}", to_json({"id": f"gcal_fake_{appointment["id"]}", "status": "confirmed"}), integration["id"], now, now, appointment["id"]))
+            repo_mark_fake_google_calendar_sync(conn, appointment_id=appointment["id"], integration_id=integration["id"], synced_at=now)
             pushed += 1
         return {"provider": "google_calendar", "calendar_id": calendar_id, "pushed": pushed, "pulled": 0, "conflicts": 0, "errors": [], "fake": True}
     pushed = 0
@@ -284,11 +303,7 @@ def sync_google_calendar(conn, integration: dict[str, Any]) -> dict[str, Any]:
     errors: list[dict[str, Any]] = []
     bot_id = integration.get("bot_id")
 
-    local_rows = fetch_all(
-        conn,
-        "SELECT * FROM appointments WHERE organization_id = ? AND COALESCE(bot_id,'') = COALESCE(?, '') AND status IN ('scheduled','confirmed') ORDER BY scheduled_for ASC LIMIT 100",
-        (integration["organization_id"], bot_id),
-    )
+    local_rows = repo_list_syncable_appointments(conn, organization_id=integration["organization_id"], bot_id=bot_id)
     for appointment in local_rows:
         event_payload = {
             "summary": appointment.get("notes") or f"Cita WAOS {appointment['id']}",
@@ -302,10 +317,13 @@ def sync_google_calendar(conn, integration: dict[str, Any]) -> dict[str, Any]:
             else:
                 event_payload["extendedProperties"] = {"private": {"waos_appointment_id": appointment["id"], "waos_org_id": integration["organization_id"]}}
                 data = _google_request(conn, integration, "POST", f"/calendars/{_calendar_path(calendar_id)}/events", event_type="calendar.push", request_payload={"appointment_id": appointment["id"], "calendar_id": calendar_id}, headers={"Content-Type": "application/json"}, json=event_payload)
-            execute(
+            repo_mark_appointment_provider_sync(
                 conn,
-                "UPDATE appointments SET external_id = ?, provider = 'google_calendar', provider_payload_json = ?, integration_id = ?, synced_at = ?, updated_at = ? WHERE id = ?",
-                (data.get("id"), to_json(data), integration["id"], utcnow_iso(), utcnow_iso(), appointment["id"]),
+                appointment_id=appointment["id"],
+                external_id=data.get("id"),
+                provider_payload=data,
+                integration_id=integration["id"],
+                synced_at=utcnow_iso(),
             )
             pushed += 1
         except Exception as exc:
@@ -330,9 +348,9 @@ def sync_google_calendar(conn, integration: dict[str, Any]) -> dict[str, Any]:
     for item in data.get("items") or []:
         start = (item.get("start") or {}).get("dateTime") or (item.get("start") or {}).get("date")
         if item.get('status') == 'cancelled':
-            existing_cancelled = fetch_one(conn, "SELECT * FROM appointments WHERE organization_id = ? AND external_id = ?", (integration["organization_id"], item.get("id")))
+            existing_cancelled = repo_find_appointment_by_external_id(conn, organization_id=integration["organization_id"], external_id=item.get("id"))
             if existing_cancelled:
-                execute(conn, "UPDATE appointments SET status = 'cancelled', provider_payload_json = ?, synced_at = ?, updated_at = ? WHERE id = ?", (to_json(item), utcnow_iso(), utcnow_iso(), existing_cancelled['id']))
+                repo_mark_appointment_cancelled_from_provider(conn, appointment_id=existing_cancelled['id'], provider_payload=item, synced_at=utcnow_iso())
                 pulled += 1
             continue
         if not start:
@@ -340,57 +358,47 @@ def sync_google_calendar(conn, integration: dict[str, Any]) -> dict[str, Any]:
         private_props = ((item.get("extendedProperties") or {}).get("private") or {})
         existing = None
         if private_props.get("waos_appointment_id"):
-            existing = fetch_one(conn, "SELECT * FROM appointments WHERE organization_id = ? AND id = ?", (integration["organization_id"], private_props.get("waos_appointment_id")))
+            existing = repo_find_appointment_by_id(conn, organization_id=integration["organization_id"], appointment_id=private_props.get("waos_appointment_id"))
         if not existing:
-            existing = fetch_one(conn, "SELECT * FROM appointments WHERE organization_id = ? AND external_id = ?", (integration["organization_id"], item.get("id")))
+            existing = repo_find_appointment_by_external_id(conn, organization_id=integration["organization_id"], external_id=item.get("id"))
         if existing:
             local_updated = parse_iso(existing.get("updated_at"))
             provider_updated = parse_iso(item.get("updated"))
             if local_updated and provider_updated and local_updated > provider_updated and existing.get("synced_at"):
                 conflicts += 1
                 continue
-            execute(
+            repo_update_appointment_from_provider(
                 conn,
-                "UPDATE appointments SET scheduled_for = ?, status = ?, notes = ?, duration_minutes = ?, timezone = ?, provider = 'google_calendar', provider_payload_json = ?, integration_id = ?, synced_at = ?, updated_at = ? WHERE id = ?",
-                (
-                    start,
-                    item.get("status") or existing.get("status") or "scheduled",
-                    item.get("summary") or existing.get("notes"),
-                    existing.get("duration_minutes") or 30,
-                    (item.get("start") or {}).get("timeZone") or existing.get("timezone") or config.get("timezone") or "UTC",
-                    to_json(item),
-                    integration["id"],
-                    utcnow_iso(),
-                    utcnow_iso(),
-                    existing["id"],
-                ),
+                appointment_id=existing["id"],
+                scheduled_for=start,
+                status=item.get("status") or existing.get("status") or "scheduled",
+                notes=item.get("summary") or existing.get("notes"),
+                duration_minutes=existing.get("duration_minutes") or 30,
+                timezone=(item.get("start") or {}).get("timeZone") or existing.get("timezone") or config.get("timezone") or "UTC",
+                provider_payload=item,
+                integration_id=integration["id"],
+                synced_at=utcnow_iso(),
             )
         else:
-            execute(
+            repo_create_appointment_from_provider(
                 conn,
-                "INSERT INTO appointments (id, organization_id, bot_id, conversation_id, contact_id, scheduled_for, status, duration_minutes, timezone, notes, created_at, updated_at, external_id, provider, provider_payload_json, integration_id, synced_at) VALUES (?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'google_calendar', ?, ?, ?)",
-                (
-                    new_id("appt"),
-                    integration["organization_id"],
-                    bot_id,
-                    start,
-                    item.get("status") or "scheduled",
-                    30,
-                    (item.get("start") or {}).get("timeZone") or config.get("timezone") or "UTC",
-                    item.get("summary") or "Evento importado",
-                    utcnow_iso(),
-                    utcnow_iso(),
-                    item.get("id"),
-                    to_json(item),
-                    integration["id"],
-                    utcnow_iso(),
-                ),
+                organization_id=integration["organization_id"],
+                bot_id=bot_id,
+                scheduled_for=start,
+                status=item.get("status") or "scheduled",
+                duration_minutes=30,
+                timezone=(item.get("start") or {}).get("timeZone") or config.get("timezone") or "UTC",
+                notes=item.get("summary") or "Evento importado",
+                external_id=item.get("id"),
+                provider_payload=item,
+                integration_id=integration["id"],
+                synced_at=utcnow_iso(),
             )
         pulled += 1
     config["last_real_sync_at"] = utcnow_iso()
     if data.get('nextSyncToken'):
         config['sync_token'] = data.get('nextSyncToken')
     _update_integration_config(conn, integration["id"], config, health_status="healthy", credential_status="connected", last_error=None)
-    execute(conn, "UPDATE integration_connections SET last_sync_at = ?, last_provider_event_at = ?, updated_at = ? WHERE id = ?", (utcnow_iso(), utcnow_iso(), utcnow_iso(), integration["id"]))
+    repo_mark_integration_sync_completed(conn, integration["id"], timestamp=utcnow_iso())
     _record_google_event(conn, integration, event_type="calendar.sync", status="ok" if not errors else "warning", summary="google calendar sync finished", response_payload={"calendar_id": calendar_id, "objects_pushed": pushed, "objects_pulled": pulled, "conflicts": conflicts, "errors": errors[:20], "sync_token_present": bool(config.get("sync_token"))})
     return {"provider": "google_calendar", "calendar_id": calendar_id, "objects_pushed": pushed, "objects_pulled": pulled, "conflicts": conflicts, "errors": errors[:20], "sync_state": "healthy" if not errors else "warning", "sync_token_present": bool(config.get("sync_token")), "last_real_sync_at": config.get("last_real_sync_at")}

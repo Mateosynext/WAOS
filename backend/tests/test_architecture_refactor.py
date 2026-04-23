@@ -65,5 +65,11 @@ def test_legacy_files_removed_from_active_root() -> None:
 
 def test_architecture_manifest_declares_active_sources_of_truth() -> None:
     text = (ROOT / 'architecture.py').read_text(encoding='utf-8')
-    for token in ['ARCHITECTURE_SOURCES_OF_TRUTH', 'vertical_transactions', 'vertical_domain_runtime', 'integrations_runtime', 'DEPRECATED_NAMESPACE']:
+    for token in ['ARCHITECTURE_SOURCES_OF_TRUTH', 'vertical_transactions', 'vertical_domain_runtime', 'integrations_runtime', 'DEPRECATED_NAMESPACE', 'PLATFORM_OWNERSHIP', 'ROOT_ACTIVE_EXCEPTIONS']:
         assert token in text
+
+
+
+def test_no_historical_shims_exist_outside_legacy_package() -> None:
+    offenders = sorted(str(path.relative_to(ROOT)) for path in ROOT.glob("*.py") if path.stem in {"v7", "v8", "v9"} or path.name.endswith("_legacy.py"))
+    assert not offenders, "Historical compatibility shims still live in the active root: " + ", ".join(offenders)

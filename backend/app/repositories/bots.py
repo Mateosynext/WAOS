@@ -1,19 +1,20 @@
 from __future__ import annotations
 
 import os
-import sqlite3
 from typing import Any
+
+from .base import ConnectionLike
 
 from ..db import execute, fetch_all, fetch_one
 from ..defaults import default_bot_config
 from ..utils import from_json, hash_password, new_id, slugify, to_json, utcnow_iso
 from ..verticals import build_organization_settings
 
-def get_bot(conn: sqlite3.Connection, bot_id: str) -> dict | None:
+def get_bot(conn: ConnectionLike, bot_id: str) -> dict | None:
     return fetch_one(conn, "SELECT * FROM bots WHERE id = ? AND deleted_at IS NULL", (bot_id,))
 
 
-def list_bot_versions(conn: sqlite3.Connection, bot_id: str) -> list[dict]:
+def list_bot_versions(conn: ConnectionLike, bot_id: str) -> list[dict]:
     return fetch_all(
         conn,
         "SELECT * FROM bot_versions WHERE bot_id = ? ORDER BY version_number DESC",
@@ -21,7 +22,7 @@ def list_bot_versions(conn: sqlite3.Connection, bot_id: str) -> list[dict]:
     )
 
 
-def publish_version(conn: sqlite3.Connection, *, bot_id: str, actor_user: dict, notes: str = "") -> dict:
+def publish_version(conn: ConnectionLike, *, bot_id: str, actor_user: dict, notes: str = "") -> dict:
     bot = get_bot(conn, bot_id)
     versions = list_bot_versions(conn, bot_id)
     next_number = 1 if not versions else max(v["version_number"] for v in versions) + 1
@@ -66,7 +67,7 @@ def publish_version(conn: sqlite3.Connection, *, bot_id: str, actor_user: dict, 
 
 
 def create_audit_log(
-    conn: sqlite3.Connection,
+    conn: ConnectionLike,
     *,
     organization_id: str | None,
     actor_user_id: str | None,
@@ -112,7 +113,7 @@ def create_audit_log(
 
 
 def create_bot(
-    conn: sqlite3.Connection,
+    conn: ConnectionLike,
     *,
     organization_id: str,
     business_name: str,
@@ -200,7 +201,7 @@ def create_bot(
     return get_bot(conn, bot_id)
 
 
-def rollback_version(conn: sqlite3.Connection, *, bot_id: str, version_id: str, actor_user: dict) -> dict:
+def rollback_version(conn: ConnectionLike, *, bot_id: str, version_id: str, actor_user: dict) -> dict:
     version = fetch_one(conn, "SELECT * FROM bot_versions WHERE id = ? AND bot_id = ?", (version_id, bot_id))
     bot = get_bot(conn, bot_id)
     execute(

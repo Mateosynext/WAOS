@@ -1,0 +1,2240 @@
+{
+  "id": "aesthetic",
+  "name": "WAOS Aesthetic",
+  "short_name": "Medicina estetica & wellness premium",
+  "description": "Sistema operativo conversacional para medicina estética y wellness premium.",
+  "problem": "Estética pierde valor por mala respuesta inicial, poca confianza, poco seguimiento, baja venta de paquete y casi nada de mantenimiento sistemático.",
+  "subverticals": [
+    "medicina estética",
+    "med spa",
+    "depilación láser",
+    "faciales avanzados",
+    "contouring corporal",
+    "skin clinic",
+    "anti-aging",
+    "rejuvenecimiento",
+    "aparatología estética",
+    "wellness premium"
+  ],
+  "objects": [
+    "sede",
+    "especialista",
+    "valoración",
+    "tratamiento",
+    "zona corporal/facial",
+    "contraindicaciones básicas",
+    "sesión",
+    "paquete",
+    "anticipo",
+    "aftercare",
+    "mantenimiento",
+    "paciente estético",
+    "objetivo estético",
+    "elegibilidad",
+    "contraindicaciones",
+    "tratamiento recomendado",
+    "paquete de sesiones"
+  ],
+  "flows": [
+    "interés -> valoración",
+    "valoración -> paquete",
+    "sesión -> aftercare",
+    "mantenimiento -> recompra"
+  ],
+  "kpis": [
+    "lead a valoración",
+    "valoración a paquete",
+    "anticipo cobrado",
+    "rebook",
+    "mantenimiento",
+    "recompra",
+    "booking a valoración",
+    "aceptación de paquete",
+    "valor de mantenimiento",
+    "recompra a 30/60/90 días"
+  ],
+  "recommended_integrations": [
+    "whatsapp",
+    "google_calendar",
+    "payments",
+    "crm",
+    "media",
+    "promotions"
+  ],
+  "default_services": [
+    "valoracion estetica",
+    "facial avanzado",
+    "depilacion laser",
+    "paquete de sesiones",
+    "mantenimiento mensual"
+  ],
+  "default_faqs": [
+    {
+      "q": "¿Que tratamiento me conviene?",
+      "a": "Podemos orientarte segun objetivo y agendar valoracion para definir elegibilidad."
+    },
+    {
+      "q": "¿Cuantas sesiones se necesitan?",
+      "a": "Depende del caso; el bot puede explicarte el flujo general y ayudarte a reservar valoracion."
+    },
+    {
+      "q": "¿Tienen paquetes?",
+      "a": "Si, podemos sugerir paquetes y mantenimiento cuando encajan contigo."
+    },
+    {
+      "q": "¿Dan cuidados posteriores?",
+      "a": "Si, enviamos instrucciones previas y aftercare despues de cada sesion."
+    }
+  ],
+  "behavior": {
+    "tone": "premium y consultivo",
+    "response_length": "media",
+    "use_emojis": false,
+    "sales_intensity": "alta",
+    "offer_promotions_when": "after_interest_confirmed",
+    "escalate_when": [
+      "contraindicacion",
+      "reaccion adversa",
+      "inconformidad"
+    ],
+    "insistence_policy": "respectful",
+    "can_share_price_directly": true,
+    "can_negotiate": false,
+    "can_mention_stock": false,
+    "auto_send_images": true,
+    "bot_mode": "consultivo_premium",
+    "active_channels": [
+      "whatsapp",
+      "instagram_dm",
+      "webchat"
+    ],
+    "forbidden_topics": [
+      "promesas medicas absolutas",
+      "diagnostico clinico definitivo"
+    ],
+    "required_phrases": [
+      "primero validamos elegibilidad",
+      "puedo ayudarte a reservar tu valoracion",
+      "te sigo",
+      "si la pregunta viene rara, igual te la aterrizo",
+      "te lo aterrizo a tu caso"
+    ],
+    "fallback_message": "Te ayudo a identificar el tratamiento o paquete que mejor encaja contigo y a reservar tu valoracion. Si la pregunta viene rara, en broma o medio fuera de tema, igual te sigo y la aterrizamos al negocio.",
+    "humor_policy": "light_contextual",
+    "strange_question_policy": "respond_validate_reframe_sell_move"
+  },
+  "followup_rules": [
+    {
+      "type": "no_response",
+      "delay_minutes": 90,
+      "max_attempts": 2,
+      "message_template": "¿Quieres que te recomiende el tratamiento adecuado o que apartemos tu valoracion?"
+    },
+    {
+      "type": "post_quote",
+      "delay_minutes": 1440,
+      "max_attempts": 2,
+      "message_template": "Sigo pendiente para ayudarte a elegir tu paquete o resolver dudas antes de reservar."
+    },
+    {
+      "type": "reactivation",
+      "delay_minutes": 20160,
+      "max_attempts": 1,
+      "message_template": "Ya toca mantenimiento o siguiente sesion. ¿Quieres que te comparta horarios disponibles?"
+    }
+  ],
+  "templates": [
+    {
+      "template_key": "valuation_premium",
+      "title": "Valoracion premium",
+      "content": "Gracias por escribir a {{business_name}}. Te ayudo a revisar objetivo, elegibilidad y la mejor opcion para tu valoracion.",
+      "variables": [
+        "business_name"
+      ]
+    },
+    {
+      "template_key": "package_offer",
+      "title": "Oferta de paquete",
+      "content": "Con base en tu objetivo, el paquete {{package_name}} suele dar mejor seguimiento que una sola sesion. ¿Quieres que te comparta detalles?",
+      "variables": [
+        "package_name"
+      ]
+    },
+    {
+      "template_key": "precare",
+      "title": "Instrucciones previas",
+      "content": "Antes de tu cita, te comparto estas recomendaciones previas para que llegues lista/o al tratamiento.",
+      "variables": []
+    },
+    {
+      "template_key": "aftercare",
+      "title": "Aftercare",
+      "content": "Te comparto los cuidados posteriores recomendados para tu tratamiento de hoy. Si notas algo fuera de lo esperado, te canalizo con el especialista.",
+      "variables": []
+    },
+    {
+      "template_key": "maintenance",
+      "title": "Mantenimiento",
+      "content": "Tu mantenimiento recomendado ya esta cerca. ¿Quieres que te comparta horarios o el paquete vigente?",
+      "variables": []
+    }
+  ],
+  "config_overrides": {
+    "objective_secondary": [
+      "agendar",
+      "upsell",
+      "reactivar"
+    ],
+    "policies": [
+      "No prometer resultados garantizados",
+      "Escalar contraindicaciones y reacciones"
+    ],
+    "can_say": [
+      "tratamientos",
+      "sesiones",
+      "paquetes",
+      "aftercare",
+      "mantenimiento"
+    ],
+    "cannot_say": [
+      "diagnostico definitivo",
+      "promesas clinicas",
+      "indicaciones medicas complejas"
+    ],
+    "whatsapp_flows": [
+      "valoracion_estetica",
+      "venta_paquete",
+      "aftercare",
+      "mantenimiento"
+    ],
+    "appointment_duration_minutes": 35,
+    "handoff_keywords": [
+      "contraindicacion",
+      "alergia",
+      "reaccion",
+      "queja"
+    ],
+    "high_score_threshold": 82
+  },
+  "portfolio_tier": "tier_1",
+  "master_thesis": "Sistema operativo conversacional para medicina estética y wellness premium que convierte leads aspiracionales en valoración, paquete, sesiones, mantenimiento y recompra.",
+  "buyer": {
+    "primary": "Dueño o gerente comercial de clínica estética / med spa",
+    "secondary": [
+      "coordinación comercial",
+      "recepción premium",
+      "especialistas"
+    ]
+  },
+  "one_pager": {
+    "headline": "WAOS Aesthetic",
+    "thesis": "WhatsApp se vuelve un proceso consultivo premium que conduce al lead desde curiosidad hasta paquete, sesión y mantenimiento.",
+    "problem": "Mucho lead pregunta antes de comprar y se enfría si no hay seguimiento, confianza y estructura comercial.",
+    "promise": "Cada conversación termina en una siguiente acción clara: valoración, anticipo, sesión, paquete o mantenimiento.",
+    "monetizes": [
+      "valoración",
+      "sesión individual",
+      "paquete",
+      "anticipo",
+      "planes de mantenimiento",
+      "cross-sell"
+    ],
+    "packaging": [
+      "setup aesthetic premium",
+      "playbook por tratamiento",
+      "valoración + paquetes + aftercare",
+      "operación mensual de recompra"
+    ],
+    "strategic_care": "Vertical muy natural para WAOS; conviene venderla como revenue engine consultivo, cuidando mucho promesas y elegibilidad."
+  },
+  "demo_flow": [
+    "El lead entra por precio, resultados, dolor, sesiones o si es candidato.",
+    "WAOS identifica objetivo estético, ticket potencial y necesidad de valoración.",
+    "Recomienda valoración o tratamiento inicial y cobra anticipo.",
+    "Confirma cita y comparte preparación previa.",
+    "Después de la sesión envía aftercare y propone siguiente paso.",
+    "Activa mantenimiento, recompra y winback si la paciente desaparece."
+  ],
+  "native_objects": {
+    "core": [
+      "paciente",
+      "especialista",
+      "tratamiento",
+      "zona tratada",
+      "valoración",
+      "paciente estético"
+    ],
+    "commercial": [
+      "elegibilidad",
+      "paquete",
+      "sesión",
+      "anticipo",
+      "financiamiento"
+    ],
+    "operations": [
+      "progreso",
+      "aftercare",
+      "mantenimiento",
+      "paciente fría",
+      "cross-sell"
+    ]
+  },
+  "pipeline": {
+    "primary": {
+      "name": "Valoración y paquete",
+      "states": [
+        "lead nuevo",
+        "interés detectado",
+        "valoración recomendada",
+        "valoración agendada",
+        "valoración asistida",
+        "elegible",
+        "propuesta enviada",
+        "paquete pendiente",
+        "anticipo pagado",
+        "sesión agendada",
+        "tratamiento en curso",
+        "mantenimiento pendiente",
+        "recompra"
+      ]
+    },
+    "secondary": [
+      {
+        "name": "Recurrencia estética",
+        "states": [
+          "post sesión",
+          "rebook pendiente",
+          "mantenimiento activo",
+          "winback",
+          "reactivada"
+        ]
+      }
+    ]
+  },
+  "bot_playbook": {
+    "must_do": [
+      "orientar tratamiento",
+      "filtrar elegibilidad básica",
+      "recomendar valoración",
+      "presentar paquete",
+      "cobrar anticipo",
+      "recordar preparación",
+      "dar aftercare",
+      "reactivar mantenimiento",
+      "nunca quedarse seco ante bromas, preguntas raras o cambios bruscos de tema",
+      "usar humor ligero cuando sume, sin sonar payaso ni poco serio",
+      "validar el momento y luego reencauzar la conversacion al negocio",
+      "cerrar siempre con una pregunta util o siguiente paso"
+    ],
+    "must_ask": [
+      "objetivo estético",
+      "zona de interés",
+      "experiencia previa",
+      "sede",
+      "disponibilidad",
+      "si busca valoración o cita directa",
+      "que parte del negocio se esta atorando mas",
+      "si quiere que se lo aterrice a su caso"
+    ],
+    "objections": [
+      "precio",
+      "miedo o dolor",
+      "resultados",
+      "duración",
+      "número de sesiones",
+      "quiero pensarlo"
+    ],
+    "escalate_when": [
+      "contraindicaciones",
+      "reacción adversa",
+      "inconformidad",
+      "plan premium complejo"
+    ],
+    "forbidden": [
+      "promesas médicas absolutas",
+      "diagnóstico clínico definitivo"
+    ],
+    "success_signals": [
+      "quiero valoración",
+      "soy candidata",
+      "mándame paquete",
+      "quiero apartar",
+      "¿cómo pago?"
+    ],
+    "style": [
+      "humor ligero",
+      "manejo de preguntas raras",
+      "reencuadre comercial"
+    ]
+  },
+  "automation_sequences": [
+    {
+      "key": "aesthetic_valuation",
+      "name": "Valoración pendiente",
+      "trigger": "lead con interés confirmado",
+      "goal": "cerrar valoración",
+      "steps": [
+        "resolver dudas",
+        "ofrecer horario",
+        "enviar anticipo"
+      ]
+    },
+    {
+      "key": "aesthetic_pre_session",
+      "name": "Preparación previa",
+      "trigger": "sesión confirmada",
+      "goal": "reducir cancelaciones",
+      "steps": [
+        "instrucciones previas",
+        "recordatorio",
+        "confirmación final"
+      ]
+    },
+    {
+      "key": "aesthetic_aftercare",
+      "name": "Aftercare y siguiente sesión",
+      "trigger": "sesión realizada",
+      "goal": "mejorar experiencia y continuidad",
+      "steps": [
+        "aftercare",
+        "detectar molestias",
+        "proponer siguiente sesión"
+      ]
+    },
+    {
+      "key": "aesthetic_maintenance",
+      "name": "Mantenimiento",
+      "trigger": "30/60/90 días sin sesión",
+      "goal": "recompra y winback",
+      "steps": [
+        "recordar mantenimiento",
+        "ofrecer paquete",
+        "cerrar agenda"
+      ]
+    }
+  ],
+  "dashboard": {
+    "north_star": "Valoración a paquete con recompra de mantenimiento.",
+    "sections": [
+      {
+        "name": "Conversión",
+        "metrics": [
+          "lead a valoración",
+          "valoración a paquete",
+          "anticipo cobrado",
+          "paquete a primera sesión"
+        ]
+      },
+      {
+        "name": "Operación",
+        "metrics": [
+          "asistencia a sesiones",
+          "no-show",
+          "tiempo entre sesiones",
+          "cumplimiento de plan"
+        ]
+      },
+      {
+        "name": "Revenue",
+        "metrics": [
+          "revenue por tratamiento",
+          "revenue por paquete",
+          "mantenimiento vendido",
+          "LTV por paciente"
+        ]
+      },
+      {
+        "name": "Retención",
+        "metrics": [
+          "rebook rate",
+          "recompra",
+          "inactivas reactivadas",
+          "cross-sell rate"
+        ]
+      }
+    ]
+  },
+  "hardening_model": {
+    "goal": "Pasar de preset inteligente a sistema especialista",
+    "wave": "ola_1",
+    "entity_queen": "paciente estético",
+    "core_common": true,
+    "domain_by_vertical": true,
+    "playbooks_by_subvertical": true,
+    "kpis_by_vertical": true,
+    "pricing_by_vertical": true,
+    "journeys_by_vertical": true,
+    "reusable_modules": [
+      "intake / calificación",
+      "agenda / recursos",
+      "cotización / propuesta",
+      "pago / anticipo / membresía",
+      "seguimiento / recurrencia",
+      "reporting vertical"
+    ],
+    "minimum_viable_hardening": [
+      "1 entidad reina",
+      "1 pipeline propio",
+      "1 cotización propia",
+      "1 recurrencia propia",
+      "1 dashboard propio"
+    ],
+    "hard_checklist": [
+      "tiene entidad principal propia",
+      "tiene pipeline específico",
+      "tiene cotización o pricing del nicho",
+      "tiene agenda o recursos del nicho",
+      "tiene postventa o recurrencia del nicho",
+      "tiene documentos o compliance del nicho",
+      "tiene KPIs del nicho",
+      "tiene 3 automatizaciones que mueven dinero",
+      "tiene 2 pruebas e2e de negocio",
+      "tiene subplaybooks por subvertical",
+      "entidad principal propia",
+      "pipeline específico",
+      "pricing del nicho",
+      "agenda y recursos del nicho",
+      "postventa o recurrencia del nicho",
+      "documentos o compliance del nicho",
+      "KPIs del nicho",
+      "3 automatizaciones que mueven dinero",
+      "2 pruebas e2e de negocio",
+      "subplaybooks por subvertical",
+      "runtime ejecutable por vertical"
+    ]
+  },
+  "specialist_layers": {
+    "persistent_entities": [
+      "paciente estético",
+      "objetivo estético",
+      "elegibilidad",
+      "contraindicaciones",
+      "tratamiento recomendado",
+      "paquete de sesiones",
+      "mantenimiento",
+      "aftercare"
+    ],
+    "business_pipeline": {
+      "primary_entity": "paciente estético",
+      "primary_pipeline": {
+        "name": "Valoración y paquete",
+        "states": [
+          "lead nuevo",
+          "interés detectado",
+          "valoración recomendada",
+          "valoración agendada",
+          "valoración asistida",
+          "elegible",
+          "propuesta enviada",
+          "paquete pendiente",
+          "anticipo pagado",
+          "sesión agendada",
+          "tratamiento en curso",
+          "mantenimiento pendiente",
+          "recompra"
+        ]
+      },
+      "secondary_pipelines": [
+        {
+          "name": "Recurrencia estética",
+          "states": [
+            "post sesión",
+            "rebook pendiente",
+            "mantenimiento activo",
+            "winback",
+            "reactivada"
+          ]
+        }
+      ]
+    },
+    "pricing_and_quotes": [
+      "cotización por paquete",
+      "bundle con upsell",
+      "mantenimiento estructurado"
+    ],
+    "agenda_and_resources": [
+      "cabina",
+      "especialista",
+      "equipo",
+      "agenda premium",
+      "slot de seguimiento"
+    ],
+    "post_sale_and_recurrence": [
+      "mantenimiento a 30/60/90 días",
+      "seguimiento aftercare",
+      "reactivación de paquete incompleto"
+    ],
+    "documents_compliance": [
+      "consentimiento",
+      "fotos de seguimiento",
+      "precare",
+      "aftercare"
+    ],
+    "kpis_that_matter": [
+      "lead a valoración",
+      "valoración a paquete",
+      "anticipo cobrado",
+      "rebook",
+      "mantenimiento",
+      "recompra",
+      "booking a valoración",
+      "aceptación de paquete",
+      "valor de mantenimiento",
+      "recompra a 30/60/90 días"
+    ],
+    "money_automations": [
+      "seguimiento post valoración con paquete",
+      "aftercare con recompra",
+      "mantenimiento premium programado"
+    ]
+  },
+  "domain_contract": {
+    "vertical_entity_types": [
+      "paciente estético",
+      "objetivo estético",
+      "elegibilidad",
+      "contraindicaciones",
+      "tratamiento recomendado",
+      "paquete de sesiones",
+      "mantenimiento",
+      "aftercare"
+    ],
+    "vertical_pipeline_stages": {
+      "primary": [
+        "lead nuevo",
+        "interés detectado",
+        "valoración recomendada",
+        "valoración agendada",
+        "valoración asistida",
+        "elegible",
+        "propuesta enviada",
+        "paquete pendiente",
+        "anticipo pagado",
+        "sesión agendada",
+        "tratamiento en curso",
+        "mantenimiento pendiente",
+        "recompra"
+      ],
+      "secondary": [
+        [
+          "post sesión",
+          "rebook pendiente",
+          "mantenimiento activo",
+          "winback",
+          "reactivada"
+        ]
+      ]
+    },
+    "vertical_quote_types": [
+      "paquete de sesiones",
+      "bundle premium",
+      "mantenimiento",
+      "anticipo de procedimiento"
+    ],
+    "vertical_resource_types": [
+      "cabina",
+      "especialista",
+      "equipo",
+      "agenda premium",
+      "slot de seguimiento"
+    ],
+    "vertical_followup_policies": [
+      "mantenimiento a 30/60/90 días",
+      "seguimiento aftercare",
+      "reactivación de paquete incompleto"
+    ],
+    "vertical_kpi_definitions": [
+      "lead a valoración",
+      "valoración a paquete",
+      "anticipo cobrado",
+      "rebook",
+      "mantenimiento",
+      "recompra",
+      "booking a valoración",
+      "aceptación de paquete",
+      "valor de mantenimiento",
+      "recompra a 30/60/90 días"
+    ],
+    "vertical_playbooks": [
+      "depilación",
+      "facial",
+      "injectables",
+      "body contouring",
+      "wellness premium"
+    ],
+    "vertical_document_types": [
+      "consentimiento",
+      "fotos de seguimiento",
+      "precare",
+      "aftercare"
+    ]
+  },
+  "subvertical_playbooks": [
+    {
+      "name": "depilación",
+      "focus": "Playbook operativo y comercial para depilación"
+    },
+    {
+      "name": "facial",
+      "focus": "Playbook operativo y comercial para facial"
+    },
+    {
+      "name": "injectables",
+      "focus": "Playbook operativo y comercial para injectables"
+    },
+    {
+      "name": "body contouring",
+      "focus": "Playbook operativo y comercial para body contouring"
+    },
+    {
+      "name": "wellness premium",
+      "focus": "Playbook operativo y comercial para wellness premium"
+    }
+  ],
+  "business_e2e_tests": [
+    {
+      "name": "lead elegible compra paquete de sesiones tras valoración",
+      "status": "designed"
+    },
+    {
+      "name": "paciente activa mantenimiento después de aftercare",
+      "status": "designed"
+    }
+  ],
+  "vertical_runtime": {
+    "pipeline_machine": {
+      "primary_pipeline": "Valoración y paquete",
+      "entity": "paciente estético",
+      "states": [
+        "lead nuevo",
+        "interés detectado",
+        "valoración recomendada",
+        "valoración agendada",
+        "valoración asistida",
+        "elegible",
+        "propuesta enviada",
+        "paquete pendiente",
+        "anticipo pagado",
+        "sesión agendada",
+        "tratamiento en curso",
+        "mantenimiento pendiente",
+        "recompra"
+      ],
+      "transitions": [
+        {
+          "from": "lead nuevo",
+          "to": "interés detectado",
+          "trigger": "qualification_complete",
+          "business_effect": "advance opportunity"
+        },
+        {
+          "from": "interés detectado",
+          "to": "valoración recomendada",
+          "trigger": "maintenance_due",
+          "business_effect": "open commercial step"
+        },
+        {
+          "from": "mantenimiento pendiente",
+          "to": "recompra",
+          "trigger": "successful_outcome",
+          "business_effect": "realize revenue or continuity"
+        },
+        {
+          "from": "mantenimiento pendiente",
+          "to": "at_risk",
+          "trigger": "eligible_confirmed",
+          "business_effect": "activate retention sequence"
+        }
+      ],
+      "at_risk_state": "at_risk",
+      "closed_states": [
+        "recompra"
+      ]
+    },
+    "pricing_engine": {
+      "quote_types": [
+        "valoracion",
+        "paquete de sesiones",
+        "bundle premium",
+        "mantenimiento"
+      ],
+      "pricing_basis": "treatment + session_count + premium add-ons + maintenance",
+      "rules": [
+        {
+          "rule": "base price by tratamiento type",
+          "effect": "set base_price"
+        },
+        {
+          "rule": "premium or urgent add-ons increase quote",
+          "effect": "add surcharge"
+        },
+        {
+          "rule": "bundle, membership or financing can lower immediate friction",
+          "effect": "recommend package or installments"
+        }
+      ],
+      "deposit_policy": "request advance when capacity, specialist time or inventory must be secured"
+    },
+    "resource_capacity": {
+      "resource_types": [
+        "especialista",
+        "cabina",
+        "equipo estetico",
+        "slot premium"
+      ],
+      "capacity_basis": "specialist, cabin, device cooldown and session duration",
+      "constraints": [
+        "avoid double booking of critical resources",
+        "respect service duration and cleanup/buffer time",
+        "prioritize higher urgency and higher close probability cases"
+      ],
+      "priority_queue": "cabina, elegibilidad y mantenimiento"
+    },
+    "recurrence_engine": {
+      "policies": [
+        {
+          "type": "maintenance_cycle",
+          "interval_days": 45,
+          "anchor": "paciente estético"
+        },
+        {
+          "type": "package_session_followup",
+          "interval_days": 21,
+          "anchor": "paciente estético"
+        },
+        {
+          "type": "aftercare_review",
+          "interval_days": 3,
+          "anchor": "paciente estético"
+        }
+      ],
+      "reactivation_window_days": 45,
+      "goal": "protect retention, repeat revenue and continuity"
+    },
+    "kpi_engine": {
+      "north_star": "Valoración a paquete con recompra de mantenimiento.",
+      "definitions": [
+        {
+          "name": "valuation_to_package",
+          "formula": "packages_sold / valuations_completed"
+        },
+        {
+          "name": "maintenance_value",
+          "formula": "maintenance_revenue / active_patients"
+        },
+        {
+          "name": "repurchase_60d",
+          "formula": "repurchases_60d / treated_patients"
+        }
+      ],
+      "leading_indicators": [
+        "eligible_confirmed",
+        "package_pending",
+        "no_response_7d"
+      ]
+    },
+    "automation_engine": {
+      "money_automation_policies": [
+        {
+          "trigger": "eligible_confirmed",
+          "actions": [
+            "send_followup",
+            "escalate_owner",
+            "offer_relevant_next_step"
+          ],
+          "goal": "save conversion or retention"
+        },
+        {
+          "trigger": "package_pending",
+          "actions": [
+            "send_quote_or_payment_link",
+            "remind_deadline",
+            "notify_human"
+          ],
+          "goal": "move revenue forward"
+        },
+        {
+          "trigger": "post_session_check",
+          "actions": [
+            "schedule_recurrence",
+            "cross_sell_next_best_offer",
+            "create_task"
+          ],
+          "goal": "increase LTV"
+        }
+      ],
+      "quiet_hours": "21:00-08:00"
+    },
+    "document_flow": {
+      "required_documents": [
+        "consentimiento estetico",
+        "fotos before/after",
+        "contraindicaciones",
+        "aftercare"
+      ],
+      "lifecycle_rules": [
+        {
+          "document": "consentimiento estetico",
+          "required_before": "first committed step",
+          "signature_required": true
+        },
+        {
+          "document": "aftercare",
+          "required_before": "handoff or continuity step",
+          "signature_required": false
+        }
+      ]
+    },
+    "matching_engine": {
+      "entity": "paciente estético",
+      "rules": [
+        "goal == treatment.indication",
+        "contraindications == false",
+        "budget_fit",
+        "preferred_schedule_match"
+      ],
+      "next_best_match_outputs": [
+        "best_owner",
+        "best_resource_slot",
+        "best_offer"
+      ]
+    }
+  },
+  "transactional_motor_v12": {
+    "version": "v12_full_transactional",
+    "aggregate_root": "aesthetic_case_account",
+    "main_business_entity": "tratamiento recomendado",
+    "transaction_unit": "session_cycle",
+    "system_of_record": {
+      "write_model": [
+        "commands",
+        "events",
+        "ledger",
+        "aggregate_snapshots"
+      ],
+      "read_models": [
+        "commercial_board",
+        "operations_board",
+        "finance_board",
+        "continuity_board",
+        "resource_load_board",
+        "document_readiness_board",
+        "revenue_levers_board"
+      ],
+      "idempotency_scope": [
+        "organization_id",
+        "vertical_id",
+        "external_reference",
+        "command_key"
+      ],
+      "audit_mode": "append_only_with_snapshots"
+    },
+    "transaction_primitives": {
+      "commands": [
+        "capture_intent",
+        "qualify_record",
+        "create_quote",
+        "request_deposit",
+        "reserve_capacity",
+        "confirm_booking",
+        "start_case",
+        "approve_quote",
+        "collect_payment",
+        "start_fulfillment",
+        "close_fulfillment",
+        "schedule_recurrence",
+        "issue_refund",
+        "reactivate_customer",
+        "mark_eligibility",
+        "sell_session_package",
+        "deliver_aftercare",
+        "schedule_maintenance"
+      ],
+      "events": [
+        "intent_captured",
+        "record_qualified",
+        "quote_created",
+        "deposit_requested",
+        "capacity_reserved",
+        "booking_confirmed",
+        "case_started",
+        "quote_approved",
+        "payment_collected",
+        "fulfillment_started",
+        "fulfillment_closed",
+        "recurrence_scheduled",
+        "refund_issued",
+        "customer_reactivated",
+        "eligibility_confirmed",
+        "package_sold",
+        "aftercare_delivered",
+        "maintenance_scheduled"
+      ],
+      "ledger_event_types": [
+        "charge_opened",
+        "deposit_collected",
+        "installment_due",
+        "payment_applied",
+        "credit_issued",
+        "refund_issued",
+        "write_off_registered"
+      ],
+      "invariants": [
+        "no iniciar sesión sin consentimiento",
+        "no vender tratamiento contra contraindicación",
+        "no cerrar paquete sin aftercare programado",
+        "todo pago debe referenciar quote, order o case activo",
+        "todo cambio crítico debe emitir evento y renglón de auditoría",
+        "ningún recurso se confirma dos veces en la misma ventana"
+      ],
+      "idempotency_keys": [
+        "command_key",
+        "payment_reference",
+        "booking_reference",
+        "external_message_id"
+      ]
+    },
+    "aggregates": {
+      "primary_record": {
+        "name": "tratamiento recomendado",
+        "status_axis": [
+          "commercial",
+          "operations",
+          "finance",
+          "continuity"
+        ]
+      },
+      "quote": {
+        "name": "package_quote",
+        "states": [
+          "draft",
+          "sent",
+          "accepted",
+          "expired",
+          "lost"
+        ]
+      },
+      "booking": {
+        "name": "valuation_booking",
+        "states": [
+          "proposed",
+          "reserved",
+          "confirmed",
+          "attended_or_executed",
+          "missed_or_canceled"
+        ]
+      },
+      "execution": {
+        "name": "session_delivery",
+        "states": [
+          "pending",
+          "ready",
+          "in_progress",
+          "blocked",
+          "completed",
+          "closed"
+        ]
+      },
+      "payment_account": {
+        "name": "payment_account",
+        "states": [
+          "open",
+          "partially_paid",
+          "paid",
+          "overdue",
+          "refunded"
+        ]
+      },
+      "continuity": {
+        "name": "maintenance_plan",
+        "states": [
+          "not_started",
+          "active",
+          "at_risk",
+          "recovered",
+          "closed"
+        ]
+      }
+    },
+    "orchestration": {
+      "command_handlers": [
+        "handle_capture_intent",
+        "handle_qualify_record",
+        "handle_create_quote",
+        "handle_request_deposit",
+        "handle_reserve_capacity",
+        "handle_confirm_booking",
+        "handle_start_case",
+        "handle_approve_quote",
+        "handle_mark_eligibility",
+        "handle_sell_session_package",
+        "handle_deliver_aftercare",
+        "handle_schedule_maintenance"
+      ],
+      "sagas": [
+        "eligibility_to_package",
+        "aftercare_to_maintenance",
+        "incident_recovery"
+      ],
+      "money_guards": [
+        "quote_before_payment",
+        "capacity_before_confirmation",
+        "documents_before_execution",
+        "balance_before_close"
+      ],
+      "read_model_refresh": [
+        "on_every_event",
+        "nightly_reconciliation",
+        "pre_dashboard_cache"
+      ]
+    },
+    "finance": {
+      "money_objects": [
+        "valuation_charge",
+        "package_deposit",
+        "session_collection",
+        "maintenance_charge"
+      ],
+      "collection_modes": [
+        "anticipo",
+        "paquete",
+        "mantenimiento"
+      ],
+      "refund_modes": [
+        "session_credit",
+        "service_recovery_credit"
+      ],
+      "reconciliation_views": [
+        "expected_vs_collected",
+        "aging_balance",
+        "refund_exposure",
+        "cash_by_stage"
+      ]
+    },
+    "operations": {
+      "fulfillment_unit": "session_cycle",
+      "resource_locking": [
+        "specialist",
+        "cabina",
+        "equipment_slot"
+      ],
+      "dispatch_or_schedule_board": [
+        "queued",
+        "ready",
+        "assigned",
+        "in_progress",
+        "blocked",
+        "done"
+      ],
+      "handoff_rules": [
+        "human_handoff_on_exception",
+        "supervisor_handoff_on_money_risk",
+        "operator_handoff_on_compliance_gap"
+      ]
+    },
+    "audit_compliance": {
+      "timeline_entities": [
+        "tratamiento recomendado",
+        "package_quote",
+        "valuation_booking",
+        "session_delivery",
+        "payment_account"
+      ],
+      "consent_gates": [
+        "contraindication_form",
+        "consentimiento_estetico",
+        "photo_authorization"
+      ],
+      "required_evidence": [
+        "timeline_event",
+        "actor",
+        "timestamp",
+        "before_after_snapshot"
+      ],
+      "retention_rules": [
+        "audit_log_append_only",
+        "documents_linked_to_primary_record",
+        "payment_trace_non_destructive"
+      ]
+    },
+    "transaction_views": {
+      "commercial": [
+        "eligibility",
+        "package_acceptance",
+        "upsell"
+      ],
+      "operations": [
+        "session_timeline",
+        "aftercare",
+        "incident_log"
+      ],
+      "finance": [
+        "package_value",
+        "maintenance_mrr",
+        "balance_due"
+      ],
+      "continuity": [
+        "rebooking",
+        "maintenance",
+        "recompra"
+      ]
+    },
+    "command_catalog": [
+      {
+        "command": "capture_intent",
+        "writes": "tratamiento recomendado",
+        "emits": "intent_captured",
+        "guard": "no iniciar sesión sin consentimiento"
+      },
+      {
+        "command": "qualify_record",
+        "writes": "tratamiento recomendado",
+        "emits": "record_qualified",
+        "guard": "no vender tratamiento contra contraindicación"
+      },
+      {
+        "command": "create_quote",
+        "writes": "tratamiento recomendado",
+        "emits": "quote_created",
+        "guard": "no cerrar paquete sin aftercare programado"
+      },
+      {
+        "command": "request_deposit",
+        "writes": "tratamiento recomendado",
+        "emits": "deposit_requested",
+        "guard": "no iniciar sesión sin consentimiento"
+      },
+      {
+        "command": "reserve_capacity",
+        "writes": "tratamiento recomendado",
+        "emits": "capacity_reserved",
+        "guard": "no vender tratamiento contra contraindicación"
+      },
+      {
+        "command": "confirm_booking",
+        "writes": "tratamiento recomendado",
+        "emits": "booking_confirmed",
+        "guard": "no cerrar paquete sin aftercare programado"
+      },
+      {
+        "command": "start_case",
+        "writes": "tratamiento recomendado",
+        "emits": "case_started",
+        "guard": "no iniciar sesión sin consentimiento"
+      },
+      {
+        "command": "approve_quote",
+        "writes": "tratamiento recomendado",
+        "emits": "quote_approved",
+        "guard": "no vender tratamiento contra contraindicación"
+      },
+      {
+        "command": "mark_eligibility",
+        "writes": "tratamiento recomendado",
+        "emits": "payment_collected",
+        "guard": "no cerrar paquete sin aftercare programado"
+      },
+      {
+        "command": "sell_session_package",
+        "writes": "tratamiento recomendado",
+        "emits": "fulfillment_started",
+        "guard": "no iniciar sesión sin consentimiento"
+      },
+      {
+        "command": "deliver_aftercare",
+        "writes": "tratamiento recomendado",
+        "emits": "fulfillment_closed",
+        "guard": "no vender tratamiento contra contraindicación"
+      },
+      {
+        "command": "schedule_maintenance",
+        "writes": "tratamiento recomendado",
+        "emits": "recurrence_scheduled",
+        "guard": "no cerrar paquete sin aftercare programado"
+      }
+    ],
+    "event_catalog": [
+      {
+        "event": "intent_captured",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "eligibility_to_package"
+      },
+      {
+        "event": "record_qualified",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "aftercare_to_maintenance"
+      },
+      {
+        "event": "quote_created",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "incident_recovery"
+      },
+      {
+        "event": "deposit_requested",
+        "updates": [
+          "timeline",
+          "boards",
+          "ledger"
+        ],
+        "next_action": "eligibility_to_package"
+      },
+      {
+        "event": "capacity_reserved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "aftercare_to_maintenance"
+      },
+      {
+        "event": "booking_confirmed",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "incident_recovery"
+      },
+      {
+        "event": "case_started",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "eligibility_to_package"
+      },
+      {
+        "event": "quote_approved",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "aftercare_to_maintenance"
+      },
+      {
+        "event": "eligibility_confirmed",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "incident_recovery"
+      },
+      {
+        "event": "package_sold",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "eligibility_to_package"
+      },
+      {
+        "event": "aftercare_delivered",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "aftercare_to_maintenance"
+      },
+      {
+        "event": "maintenance_scheduled",
+        "updates": [
+          "timeline",
+          "boards",
+          "aggregate"
+        ],
+        "next_action": "incident_recovery"
+      }
+    ]
+  },
+  "is_strongest_vertical": true,
+  "strongest_rank": 3,
+  "ten_x_score": 97,
+  "ten_x_narrative": "WAOS Aesthetic gana cuando sube valor percibido, vende paquete, sostiene aftercare y crea mantenimiento.",
+  "ten_x_growth_loops": [
+    "lead aspiracional a valoracion",
+    "valoracion a paquete",
+    "sesion a recompras",
+    "aftercare a mantenimiento"
+  ],
+  "recommended_subverticals": [
+    "medicina estética",
+    "med spa",
+    "depilación láser",
+    "faciales avanzados"
+  ],
+  "subvertical_profiles": [
+    {
+      "id": "medicina-estética",
+      "name": "medicina estética",
+      "strength_score": 97,
+      "promise": "Convertir conversaciones de medicina estética en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño o gerente comercial de clínica estética / med spa",
+      "monetizes": [
+        "valoración",
+        "sesión individual",
+        "paquete",
+        "anticipo"
+      ],
+      "service_bundle": [
+        "valoracion medicina estética",
+        "sesion medicina estética",
+        "paquete medicina estética",
+        "mantenimiento"
+      ],
+      "qualification_questions": [
+        "que objetivo buscas",
+        "ya te has hecho algo parecido",
+        "cuando quieres empezar",
+        "prefieres sesion o paquete"
+      ],
+      "objections": [
+        "precio",
+        "miedo o dolor",
+        "resultados",
+        "duración"
+      ],
+      "automation_priorities": [
+        "seguimiento medicina estética",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a valoración",
+        "valoración a paquete",
+        "anticipo cobrado",
+        "rebook",
+        "conversion medicina estética",
+        "revenue medicina estética"
+      ],
+      "recommended_commands": [
+        "abrir bloque premium",
+        "avisar sesiones de mantenimiento",
+        "pausar promo especifica",
+        "solo humano por contraindicacion"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "medicina-estética-lead",
+          "title": "Captacion medicina estética",
+          "content": "Hola, te ayudo con medicina estética. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "medicina-estética-followup",
+          "title": "Seguimiento medicina estética",
+          "content": "Te sigo con medicina estética. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "medicina-estética-reactivation",
+          "title": "Reactivacion medicina estética",
+          "content": "Te escribo porque todavia podemos mover medicina estética a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "premium y consultivo",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de medicina estética",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con medicina estética. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "med-spa",
+      "name": "med spa",
+      "strength_score": 95,
+      "promise": "Vender valoracion premium y paquetes de mayor margen con seguimiento elegante.",
+      "growth_motion": "premium_package",
+      "buyer": "Dueño o gerente comercial de clínica estética / med spa",
+      "monetizes": [
+        "valoración",
+        "sesión individual",
+        "paquete",
+        "anticipo"
+      ],
+      "service_bundle": [
+        "valoracion premium",
+        "paquete body",
+        "paquete facial",
+        "mantenimiento"
+      ],
+      "qualification_questions": [
+        "que objetivo buscas",
+        "ya te has hecho algo parecido",
+        "cuando quieres empezar",
+        "prefieres sesion o paquete"
+      ],
+      "objections": [
+        "quiero saber si soy candidata",
+        "esta caro",
+        "me da miedo un mal resultado",
+        "quiero verlo despues"
+      ],
+      "automation_priorities": [
+        "seguimiento med spa",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a valoración",
+        "valoración a paquete",
+        "anticipo cobrado",
+        "rebook",
+        "conversion med spa",
+        "revenue med spa"
+      ],
+      "recommended_commands": [
+        "abrir bloque premium",
+        "avisar sesiones de mantenimiento",
+        "pausar promo especifica",
+        "solo humano por contraindicacion"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "med-spa-lead",
+          "title": "Captacion med spa",
+          "content": "Hola, te ayudo con med spa. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "med-spa-followup",
+          "title": "Seguimiento med spa",
+          "content": "Te sigo con med spa. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "med-spa-reactivation",
+          "title": "Reactivacion med spa",
+          "content": "Te escribo porque todavia podemos mover med spa a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "premium y consultivo",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de med spa",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con med spa. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "depilación-láser",
+      "name": "depilación láser",
+      "strength_score": 93,
+      "promise": "Convertir conversaciones de depilación láser en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño o gerente comercial de clínica estética / med spa",
+      "monetizes": [
+        "valoración",
+        "sesión individual",
+        "paquete",
+        "anticipo"
+      ],
+      "service_bundle": [
+        "valoracion depilación láser",
+        "sesion depilación láser",
+        "paquete depilación láser",
+        "mantenimiento"
+      ],
+      "qualification_questions": [
+        "que objetivo buscas",
+        "ya te has hecho algo parecido",
+        "cuando quieres empezar",
+        "prefieres sesion o paquete"
+      ],
+      "objections": [
+        "precio",
+        "miedo o dolor",
+        "resultados",
+        "duración"
+      ],
+      "automation_priorities": [
+        "seguimiento depilación láser",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a valoración",
+        "valoración a paquete",
+        "anticipo cobrado",
+        "rebook",
+        "conversion depilación láser",
+        "revenue depilación láser"
+      ],
+      "recommended_commands": [
+        "abrir bloque premium",
+        "avisar sesiones de mantenimiento",
+        "pausar promo especifica",
+        "solo humano por contraindicacion"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "depilación-láser-lead",
+          "title": "Captacion depilación láser",
+          "content": "Hola, te ayudo con depilación láser. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "depilación-láser-followup",
+          "title": "Seguimiento depilación láser",
+          "content": "Te sigo con depilación láser. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "depilación-láser-reactivation",
+          "title": "Reactivacion depilación láser",
+          "content": "Te escribo porque todavia podemos mover depilación láser a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "premium y consultivo",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de depilación láser",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con depilación láser. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "faciales-avanzados",
+      "name": "faciales avanzados",
+      "strength_score": 91,
+      "promise": "Convertir conversaciones de faciales avanzados en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño o gerente comercial de clínica estética / med spa",
+      "monetizes": [
+        "valoración",
+        "sesión individual",
+        "paquete",
+        "anticipo"
+      ],
+      "service_bundle": [
+        "valoracion faciales avanzados",
+        "sesion faciales avanzados",
+        "paquete faciales avanzados",
+        "mantenimiento"
+      ],
+      "qualification_questions": [
+        "que objetivo buscas",
+        "ya te has hecho algo parecido",
+        "cuando quieres empezar",
+        "prefieres sesion o paquete"
+      ],
+      "objections": [
+        "precio",
+        "miedo o dolor",
+        "resultados",
+        "duración"
+      ],
+      "automation_priorities": [
+        "seguimiento faciales avanzados",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a valoración",
+        "valoración a paquete",
+        "anticipo cobrado",
+        "rebook",
+        "conversion faciales avanzados",
+        "revenue faciales avanzados"
+      ],
+      "recommended_commands": [
+        "abrir bloque premium",
+        "avisar sesiones de mantenimiento",
+        "pausar promo especifica",
+        "solo humano por contraindicacion"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "faciales-avanzados-lead",
+          "title": "Captacion faciales avanzados",
+          "content": "Hola, te ayudo con faciales avanzados. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "faciales-avanzados-followup",
+          "title": "Seguimiento faciales avanzados",
+          "content": "Te sigo con faciales avanzados. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "faciales-avanzados-reactivation",
+          "title": "Reactivacion faciales avanzados",
+          "content": "Te escribo porque todavia podemos mover faciales avanzados a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "premium y consultivo",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de faciales avanzados",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con faciales avanzados. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "contouring-corporal",
+      "name": "contouring corporal",
+      "strength_score": 89,
+      "promise": "Llevar una expectativa aspiracional a un plan realista y mantenible.",
+      "growth_motion": "expectation_to_plan",
+      "buyer": "Dueño o gerente comercial de clínica estética / med spa",
+      "monetizes": [
+        "valoración",
+        "sesión individual",
+        "paquete",
+        "anticipo"
+      ],
+      "service_bundle": [
+        "valoracion corporal",
+        "paquete contouring",
+        "seguimiento fotografico",
+        "mantenimiento"
+      ],
+      "qualification_questions": [
+        "que objetivo buscas",
+        "ya te has hecho algo parecido",
+        "cuando quieres empezar",
+        "prefieres sesion o paquete"
+      ],
+      "objections": [
+        "quiero resultados rapidos",
+        "no se si funcione",
+        "esta caro",
+        "solo quiero informacion"
+      ],
+      "automation_priorities": [
+        "seguimiento contouring corporal",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a valoración",
+        "valoración a paquete",
+        "anticipo cobrado",
+        "rebook",
+        "conversion contouring corporal",
+        "revenue contouring corporal"
+      ],
+      "recommended_commands": [
+        "abrir bloque premium",
+        "avisar sesiones de mantenimiento",
+        "pausar promo especifica",
+        "solo humano por contraindicacion"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "contouring-corporal-lead",
+          "title": "Captacion contouring corporal",
+          "content": "Hola, te ayudo con contouring corporal. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "contouring-corporal-followup",
+          "title": "Seguimiento contouring corporal",
+          "content": "Te sigo con contouring corporal. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "contouring-corporal-reactivation",
+          "title": "Reactivacion contouring corporal",
+          "content": "Te escribo porque todavia podemos mover contouring corporal a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "premium y consultivo",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de contouring corporal",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con contouring corporal. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "skin-clinic",
+      "name": "skin clinic",
+      "strength_score": 87,
+      "promise": "Convertir conversaciones de skin clinic en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño o gerente comercial de clínica estética / med spa",
+      "monetizes": [
+        "valoración",
+        "sesión individual",
+        "paquete",
+        "anticipo"
+      ],
+      "service_bundle": [
+        "valoracion skin clinic",
+        "sesion skin clinic",
+        "paquete skin clinic",
+        "mantenimiento"
+      ],
+      "qualification_questions": [
+        "que objetivo buscas",
+        "ya te has hecho algo parecido",
+        "cuando quieres empezar",
+        "prefieres sesion o paquete"
+      ],
+      "objections": [
+        "precio",
+        "miedo o dolor",
+        "resultados",
+        "duración"
+      ],
+      "automation_priorities": [
+        "seguimiento skin clinic",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a valoración",
+        "valoración a paquete",
+        "anticipo cobrado",
+        "rebook",
+        "conversion skin clinic",
+        "revenue skin clinic"
+      ],
+      "recommended_commands": [
+        "abrir bloque premium",
+        "avisar sesiones de mantenimiento",
+        "pausar promo especifica",
+        "solo humano por contraindicacion"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "skin-clinic-lead",
+          "title": "Captacion skin clinic",
+          "content": "Hola, te ayudo con skin clinic. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "skin-clinic-followup",
+          "title": "Seguimiento skin clinic",
+          "content": "Te sigo con skin clinic. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "skin-clinic-reactivation",
+          "title": "Reactivacion skin clinic",
+          "content": "Te escribo porque todavia podemos mover skin clinic a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "premium y consultivo",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de skin clinic",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con skin clinic. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "anti-aging",
+      "name": "anti-aging",
+      "strength_score": 85,
+      "promise": "Convertir conversaciones de anti-aging en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño o gerente comercial de clínica estética / med spa",
+      "monetizes": [
+        "valoración",
+        "sesión individual",
+        "paquete",
+        "anticipo"
+      ],
+      "service_bundle": [
+        "valoracion anti-aging",
+        "sesion anti-aging",
+        "paquete anti-aging",
+        "mantenimiento"
+      ],
+      "qualification_questions": [
+        "que objetivo buscas",
+        "ya te has hecho algo parecido",
+        "cuando quieres empezar",
+        "prefieres sesion o paquete"
+      ],
+      "objections": [
+        "precio",
+        "miedo o dolor",
+        "resultados",
+        "duración"
+      ],
+      "automation_priorities": [
+        "seguimiento anti-aging",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a valoración",
+        "valoración a paquete",
+        "anticipo cobrado",
+        "rebook",
+        "conversion anti-aging",
+        "revenue anti-aging"
+      ],
+      "recommended_commands": [
+        "abrir bloque premium",
+        "avisar sesiones de mantenimiento",
+        "pausar promo especifica",
+        "solo humano por contraindicacion"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "anti-aging-lead",
+          "title": "Captacion anti-aging",
+          "content": "Hola, te ayudo con anti-aging. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "anti-aging-followup",
+          "title": "Seguimiento anti-aging",
+          "content": "Te sigo con anti-aging. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "anti-aging-reactivation",
+          "title": "Reactivacion anti-aging",
+          "content": "Te escribo porque todavia podemos mover anti-aging a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "premium y consultivo",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de anti-aging",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con anti-aging. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "rejuvenecimiento",
+      "name": "rejuvenecimiento",
+      "strength_score": 83,
+      "promise": "Convertir conversaciones de rejuvenecimiento en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño o gerente comercial de clínica estética / med spa",
+      "monetizes": [
+        "valoración",
+        "sesión individual",
+        "paquete",
+        "anticipo"
+      ],
+      "service_bundle": [
+        "valoracion rejuvenecimiento",
+        "sesion rejuvenecimiento",
+        "paquete rejuvenecimiento",
+        "mantenimiento"
+      ],
+      "qualification_questions": [
+        "que objetivo buscas",
+        "ya te has hecho algo parecido",
+        "cuando quieres empezar",
+        "prefieres sesion o paquete"
+      ],
+      "objections": [
+        "precio",
+        "miedo o dolor",
+        "resultados",
+        "duración"
+      ],
+      "automation_priorities": [
+        "seguimiento rejuvenecimiento",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a valoración",
+        "valoración a paquete",
+        "anticipo cobrado",
+        "rebook",
+        "conversion rejuvenecimiento",
+        "revenue rejuvenecimiento"
+      ],
+      "recommended_commands": [
+        "abrir bloque premium",
+        "avisar sesiones de mantenimiento",
+        "pausar promo especifica",
+        "solo humano por contraindicacion"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "rejuvenecimiento-lead",
+          "title": "Captacion rejuvenecimiento",
+          "content": "Hola, te ayudo con rejuvenecimiento. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "rejuvenecimiento-followup",
+          "title": "Seguimiento rejuvenecimiento",
+          "content": "Te sigo con rejuvenecimiento. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "rejuvenecimiento-reactivation",
+          "title": "Reactivacion rejuvenecimiento",
+          "content": "Te escribo porque todavia podemos mover rejuvenecimiento a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "premium y consultivo",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de rejuvenecimiento",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con rejuvenecimiento. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "aparatología-estética",
+      "name": "aparatología estética",
+      "strength_score": 81,
+      "promise": "Convertir conversaciones de aparatología estética en siguiente paso claro, cobro y recurrencia.",
+      "growth_motion": "capture_followup_close",
+      "buyer": "Dueño o gerente comercial de clínica estética / med spa",
+      "monetizes": [
+        "valoración",
+        "sesión individual",
+        "paquete",
+        "anticipo"
+      ],
+      "service_bundle": [
+        "valoracion aparatología estética",
+        "sesion aparatología estética",
+        "paquete aparatología estética",
+        "mantenimiento"
+      ],
+      "qualification_questions": [
+        "que objetivo buscas",
+        "ya te has hecho algo parecido",
+        "cuando quieres empezar",
+        "prefieres sesion o paquete"
+      ],
+      "objections": [
+        "precio",
+        "miedo o dolor",
+        "resultados",
+        "duración"
+      ],
+      "automation_priorities": [
+        "seguimiento aparatología estética",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a valoración",
+        "valoración a paquete",
+        "anticipo cobrado",
+        "rebook",
+        "conversion aparatología estética",
+        "revenue aparatología estética"
+      ],
+      "recommended_commands": [
+        "abrir bloque premium",
+        "avisar sesiones de mantenimiento",
+        "pausar promo especifica",
+        "solo humano por contraindicacion"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "aparatología-estética-lead",
+          "title": "Captacion aparatología estética",
+          "content": "Hola, te ayudo con aparatología estética. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "aparatología-estética-followup",
+          "title": "Seguimiento aparatología estética",
+          "content": "Te sigo con aparatología estética. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "aparatología-estética-reactivation",
+          "title": "Reactivacion aparatología estética",
+          "content": "Te escribo porque todavia podemos mover aparatología estética a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "premium y consultivo",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de aparatología estética",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con aparatología estética. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    },
+    {
+      "id": "wellness-premium",
+      "name": "wellness premium",
+      "strength_score": 79,
+      "promise": "Convertir tratamientos premium en membresia o frecuencia ideal.",
+      "growth_motion": "membership_frequency",
+      "buyer": "Dueño o gerente comercial de clínica estética / med spa",
+      "monetizes": [
+        "valoración",
+        "sesión individual",
+        "paquete",
+        "anticipo"
+      ],
+      "service_bundle": [
+        "diagnostico wellness",
+        "experiencia premium",
+        "membresia mensual",
+        "mantenimiento"
+      ],
+      "qualification_questions": [
+        "que objetivo buscas",
+        "ya te has hecho algo parecido",
+        "cuando quieres empezar",
+        "prefieres sesion o paquete"
+      ],
+      "objections": [
+        "quiero pensarlo",
+        "es lujo",
+        "no tengo tiempo",
+        "que incluye exactamente"
+      ],
+      "automation_priorities": [
+        "seguimiento wellness premium",
+        "recordatorios",
+        "winback",
+        "upsell"
+      ],
+      "kpi_pack": [
+        "lead a valoración",
+        "valoración a paquete",
+        "anticipo cobrado",
+        "rebook",
+        "conversion wellness premium",
+        "revenue wellness premium"
+      ],
+      "recommended_commands": [
+        "abrir bloque premium",
+        "avisar sesiones de mantenimiento",
+        "pausar promo especifica",
+        "solo humano por contraindicacion"
+      ],
+      "launch_assets": [
+        "guion whatsapp",
+        "playbook de handoff",
+        "servicios seed",
+        "templates seed"
+      ],
+      "templates": [
+        {
+          "key": "wellness-premium-lead",
+          "title": "Captacion wellness premium",
+          "content": "Hola, te ayudo con wellness premium. Si quieres, te hago 3 preguntas y te propongo el siguiente paso ideal."
+        },
+        {
+          "key": "wellness-premium-followup",
+          "title": "Seguimiento wellness premium",
+          "content": "Te sigo con wellness premium. Si quieres, hoy mismo te propongo horario, paquete o siguiente accion."
+        },
+        {
+          "key": "wellness-premium-reactivation",
+          "title": "Reactivacion wellness premium",
+          "content": "Te escribo porque todavia podemos mover wellness premium a una accion concreta esta semana. ¿Quieres que te lo aterrice a tu caso?"
+        }
+      ],
+      "behavior_overrides": {
+        "tone": "premium y consultivo",
+        "sales_intensity": "alta",
+        "required_phrases": [
+          "te lo aterrizo a tu caso de wellness premium",
+          "te sigo para moverlo al siguiente paso"
+        ],
+        "fallback_message": "Te ayudo con wellness premium. Si quieres, te hago unas preguntas rapidas y te recomiendo el siguiente paso."
+      }
+    }
+  ],
+  "ten_x_operational_pack": {
+    "recommended_commands": [
+      "abrir bloque premium",
+      "avisar sesiones de mantenimiento",
+      "pausar promo especifica",
+      "solo humano por contraindicacion"
+    ],
+    "launch_sequence": [
+      "escoger subvertical",
+      "aplicar pack",
+      "simular conversaciones",
+      "publicar y medir"
+    ],
+    "why_this_vertical": "WAOS Aesthetic gana cuando sube valor percibido, vende paquete, sostiene aftercare y crea mantenimiento."
+  }
+}

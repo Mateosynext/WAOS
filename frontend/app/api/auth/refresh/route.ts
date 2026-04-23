@@ -1,42 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerApiBase } from "../../../lib/env";
 import { ACCESS_COOKIE, REFRESH_COOKIE, sessionCookieOptions } from "../../../lib/auth/cookies";
-
-const API_BASE = getServerApiBase();
+import { requestSessionRefresh } from "../../../lib/auth/refresh";
 
 export async function POST(request: NextRequest) {
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value || null;
-  if (!refreshToken || !API_BASE) {
+  if (!refreshToken) {
     return NextResponse.json({ detail: "Missing refresh token" }, { status: 401 });
   }
-  try {
-    const response = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      const failed = NextResponse.json({ detail: "Refresh failed" }, { status: 401 });
-      failed.cookies.delete(ACCESS_COOKIE);
-      failed.cookies.delete(REFRESH_COOKIE);
-      return failed;
-    }
-    const data = await response.json().catch(() => ({}));
-    if (typeof data?.access_token !== "string" || typeof data?.refresh_token !== "string") {
-      const failed = NextResponse.json({ detail: "Refresh failed" }, { status: 401 });
-      failed.cookies.delete(ACCESS_COOKIE);
-      failed.cookies.delete(REFRESH_COOKIE);
-      return failed;
-    }
-    const ok = NextResponse.json({ access_token: data.access_token, refresh_token: data.refresh_token, session: data.session ?? null });
-    ok.cookies.set(ACCESS_COOKIE, data.access_token, sessionCookieOptions.access());
-    ok.cookies.set(REFRESH_COOKIE, data.refresh_token, sessionCookieOptions.refresh());
-    return ok;
-  } catch {
+  const refreshed = await requestSessionRefresh(refreshToken);
+  if (!refreshed) {
     const failed = NextResponse.json({ detail: "Refresh failed" }, { status: 401 });
     failed.cookies.delete(ACCESS_COOKIE);
     failed.cookies.delete(REFRESH_COOKIE);
     return failed;
   }
+  const ok = NextResponse.json({ access_token: refreshed.accessToken, refresh_token: refreshed.refreshToken, session: refreshed.session ?? null });
+  ok.cookies.set(ACCESS_COOKIE, refreshed.accessToken, sessionCookieOptions.access());
+  ok.cookies.set(REFRESH_COOKIE, refreshed.refreshToken, sessionCookieOptions.refresh());
+  return ok;
 }

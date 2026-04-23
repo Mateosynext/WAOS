@@ -5,23 +5,23 @@ from typing import Any
 from fastapi import APIRouter, Query
 
 from ...application.tool_execution_service import tool_execution_service
-from ...schemas import ToolExecutionRequest
+from ...schemas import ApiEnvelope, FlexibleSchema, ToolExecutionRequest
 from ..dependencies import CurrentUoW, CurrentUser
 
 router = APIRouter(tags=["tool_execution"])
 
 
-@router.post("/api/v1/tool-executions/preview")
+@router.post("/api/v1/tool-executions/preview", response_model=ApiEnvelope[FlexibleSchema])
 def preview_tool_execution(payload: ToolExecutionRequest, user: CurrentUser, uow: CurrentUoW) -> dict[str, Any]:
     return tool_execution_service.preview(uow, payload=payload, user=user)
 
 
-@router.post("/api/v1/tool-executions/execute")
+@router.post("/api/v1/tool-executions/execute", response_model=ApiEnvelope[FlexibleSchema])
 def execute_tool_execution(payload: ToolExecutionRequest, user: CurrentUser, uow: CurrentUoW) -> dict[str, Any]:
     return tool_execution_service.execute(uow, payload=payload, user=user)
 
 
-@router.get("/api/v1/tool-executions/runs")
+@router.get("/api/v1/tool-executions/runs", response_model=ApiEnvelope[FlexibleSchema])
 def list_tool_execution_runs(
     user: CurrentUser,
     uow: CurrentUoW,
@@ -40,6 +40,6 @@ def list_tool_execution_runs(
     )
 
 
-@router.get("/api/v1/tool-executions/runs/{execution_id}")
+@router.get("/api/v1/tool-executions/runs/{execution_id}", response_model=ApiEnvelope[FlexibleSchema])
 def read_tool_execution_run(execution_id: str, user: CurrentUser, uow: CurrentUoW) -> dict[str, Any]:
     return tool_execution_service.get_run(uow, execution_id=execution_id, user=user)

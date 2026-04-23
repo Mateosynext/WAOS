@@ -9,21 +9,23 @@ from ...application.integration_service import integration_service
 from ...config import settings
 from ...performance import clamp_limit, clamp_offset
 from ...schemas import (
+    ApiEnvelope,
+    FlexibleSchema,
     GoogleCalendarConfigRequest,
-    WhatsAppIntegrationConfigRequest,
     IntegrationUpsertRequest,
     MetaEmbeddedSignupCompleteRequest,
     RateLimitPolicyRequest,
     SecretCreateRequest,
     StripeIntegrationConfigRequest,
     WebhookReplayRequest,
+    WhatsAppIntegrationConfigRequest,
 )
 from ..dependencies import CurrentUoW, CurrentUser
 
 router = APIRouter(tags=["integrations"])
 
 
-@router.get("/api/v1/integrations")
+@router.get("/api/v1/integrations", response_model=ApiEnvelope[FlexibleSchema])
 def list_integrations(
     user: CurrentUser,
     uow: CurrentUoW,
@@ -35,97 +37,97 @@ def list_integrations(
     return integration_service.list_integrations(uow, organization_id=organization_id, bot_id=bot_id, limit=limit, offset=offset, user=user, clamp_limit=clamp_limit, clamp_offset=clamp_offset)
 
 
-@router.post("/api/v1/integrations")
+@router.post("/api/v1/integrations", response_model=ApiEnvelope[FlexibleSchema])
 def upsert_integration_route(payload: IntegrationUpsertRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return integration_service.upsert_integration(uow, payload=payload, user=user)
 
 
-@router.post("/api/v1/integrations/whatsapp/configure")
+@router.post("/api/v1/integrations/whatsapp/configure", response_model=ApiEnvelope[FlexibleSchema])
 def configure_whatsapp(payload: WhatsAppIntegrationConfigRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return integration_service.configure_whatsapp(uow, payload=payload, user=user)
 
 
-@router.post("/api/v1/integrations/google-calendar/configure")
+@router.post("/api/v1/integrations/google-calendar/configure", response_model=ApiEnvelope[FlexibleSchema])
 def configure_google_calendar(payload: GoogleCalendarConfigRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return integration_service.configure_google_calendar(uow, payload=payload, user=user)
 
 
-@router.post("/api/v1/integrations/stripe/configure")
+@router.post("/api/v1/integrations/stripe/configure", response_model=ApiEnvelope[FlexibleSchema])
 def configure_stripe(payload: StripeIntegrationConfigRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return integration_service.configure_stripe(uow, payload=payload, user=user)
 
 
-@router.post("/api/v1/integrations/{integration_id}/test")
+@router.post("/api/v1/integrations/{integration_id}/test", response_model=ApiEnvelope[FlexibleSchema])
 def test_integration(integration_id: str, user: CurrentUser, uow: CurrentUoW) -> dict:
     return integration_service.test_integration(uow, integration_id=integration_id, user=user)
 
 
-@router.get("/api/v1/secrets")
+@router.get("/api/v1/secrets", response_model=ApiEnvelope[FlexibleSchema])
 def list_secrets(user: CurrentUser, uow: CurrentUoW, organization_id: str | None = Query(default=None), bot_id: str | None = Query(default=None)) -> list[dict]:
     return integration_service.list_secrets(uow, organization_id=organization_id, bot_id=bot_id, user=user)
 
 
-@router.post("/api/v1/secrets")
+@router.post("/api/v1/secrets", response_model=ApiEnvelope[FlexibleSchema])
 def create_secret_route(payload: SecretCreateRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return integration_service.create_secret(uow, payload=payload, user=user)
 
 
-@router.post("/api/v1/secrets/{secret_id}/rotate")
+@router.post("/api/v1/secrets/{secret_id}/rotate", response_model=ApiEnvelope[FlexibleSchema])
 def rotate_secret(secret_id: str, payload: SecretCreateRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return integration_service.rotate_secret(uow, secret_id=secret_id, payload=payload, user=user)
 
 
-@router.get("/api/v1/rate-limits")
+@router.get("/api/v1/rate-limits", response_model=ApiEnvelope[FlexibleSchema])
 def get_rate_limits(user: CurrentUser, uow: CurrentUoW, organization_id: str = Query(...), bot_id: str | None = Query(default=None)) -> list[dict]:
     return integration_service.get_rate_limits(uow, organization_id=organization_id, bot_id=bot_id, user=user)
 
 
-@router.post("/api/v1/rate-limits")
+@router.post("/api/v1/rate-limits", response_model=ApiEnvelope[FlexibleSchema])
 def upsert_rate_limit_route(payload: RateLimitPolicyRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return integration_service.upsert_rate_limit(uow, payload=payload, user=user)
 
 
-@router.get("/api/v1/integrations/sync-runs")
+@router.get("/api/v1/integrations/sync-runs", response_model=ApiEnvelope[FlexibleSchema])
 def integration_sync_runs(user: CurrentUser, uow: CurrentUoW, organization_id: str = Query(...), integration_id: str | None = Query(default=None)) -> list[dict]:
     return integration_service.integration_sync_runs(uow, organization_id=organization_id, integration_id=integration_id, user=user)
 
 
-@router.get("/api/v1/integrations/events")
+@router.get("/api/v1/integrations/events", response_model=ApiEnvelope[FlexibleSchema])
 def integration_events(user: CurrentUser, uow: CurrentUoW, organization_id: str = Query(...), integration_id: str | None = Query(default=None)) -> list[dict]:
     return integration_service.integration_events(uow, organization_id=organization_id, integration_id=integration_id, user=user)
 
 
-@router.get("/api/v1/integrations/observability")
+@router.get("/api/v1/integrations/observability", response_model=ApiEnvelope[FlexibleSchema])
 def integration_observability(user: CurrentUser, uow: CurrentUoW, organization_id: str = Query(...), integration_id: str | None = Query(default=None)) -> dict:
     return integration_service.integration_observability(uow, organization_id=organization_id, integration_id=integration_id, user=user)
 
 
-@router.post("/api/v1/integrations/{integration_id}/sync")
+@router.post("/api/v1/integrations/{integration_id}/sync", response_model=ApiEnvelope[FlexibleSchema])
 def trigger_integration_sync(integration_id: str, user: CurrentUser, uow: CurrentUoW) -> dict:
     return integration_service.trigger_integration_sync(uow, integration_id=integration_id, user=user)
 
 
-@router.get("/api/v1/integrations/{integration_id}/availability")
+@router.get("/api/v1/integrations/{integration_id}/availability", response_model=ApiEnvelope[FlexibleSchema])
 def integration_availability(integration_id: str, user: CurrentUser, uow: CurrentUoW, time_min: str = Query(...), time_max: str = Query(...)) -> dict:
     return integration_service.integration_availability(uow, integration_id=integration_id, time_min=time_min, time_max=time_max, user=user)
 
 
-@router.post("/api/v1/integrations/{integration_id}/meta/embedded-signup/start")
+@router.post("/api/v1/integrations/{integration_id}/meta/embedded-signup/start", response_model=ApiEnvelope[FlexibleSchema])
 def start_meta_signup(integration_id: str, user: CurrentUser, uow: CurrentUoW) -> dict:
     return integration_service.start_meta_signup(uow, integration_id=integration_id, user=user)
 
 
-@router.post("/api/v1/integrations/{integration_id}/meta/embedded-signup/complete")
+@router.post("/api/v1/integrations/{integration_id}/meta/embedded-signup/complete", response_model=ApiEnvelope[FlexibleSchema])
 def complete_meta_signup(integration_id: str, payload: MetaEmbeddedSignupCompleteRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return integration_service.complete_meta_signup(uow, integration_id=integration_id, payload=payload, user=user)
 
 
-@router.post("/api/v1/integrations/{integration_id}/oauth/google/start")
+@router.post("/api/v1/integrations/{integration_id}/oauth/google/start", response_model=ApiEnvelope[FlexibleSchema])
 def start_google_oauth(integration_id: str, user: CurrentUser, uow: CurrentUoW) -> dict:
     return integration_service.start_google_oauth(uow, integration_id=integration_id, user=user)
 
 
-@router.get("/api/v1/integrations/oauth/google/callback")
+@router.get("/api/v1/integrations/oauth/google/callback", response_model=FlexibleSchema)
 def finish_google_oauth(state: str, code: str, uow: CurrentUoW):
     result = integration_service.finish_google_oauth(uow, state=state, code=code)
     target = (result.get("config") or {}).get("frontend_redirect_uri") or f"{settings.public_app_url.rstrip('/')}/integrations?section=configuracion"
@@ -134,16 +136,16 @@ def finish_google_oauth(state: str, code: str, uow: CurrentUoW):
     return RedirectResponse(url=f"{target}{separator}{query}", status_code=302)
 
 
-@router.get("/api/v1/integrations/{integration_id}/oauth/google/calendars")
+@router.get("/api/v1/integrations/{integration_id}/oauth/google/calendars", response_model=ApiEnvelope[FlexibleSchema])
 def google_calendars(integration_id: str, user: CurrentUser, uow: CurrentUoW) -> list[dict]:
     return integration_service.list_google_calendars(uow, integration_id=integration_id, user=user)
 
 
-@router.get("/api/v1/integrations/center")
+@router.get("/api/v1/integrations/center", response_model=ApiEnvelope[FlexibleSchema])
 def integration_center(user: CurrentUser, uow: CurrentUoW, organization_id: str = Query(...)) -> dict:
     return integration_service.integration_center(uow, organization_id=organization_id, user=user)
 
 
-@router.post("/api/v1/integrations/webhooks/{receipt_id}/replay")
+@router.post("/api/v1/integrations/webhooks/{receipt_id}/replay", response_model=ApiEnvelope[FlexibleSchema])
 def replay_webhook_receipt(receipt_id: str, payload: WebhookReplayRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return integration_service.replay_webhook_receipt(uow, receipt_id=receipt_id, payload=payload, user=user)

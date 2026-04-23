@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from .agent_policy_runtime import build_policy_route_summary
-from .db import execute, fetch_all, fetch_one, table_exists
+from .db import fetch_one, table_exists
+from .repositories.multi_agent import insert_agent_routing_run, insert_specialist_exposure, load_shared_memory_rows
 from .utils import from_json, new_id, to_json, utcnow_iso
 
 
@@ -236,31 +237,12 @@ def build_shared_memory_context(
             "tool_executions": [],
         }
 
-    appointments = fetch_all(
-        conn,
-        "SELECT id, scheduled_for, status, provider, updated_at FROM appointments WHERE conversation_id = ? OR contact_id = ? ORDER BY updated_at DESC LIMIT 5",
-        (conversation_id, contact_id),
-    ) if conversation_id or contact_id else []
-    payments = fetch_all(
-        conn,
-        "SELECT id, amount, currency, status, payment_link_url, updated_at FROM commerce_payments WHERE conversation_id = ? OR contact_id = ? ORDER BY updated_at DESC LIMIT 5",
-        (conversation_id, contact_id),
-    ) if conversation_id or contact_id else []
-    leads = fetch_all(
-        conn,
-        "SELECT id, stage, estimated_amount, next_action, close_probability, updated_at FROM crm_leads WHERE conversation_id = ? OR contact_id = ? ORDER BY updated_at DESC LIMIT 3",
-        (conversation_id, contact_id),
-    ) if conversation_id or contact_id else []
-    outcomes = fetch_all(
-        conn,
-        "SELECT id, event_name, event_category, event_timestamp, value_number FROM outcome_events WHERE conversation_id = ? OR contact_id = ? ORDER BY event_timestamp DESC LIMIT 5",
-        (conversation_id, contact_id),
-    ) if (conversation_id or contact_id) and table_exists(conn, "outcome_events") else []
-    tool_executions = fetch_all(
-        conn,
-        "SELECT id, action, status, adapter_key, provider, completed_at, created_at FROM tool_execution_runs WHERE conversation_id = ? OR contact_id = ? ORDER BY COALESCE(completed_at, created_at) DESC LIMIT 5",
-        (conversation_id, contact_id),
-    ) if (conversation_id or contact_id) and table_exists(conn, "tool_execution_runs") else []
+    rows = load_shared_memory_rows(conn, conversation_id=conversation_id, contact_id=contact_id)
+    appointments = rows["appointments"]
+    payments = rows["payments"]
+    leads = rows["leads"]
+    outcomes = rows["outcomes"]
+    tool_executions = rows["tool_executions"]
 
     highlights: list[str] = []
     latest_payment = payments[0] if payments else None
@@ -421,53 +403,36 @@ def persist_agent_route_run(
     policy_evaluation_id: str | None = None,
     status: str = "routed",
 ) -> dict[str, Any] | None:
-    if not table_exists(conn, "agent_routing_runs"):
-        return None
-    now = utcnow_iso()
-    row_id = new_id("aroute")
-    execute(
+    return insert_agent_routing_run(
         conn,
-        """
-        INSERT INTO agent_routing_runs (
-            id, organization_id, bot_id, conversation_id, contact_id, message_id, routing_status,
-            text_preview, intent_detected, intent_family, router_version, router_confidence,
-            specialist_agent_key, specialist_agent_version, prompt_base_id, allowed_tools_json,
-            risk_policy_json, success_metrics_json, route_reason_json, shared_memory_json,
-            plan_json, supervisor_json, policy_profile_key, policy_profile_version, policy_evaluation_id, policy_json, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            row_id,
-            organization_id,
-            bot_id,
-            conversation_id,
-            contact_id,
-            message_id,
-            status,
-            str(text or "")[:280],
-            classification.get("intent"),
-            route.get("intent_family"),
-            route.get("router_version"),
-            float(route.get("confidence") or 0),
-            route.get("specialist_agent_key"),
-            route.get("specialist_agent_version"),
-            route.get("prompt_base_id"),
-            to_json(route.get("allowed_tools") or []),
-            to_json(route.get("risk_policy") or {}),
-            to_json(route.get("success_metrics") or []),
-            to_json(route.get("route_reason") or []),
-            to_json(shared_memory),
-            to_json(execution_plan),
-            to_json(supervisor),
-            (policy_evaluation or {}).get("policy_profile_key"),
-            (policy_evaluation or {}).get("policy_profile_version"),
-            policy_evaluation_id,
-            to_json(policy_evaluation or build_policy_route_summary(route)),
-            now,
-            now,
-        ),
+        {
+            "organization_id": organization_id,
+            "bot_id": bot_id,
+            "conversation_id": conversation_id,
+            "contact_id": contact_id,
+            "message_id": message_id,
+            "status": status,
+            "text": text,
+            "intent_detected": classification.get("intent"),
+            "intent_family": route.get("intent_family"),
+            "router_version": route.get("router_version"),
+            "router_confidence": route.get("confidence"),
+            "specialist_agent_key": route.get("specialist_agent_key"),
+            "specialist_agent_version": route.get("specialist_agent_version"),
+            "prompt_base_id": route.get("prompt_base_id"),
+            "allowed_tools": route.get("allowed_tools") or [],
+            "risk_policy": route.get("risk_policy") or {},
+            "success_metrics": route.get("success_metrics") or [],
+            "route_reason": route.get("route_reason") or [],
+            "shared_memory": shared_memory,
+            "execution_plan": execution_plan,
+            "supervisor": supervisor,
+            "policy_profile_key": (policy_evaluation or {}).get("policy_profile_key"),
+            "policy_profile_version": (policy_evaluation or {}).get("policy_profile_version"),
+            "policy_evaluation_id": policy_evaluation_id,
+            "policy": policy_evaluation or build_policy_route_summary(route),
+        },
     )
-    return fetch_one(conn, "SELECT * FROM agent_routing_runs WHERE id = ?", (row_id,))
 
 
 def record_specialist_exposure(
@@ -485,60 +450,38 @@ def record_specialist_exposure(
     policy_evaluation: dict[str, Any] | None = None,
     policy_evaluation_id: str | None = None,
 ) -> dict[str, Any] | None:
-    if not table_exists(conn, "outcome_exposures"):
-        return None
-    now = utcnow_iso()
-    row_id = new_id("outcome_exposure")
-    execute(
+    return insert_specialist_exposure(
         conn,
-        """
-        INSERT INTO outcome_exposures (
-            id, organization_id, bot_id, conversation_id, contact_id, lead_id, appointment_id, payment_id,
-            message_id, source_type, channel, prompt_run_id, prompt_version_id, flow_id, flow_version_id,
-            template_id, template_version_id, routing_rule_id, decision_path_id, timing_policy_id,
-            tone_policy_id, nba_policy_id, escalation_policy_id, playbook_id, playbook_version_id,
-            handoff_id, handoff_kind, operator_user_id, assigned_variant, vertical, funnel_stage,
-            metadata_json, sent_at, created_at, specialist_agent_key, specialist_agent_version,
-            specialist_prompt_id, intent_family, agent_routing_run_id, policy_profile_key, policy_profile_version, policy_evaluation_id
-        ) VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            row_id,
-            organization_id,
-            bot_id,
-            conversation_id,
-            contact_id,
-            message_id,
-            "specialist_route",
-            "whatsapp",
-            prompt_run_id,
-            route.get("prompt_base_id"),
-            flow_id or route.get("specialist_agent_key"),
-            route.get("specialist_agent_version"),
-            (metadata or {}).get("assigned_variant"),
-            None,
-            route.get("funnel_stage"),
-            to_json({
+        {
+            "organization_id": organization_id,
+            "bot_id": bot_id,
+            "conversation_id": conversation_id,
+            "contact_id": contact_id,
+            "message_id": message_id,
+            "channel": "whatsapp",
+            "prompt_run_id": prompt_run_id,
+            "prompt_base_id": route.get("prompt_base_id"),
+            "flow_id": flow_id or route.get("specialist_agent_key"),
+            "flow_version_id": route.get("specialist_agent_version"),
+            "assigned_variant": (metadata or {}).get("assigned_variant"),
+            "funnel_stage": route.get("funnel_stage"),
+            "metadata": {
                 **(metadata or {}),
                 "router_version": route.get("router_version"),
                 "route_reason": route.get("route_reason") or [],
                 "specialist": route.get("specialist_agent_key"),
                 "policy_profile_key": (policy_evaluation or {}).get("policy_profile_key"),
                 "policy_profile_version": (policy_evaluation or {}).get("policy_profile_version"),
-            }),
-            now,
-            now,
-            route.get("specialist_agent_key"),
-            route.get("specialist_agent_version"),
-            route.get("prompt_base_id"),
-            route.get("intent_family"),
-            (metadata or {}).get("agent_routing_run_id"),
-            (policy_evaluation or {}).get("policy_profile_key"),
-            (policy_evaluation or {}).get("policy_profile_version"),
-            policy_evaluation_id,
-        ),
+            },
+            "specialist_agent_key": route.get("specialist_agent_key"),
+            "specialist_agent_version": route.get("specialist_agent_version"),
+            "intent_family": route.get("intent_family"),
+            "agent_routing_run_id": (metadata or {}).get("agent_routing_run_id"),
+            "policy_profile_key": (policy_evaluation or {}).get("policy_profile_key"),
+            "policy_profile_version": (policy_evaluation or {}).get("policy_profile_version"),
+            "policy_evaluation_id": policy_evaluation_id,
+        },
     )
-    return fetch_one(conn, "SELECT * FROM outcome_exposures WHERE id = ?", (row_id,))
 
 
 __all__ = [

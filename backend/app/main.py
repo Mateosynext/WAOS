@@ -16,7 +16,7 @@ from .config import settings
 from .db import close_connection_pool, get_connection, init_db
 from .errors import AppError, InternalServerAppError, app_error_from_http_exception, app_error_from_validation, error_response
 from .http_runtime import extract_bot_id, extract_org_id, extract_request_user_id, organization_origin_policy
-from .observability import capture_exception, log_event, setup_observability
+from .platform.observability import capture_exception, log_event, setup_observability
 from .repositories import ensure_seed_data
 from .request_context import RequestContext, bind_request_context, reset_request_context
 from .runtime_settings import read_global_settings

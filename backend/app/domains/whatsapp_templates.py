@@ -8,8 +8,34 @@ from typing import Any
 import httpx
 
 from ..config import settings
-from ..db import execute, fetch_all, fetch_one, table_exists
+from ..db import table_exists
 from ..platform import resolve_secret
+from ..repositories import get_whatsapp_number_for_bot
+from ..repositories.whatsapp_templates_domain import (
+    approve_whatsapp_template,
+    complete_template_sync_run,
+    create_whatsapp_template_failover,
+    create_whatsapp_template_sync_run,
+    get_max_template_version_number,
+    get_whatsapp_template,
+    get_whatsapp_template_by_name,
+    get_whatsapp_template_version,
+    insert_whatsapp_template,
+    insert_whatsapp_template_version,
+    list_template_candidate_rows,
+    list_template_delivery_projection_rows,
+    list_whatsapp_template_sync_runs,
+    list_whatsapp_template_versions,
+    mark_template_sync_run_lint_failed,
+    mark_template_sync_success,
+    mark_template_version_sync_error,
+    mark_template_version_sync_success,
+    update_template_last_sync_status,
+    update_whatsapp_template_approval_state,
+    update_whatsapp_template_performance,
+    update_whatsapp_template_version_approval,
+    update_whatsapp_template_version_tracking,
+)
 from ..utils import from_json, new_id, to_json, utcnow_iso
 
 WHATSAPP_TOKEN_KEYS = [
@@ -34,7 +60,7 @@ class MetaTemplateAPIError(RuntimeError):
 
 class MetaTemplateClient:
     def __init__(self, conn, *, organization_id: str, bot_id: str) -> None:
-        number = fetch_one(conn, "SELECT * FROM whatsapp_numbers WHERE bot_id = ?", (bot_id,))
+        number = get_whatsapp_number_for_bot(conn, bot_id)
         if not number:
             raise ValueError("whatsapp_number_not_configured")
         access_token = resolve_whatsapp_access_token(conn, organization_id=organization_id, bot_id=bot_id)
@@ -443,24 +469,15 @@ def _analytics_summary_from_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def whatsapp_template_analytics(conn, *, template_id: str, since: str | None = None, until: str | None = None) -> dict[str, Any]:
-    template = fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE id = ?", (template_id,))
+    template = get_whatsapp_template(conn, template_id)
     if not template:
         raise ValueError("whatsapp_template_not_found")
     if not table_exists(conn, "whatsapp_delivery_projection"):
         return {"template": serialize_template(conn, template, include_analytics=False), "window": {"since": since, "until": until}, "summary": _analytics_summary_from_rows([]), "deliveries": []}
-    sql = "SELECT * FROM whatsapp_delivery_projection WHERE organization_id = ? AND template_name = ?"
-    params: list[Any] = [template["organization_id"], template["name"]]
-    if since:
-        sql += " AND COALESCE(accepted_at, created_at) >= ?"
-        params.append(since)
-    if until:
-        sql += " AND COALESCE(accepted_at, created_at) <= ?"
-        params.append(until)
-    sql += " ORDER BY COALESCE(last_event_at, accepted_at, created_at) DESC LIMIT 500"
-    rows = fetch_all(conn, sql, tuple(params))
+    rows = list_template_delivery_projection_rows(conn, organization_id=template["organization_id"], template_name=template["name"], since=since, until=until, limit=500)
     summary = _analytics_summary_from_rows(rows)
-    execute(conn, "UPDATE whatsapp_templates SET performance_score = ?, updated_at = ? WHERE id = ?", (summary.get("performance_score") or 0, utcnow_iso(), template_id))
-    template = fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE id = ?", (template_id,)) or template
+    update_whatsapp_template_performance(conn, template_id=template_id, performance_score=summary.get("performance_score") or 0, updated_at=utcnow_iso())
+    template = get_whatsapp_template(conn, template_id) or template
     return {
         "template": serialize_template(conn, template, include_analytics=False),
         "window": {"since": since, "until": until},
@@ -487,10 +504,10 @@ def serialize_template(conn, row: dict[str, Any], *, include_versions: bool = Fa
         "metadata": _json(row, "metadata_json", {}),
     }
     if include_versions and table_exists(conn, "whatsapp_template_versions"):
-        versions = fetch_all(conn, "SELECT * FROM whatsapp_template_versions WHERE template_id = ? ORDER BY version_number DESC, created_at DESC", (row["id"],))
+        versions = list_whatsapp_template_versions(conn, row["id"])
         payload["versions"] = [_serialize_template_version(item) for item in versions]
     if include_sync_runs and table_exists(conn, "whatsapp_template_sync_runs"):
-        runs = fetch_all(conn, "SELECT * FROM whatsapp_template_sync_runs WHERE template_id = ? ORDER BY started_at DESC LIMIT 20", (row["id"],))
+        runs = list_whatsapp_template_sync_runs(conn, row["id"], limit=20)
         payload["sync_runs"] = [_serialize_sync_run(item) for item in runs]
     if include_analytics:
         payload["performance"] = whatsapp_template_analytics(conn, template_id=row["id"], since=None, until=None).get("summary") if table_exists(conn, "whatsapp_delivery_projection") else _analytics_summary_from_rows([])
@@ -519,14 +536,18 @@ def create_whatsapp_template(
 ) -> dict[str, Any]:
     template_id = new_id("watpl")
     now = utcnow_iso()
-    execute(
+    insert_whatsapp_template(
         conn,
-        """
-        INSERT INTO whatsapp_templates
-        (id, organization_id, bot_id, name, category, default_language, status, fallback_template_id, latest_version_id, approved_version_id, remote_template_id, last_sync_status, performance_score, metadata_json, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, NULL, NULL, NULL, 'draft', 0, ?, ?, ?)
-        """,
-        (template_id, organization_id, bot_id, _stringify(name), _normalize_category(category), _normalize_language(default_language), fallback_template_id, to_json(metadata or {}), now, now),
+        template_id=template_id,
+        organization_id=organization_id,
+        bot_id=bot_id,
+        name=_stringify(name),
+        category=_normalize_category(category),
+        default_language=_normalize_language(default_language),
+        fallback_template_id=fallback_template_id,
+        metadata_json=to_json(metadata or {}),
+        created_at=now,
+        updated_at=now,
     )
     version = create_whatsapp_template_version(
         conn,
@@ -546,8 +567,8 @@ def create_whatsapp_template(
         fallback_template_id=fallback_template_id,
     )
     if approval_status == "approved":
-        execute(conn, "UPDATE whatsapp_templates SET approved_version_id = ?, status = 'approved', updated_at = ? WHERE id = ?", (version["id"], utcnow_iso(), template_id))
-    row = fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE id = ?", (template_id,)) or {}
+        approve_whatsapp_template(conn, template_id=template_id, version_id=version["id"], updated_at=utcnow_iso())
+    row = get_whatsapp_template(conn, template_id) or {}
     return serialize_template(conn, row, include_versions=True, include_sync_runs=True)
 
 
@@ -569,10 +590,10 @@ def create_whatsapp_template_version(
     approval_status: str = "draft",
     fallback_template_id: str | None = None,
 ) -> dict[str, Any]:
-    template = fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE id = ?", (template_id,))
+    template = get_whatsapp_template(conn, template_id)
     if not template:
         raise ValueError("whatsapp_template_not_found")
-    current = fetch_one(conn, "SELECT MAX(version_number) AS value FROM whatsapp_template_versions WHERE template_id = ?", (template_id,)) if table_exists(conn, "whatsapp_template_versions") else None
+    current = get_max_template_version_number(conn, template_id) if table_exists(conn, "whatsapp_template_versions") else None
     version_number = int((current or {}).get("value") or 0) + 1
     lint = lint_whatsapp_template_definition(
         template_name=template.get("name"),
@@ -590,50 +611,47 @@ def create_whatsapp_template_version(
     normalized = lint.get("normalized") or {}
     version_id = new_id("watplv")
     now = utcnow_iso()
-    execute(
+    insert_whatsapp_template_version(
         conn,
-        """
-        INSERT INTO whatsapp_template_versions
-        (id, template_id, organization_id, bot_id, version_number, state, language_code, category, body_text, header_type, header_text, footer_text, buttons_json, variables_json, assets_json, sample_values_json, lint_report_json, coverage_json, approval_status, remote_template_id, remote_status, remote_quality_rating, synced_at, published_at, rejection_reason, fallback_template_id, metadata_json, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?, ?, ?)
-        """,
-        (
-            version_id,
-            template_id,
-            template["organization_id"],
-            template["bot_id"],
-            version_number,
-            state,
-            normalized.get("language_code") or _normalize_language(language_code),
-            normalized.get("category") or _normalize_category(category),
-            _stringify(body_text),
-            normalized.get("header_type") or _stringify(header_type or "NONE").upper(),
-            _stringify(header_text),
-            _stringify(footer_text),
-            to_json(buttons or []),
-            to_json(variables or []),
-            to_json(assets or {}),
-            to_json(sample_values or {}),
-            to_json(lint),
-            to_json(lint.get("coverage") or {}),
-            approval_status if approval_status in ALLOWED_APPROVAL_STATES else "draft",
-            fallback_template_id,
-            to_json(metadata or {}),
-            now,
-            now,
-        ),
+        version_id=version_id,
+        template_id=template_id,
+        organization_id=template["organization_id"],
+        bot_id=template["bot_id"],
+        version_number=version_number,
+        state=state,
+        language_code=normalized.get("language_code") or _normalize_language(language_code),
+        category=normalized.get("category") or _normalize_category(category),
+        body_text=_stringify(body_text),
+        header_type=normalized.get("header_type") or _stringify(header_type or "NONE").upper(),
+        header_text=_stringify(header_text),
+        footer_text=_stringify(footer_text),
+        buttons_json=to_json(buttons or []),
+        variables_json=to_json(variables or []),
+        assets_json=to_json(assets or {}),
+        sample_values_json=to_json(sample_values or {}),
+        lint_report_json=to_json(lint),
+        coverage_json=to_json(lint.get("coverage") or {}),
+        approval_status=approval_status if approval_status in ALLOWED_APPROVAL_STATES else "draft",
+        fallback_template_id=fallback_template_id,
+        metadata_json=to_json(metadata or {}),
+        created_at=now,
+        updated_at=now,
     )
     template_status = "ready" if lint.get("ok") else "needs_changes"
     approved_version_id = template.get("approved_version_id")
     if approval_status == "approved":
         approved_version_id = version_id
         template_status = "approved"
-    execute(
+    update_whatsapp_template_version_tracking(
         conn,
-        "UPDATE whatsapp_templates SET latest_version_id = ?, approved_version_id = ?, status = ?, fallback_template_id = COALESCE(?, fallback_template_id), updated_at = ? WHERE id = ?",
-        (version_id, approved_version_id, template_status, fallback_template_id, now, template_id),
+        template_id=template_id,
+        latest_version_id=version_id,
+        approved_version_id=approved_version_id,
+        status=template_status,
+        fallback_template_id=fallback_template_id,
+        updated_at=now,
     )
-    row = fetch_one(conn, "SELECT * FROM whatsapp_template_versions WHERE id = ?", (version_id,)) or {}
+    row = get_whatsapp_template_version(conn, version_id) or {}
     return _serialize_template_version(row)
 
 
@@ -647,55 +665,68 @@ def update_whatsapp_template_approval(
     remote_status: str | None = None,
     remote_quality_rating: str | None = None,
 ) -> dict[str, Any]:
-    template = fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE id = ?", (template_id,))
+    template = get_whatsapp_template(conn, template_id)
     if not template:
         raise ValueError("whatsapp_template_not_found")
     if not version_id:
         version_id = template.get("latest_version_id")
-    version = fetch_one(conn, "SELECT * FROM whatsapp_template_versions WHERE id = ? AND template_id = ?", (version_id, template_id))
+    version = get_whatsapp_template_version(conn, version_id, template_id)
     if not version:
         raise ValueError("whatsapp_template_version_not_found")
     approval_status = approval_status if approval_status in ALLOWED_APPROVAL_STATES else _approved_state_from_remote(approval_status)
     now = utcnow_iso()
-    execute(
+    update_whatsapp_template_version_approval(
         conn,
-        "UPDATE whatsapp_template_versions SET approval_status = ?, rejection_reason = ?, remote_status = COALESCE(?, remote_status), remote_quality_rating = COALESCE(?, remote_quality_rating), updated_at = ?, published_at = CASE WHEN ? = 'approved' THEN COALESCE(published_at, ?) ELSE published_at END WHERE id = ?",
-        (approval_status, rejection_reason, remote_status, remote_quality_rating, now, approval_status, now, version_id),
+        version_id=version_id,
+        approval_status=approval_status,
+        rejection_reason=rejection_reason,
+        remote_status=remote_status,
+        remote_quality_rating=remote_quality_rating,
+        updated_at=now,
+        publish_now=approval_status == "approved",
     )
     approved_version_id = version_id if approval_status == "approved" else (template.get("approved_version_id") if template.get("approved_version_id") != version_id else None)
-    execute(
+    update_whatsapp_template_approval_state(
         conn,
-        "UPDATE whatsapp_templates SET approved_version_id = ?, status = ?, last_sync_status = COALESCE(?, last_sync_status), updated_at = ? WHERE id = ?",
-        (approved_version_id, approval_status, remote_status, now, template_id),
+        template_id=template_id,
+        approved_version_id=approved_version_id,
+        status=approval_status,
+        last_sync_status=remote_status,
+        updated_at=now,
     )
-    return serialize_template(conn, fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE id = ?", (template_id,)) or template, include_versions=True, include_sync_runs=True)
+    return serialize_template(conn, get_whatsapp_template(conn, template_id) or template, include_versions=True, include_sync_runs=True)
 
 
 def _create_sync_run(conn, *, template: dict[str, Any], version: dict[str, Any], action: str, request_payload: dict[str, Any]) -> dict[str, Any]:
     row_id = new_id("watplsync")
     now = utcnow_iso()
-    execute(
+    return create_whatsapp_template_sync_run(
         conn,
-        "INSERT INTO whatsapp_template_sync_runs (id, template_id, version_id, organization_id, bot_id, provider, action, status, request_json, response_json, validation_errors_json, started_at, finished_at) VALUES (?, ?, ?, ?, ?, 'meta', ?, 'running', ?, '{}', '[]', ?, NULL)",
-        (row_id, template["id"], version["id"], template["organization_id"], template["bot_id"], action, to_json(request_payload), now),
+        row_id=row_id,
+        template_id=template["id"],
+        version_id=version["id"],
+        organization_id=template["organization_id"],
+        bot_id=template["bot_id"],
+        action=action,
+        request_json=to_json(request_payload),
+        started_at=now,
     )
-    return fetch_one(conn, "SELECT * FROM whatsapp_template_sync_runs WHERE id = ?", (row_id,)) or {}
 
 
 def sync_whatsapp_template(conn, *, template_id: str, version_id: str | None = None, action: str = "publish") -> dict[str, Any]:
-    template = fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE id = ?", (template_id,))
+    template = get_whatsapp_template(conn, template_id)
     if not template:
         raise ValueError("whatsapp_template_not_found")
-    version = fetch_one(conn, "SELECT * FROM whatsapp_template_versions WHERE id = ? AND template_id = ?", (version_id or template.get("latest_version_id"), template_id))
+    version = get_whatsapp_template_version(conn, version_id or template.get("latest_version_id"), template_id)
     if not version:
         raise ValueError("whatsapp_template_version_not_found")
     lint_report = _json(version, "lint_report_json", {})
     sync_run = _create_sync_run(conn, template=template, version=version, action=action, request_payload={"template_id": template_id, "version_id": version["id"], "action": action})
     now = utcnow_iso()
     if not lint_report.get("ok"):
-        execute(conn, "UPDATE whatsapp_template_sync_runs SET status = 'failed', validation_errors_json = ?, finished_at = ?, response_json = ? WHERE id = ?", (to_json(lint_report.get("errors") or []), now, to_json({"reason": "lint_failed"}), sync_run["id"]))
-        execute(conn, "UPDATE whatsapp_templates SET last_sync_status = 'lint_failed', updated_at = ? WHERE id = ?", (now, template_id))
-        return serialize_template(conn, fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE id = ?", (template_id,)) or template, include_versions=True, include_sync_runs=True)
+        mark_template_sync_run_lint_failed(conn, sync_run_id=sync_run["id"], validation_errors_json=to_json(lint_report.get("errors") or []), response_json=to_json({"reason": "lint_failed"}), finished_at=now)
+        update_template_last_sync_status(conn, template_id=template_id, last_sync_status="lint_failed", updated_at=now)
+        return serialize_template(conn, get_whatsapp_template(conn, template_id) or template, include_versions=True, include_sync_runs=True)
 
     client = MetaTemplateClient(conn, organization_id=template["organization_id"], bot_id=template["bot_id"])
     try:
@@ -703,45 +734,41 @@ def sync_whatsapp_template(conn, *, template_id: str, version_id: str | None = N
         remote_status = _stringify(response.get("status") or response.get("event") or "pending")
         approval_status = _approved_state_from_remote(remote_status, fallback="pending")
         remote_template_id = _stringify(response.get("id") or response.get("template_id") or template.get("remote_template_id")) or None
-        execute(
+        mark_template_version_sync_success(
             conn,
-            "UPDATE whatsapp_template_versions SET approval_status = ?, remote_template_id = ?, remote_status = ?, remote_quality_rating = COALESCE(?, remote_quality_rating), synced_at = ?, published_at = CASE WHEN ? = 'approved' THEN COALESCE(published_at, ?) ELSE published_at END, updated_at = ? WHERE id = ?",
-            (approval_status, remote_template_id, remote_status, _best_effort_quality_rating(response), now, approval_status, now, now, version["id"]),
+            version_id=version["id"],
+            approval_status=approval_status,
+            remote_template_id=remote_template_id,
+            remote_status=remote_status,
+            remote_quality_rating=_best_effort_quality_rating(response),
+            synced_at=now,
         )
         approved_version_id = version["id"] if approval_status == "approved" else template.get("approved_version_id")
-        execute(
+        mark_template_sync_success(
             conn,
-            "UPDATE whatsapp_templates SET remote_template_id = COALESCE(?, remote_template_id), last_sync_status = ?, approved_version_id = ?, status = ?, updated_at = ? WHERE id = ?",
-            (remote_template_id, remote_status or approval_status, approved_version_id, approval_status, now, template_id),
+            template_id=template_id,
+            remote_template_id=remote_template_id,
+            last_sync_status=remote_status or approval_status,
+            approved_version_id=approved_version_id,
+            status=approval_status,
+            updated_at=now,
         )
-        execute(
-            conn,
-            "UPDATE whatsapp_template_sync_runs SET status = ?, response_json = ?, validation_errors_json = '[]', finished_at = ? WHERE id = ?",
-            ("approved" if approval_status == "approved" else "synced", to_json(response), now, sync_run["id"]),
-        )
+        complete_template_sync_run(conn, sync_run_id=sync_run["id"], status="approved" if approval_status == "approved" else "synced", response_json=to_json(response), finished_at=now)
     except MetaTemplateAPIError as exc:
         response = exc.payload or {}
         remote_status = _stringify((response.get("error") or {}).get("error_subcode") or (response.get("error") or {}).get("code") or "provider_error")
         approval_status = _approved_state_from_remote(_stringify((response.get("error") or {}).get("error_user_title")) or remote_status, fallback="rejected")
-        execute(
-            conn,
-            "UPDATE whatsapp_template_versions SET approval_status = ?, remote_status = ?, rejection_reason = ?, updated_at = ? WHERE id = ?",
-            (approval_status, remote_status, _stringify((response.get("error") or {}).get("message") or str(exc)), now, version["id"]),
-        )
-        execute(conn, "UPDATE whatsapp_templates SET last_sync_status = ?, status = ?, updated_at = ? WHERE id = ?", (remote_status, approval_status, now, template_id))
-        execute(
-            conn,
-            "UPDATE whatsapp_template_sync_runs SET status = 'failed', response_json = ?, validation_errors_json = ?, finished_at = ? WHERE id = ?",
-            (to_json(response), to_json([{"code": remote_status or 'provider_error', "message": _stringify((response.get('error') or {}).get('message') or str(exc))}]), now, sync_run["id"]),
-        )
-    return serialize_template(conn, fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE id = ?", (template_id,)) or template, include_versions=True, include_sync_runs=True)
+        mark_template_version_sync_error(conn, version_id=version["id"], approval_status=approval_status, remote_status=remote_status, rejection_reason=_stringify((response.get("error") or {}).get("message") or str(exc)), updated_at=now)
+        update_whatsapp_template_approval_state(conn, template_id=template_id, approved_version_id=template.get("approved_version_id"), status=approval_status, last_sync_status=remote_status, updated_at=now)
+        fail_template_sync_run(conn, sync_run_id=sync_run["id"], response_json=to_json(response), validation_errors_json=to_json([{"code": remote_status or 'provider_error', "message": _stringify((response.get('error') or {}).get('message') or str(exc))}]), finished_at=now)
+    return serialize_template(conn, get_whatsapp_template(conn, template_id) or template, include_versions=True, include_sync_runs=True)
 
 
 def sync_whatsapp_template_status(conn, *, template_id: str, version_id: str | None = None) -> dict[str, Any]:
-    template = fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE id = ?", (template_id,))
+    template = get_whatsapp_template(conn, template_id)
     if not template:
         raise ValueError("whatsapp_template_not_found")
-    version = fetch_one(conn, "SELECT * FROM whatsapp_template_versions WHERE id = ? AND template_id = ?", (version_id or template.get("latest_version_id"), template_id))
+    version = get_whatsapp_template_version(conn, version_id or template.get("latest_version_id"), template_id)
     if not version:
         raise ValueError("whatsapp_template_version_not_found")
     client = MetaTemplateClient(conn, organization_id=template["organization_id"], bot_id=template["bot_id"])
@@ -761,17 +788,7 @@ def sync_whatsapp_template_status(conn, *, template_id: str, version_id: str | N
 
 def _fetch_template_candidates(conn, *, organization_id: str, bot_id: str, language_code: str, category: str, exclude_template_names: set[str] | None = None) -> list[dict[str, Any]]:
     exclude_template_names = exclude_template_names or set()
-    rows = fetch_all(
-        conn,
-        """
-        SELECT t.*, v.id AS version_id, v.version_number, v.language_code, v.category AS version_category, v.header_type, v.coverage_json, v.approval_status, v.fallback_template_id AS version_fallback_template_id, v.remote_status
-        FROM whatsapp_templates t
-        JOIN whatsapp_template_versions v ON v.id = COALESCE(t.approved_version_id, t.latest_version_id)
-        WHERE t.organization_id = ? AND t.bot_id = ?
-        ORDER BY COALESCE(t.performance_score, 0) DESC, t.updated_at DESC
-        """,
-        (organization_id, bot_id),
-    )
+    rows = list_template_candidate_rows(conn, organization_id=organization_id, bot_id=bot_id)
     filtered: list[dict[str, Any]] = []
     for row in rows:
         if _stringify(row.get("name")) in exclude_template_names:
@@ -837,17 +854,17 @@ def resolve_whatsapp_template_for_payload(
     current_version = None
     current_template = None
     if requested_name:
-        current_template = fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE organization_id = ? AND bot_id = ? AND name = ? ORDER BY updated_at DESC LIMIT 1", (organization_id, bot_id, requested_name))
+        current_template = get_whatsapp_template_by_name(conn, organization_id=organization_id, bot_id=bot_id, name=requested_name)
         if current_template:
             version_id = current_template.get("approved_version_id") or current_template.get("latest_version_id")
             if version_id:
-                current_version = fetch_one(conn, "SELECT * FROM whatsapp_template_versions WHERE id = ?", (version_id,))
+                current_version = get_whatsapp_template_version(conn, version_id)
 
     def _candidate_from_template_row(row: dict[str, Any]) -> dict[str, Any] | None:
         version_id = row.get("approved_version_id") or row.get("latest_version_id")
         if not version_id:
             return None
-        version = fetch_one(conn, "SELECT * FROM whatsapp_template_versions WHERE id = ?", (version_id,))
+        version = get_whatsapp_template_version(conn, version_id)
         if not version:
             return None
         return {"template": row, "version": version}
@@ -912,11 +929,11 @@ def resolve_whatsapp_template_for_payload(
     if explicit_fallback_name:
         fallback_template_names.append(explicit_fallback_name)
     if current_template and _stringify(current_template.get("fallback_template_id")):
-        linked = fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE id = ?", (current_template.get("fallback_template_id"),))
+        linked = get_whatsapp_template(conn, current_template.get("fallback_template_id"))
         if linked and _stringify(linked.get("name")):
             fallback_template_names.append(_stringify(linked.get("name")))
     if current_version and _stringify(current_version.get("fallback_template_id")):
-        linked = fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE id = ?", (current_version.get("fallback_template_id"),))
+        linked = get_whatsapp_template(conn, current_version.get("fallback_template_id"))
         if linked and _stringify(linked.get("name")):
             fallback_template_names.append(_stringify(linked.get("name")))
 
@@ -997,14 +1014,23 @@ def register_whatsapp_template_failover(
     if not table_exists(conn, "whatsapp_template_failovers"):
         return {}
     row_id = new_id("watplfo")
-    fallback_template = fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE organization_id = ? AND bot_id = ? AND name = ? ORDER BY updated_at DESC LIMIT 1", (organization_id, bot_id, fallback_template_name))
-    current_template = fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE organization_id = ? AND bot_id = ? AND name = ? ORDER BY updated_at DESC LIMIT 1", (organization_id, bot_id, current_template_name)) if current_template_name else None
-    execute(
+    fallback_template = get_whatsapp_template_by_name(conn, organization_id=organization_id, bot_id=bot_id, name=fallback_template_name)
+    current_template = get_whatsapp_template_by_name(conn, organization_id=organization_id, bot_id=bot_id, name=current_template_name) if current_template_name else None
+    return create_whatsapp_template_failover(
         conn,
-        "INSERT INTO whatsapp_template_failovers (id, organization_id, bot_id, outbox_id, current_template_id, current_version_id, fallback_template_id, fallback_version_id, reason_code, source, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (row_id, organization_id, bot_id, outbox_id, (current_template or {}).get("id"), current_version_id, (fallback_template or {}).get("id"), fallback_version_id, reason_code, source, to_json(payload_snapshot), utcnow_iso()),
+        row_id=row_id,
+        organization_id=organization_id,
+        bot_id=bot_id,
+        outbox_id=outbox_id,
+        current_template_id=(current_template or {}).get("id"),
+        current_version_id=current_version_id,
+        fallback_template_id=(fallback_template or {}).get("id"),
+        fallback_version_id=fallback_version_id,
+        reason_code=reason_code,
+        source=source,
+        payload_json=to_json(payload_snapshot),
+        created_at=utcnow_iso(),
     )
-    return fetch_one(conn, "SELECT * FROM whatsapp_template_failovers WHERE id = ?", (row_id,)) or {}
 
 
 def recover_template_failure(
@@ -1019,10 +1045,10 @@ def recover_template_failure(
 ) -> dict[str, Any] | None:
     governance = governance or {}
     current_template = _stringify(((payload.get("template") or {}).get("name")))
-    current_template_row = fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE organization_id = ? AND bot_id = ? AND name = ? ORDER BY updated_at DESC LIMIT 1", (organization_id, bot_id, current_template)) if current_template else None
+    current_template_row = get_whatsapp_template_by_name(conn, organization_id=organization_id, bot_id=bot_id, name=current_template) if current_template else None
     explicit_fallback = deepcopy(payload.get("template_fallback") or payload.get("template_candidate") or {})
     if not explicit_fallback and current_template_row and _stringify(current_template_row.get("fallback_template_id")):
-        linked = fetch_one(conn, "SELECT * FROM whatsapp_templates WHERE id = ?", (current_template_row.get("fallback_template_id"),))
+        linked = get_whatsapp_template(conn, current_template_row.get("fallback_template_id"))
         if linked:
             explicit_fallback = {
                 "name": linked.get("name"),

@@ -4,9 +4,25 @@ from collections import defaultdict
 from copy import deepcopy
 from typing import Any
 
-from .db import execute, fetch_all, fetch_one, table_exists
+from .repositories.growth_os import (
+    create_growth_run as repo_create_growth_run,
+    create_growth_target as repo_create_growth_target,
+    find_focus_target as repo_find_focus_target,
+    get_latest_growth_run as repo_get_latest_growth_run,
+    list_active_bot_rows as repo_list_active_bot_rows,
+    list_candidate_target_rows as repo_list_candidate_target_rows,
+    list_growth_run_rows as repo_list_growth_run_rows,
+    list_growth_targets_for_run as repo_list_growth_targets_for_run,
+    load_latest_scorecards as repo_load_latest_scorecards,
+    mark_control_state_completed as repo_mark_control_state_completed,
+    mark_control_state_failed as repo_mark_control_state_failed,
+    mark_control_state_running as repo_mark_control_state_running,
+    touch_control_state_after_run as repo_touch_control_state_after_run,
+    upsert_growth_control_state,
+)
 from .proactive_reasoning_runtime import evaluate_proactive_candidates, list_proactive_runs, materialize_proactive_candidate
-from .utils import add_minutes, from_json, new_id, parse_iso, to_json, utcnow, utcnow_iso
+from .utils import from_json, parse_iso, to_json, utcnow, utcnow_iso
+from .runtime_schema_guards import assert_schema_ready
 
 
 DEFAULT_GROWTH_OS_CONFIG: dict[str, Any] = {
@@ -65,82 +81,10 @@ def resolve_growth_os_config(bot_config: dict[str, Any] | None = None, *, overri
 
 
 def ensure_growth_os_schema(conn) -> None:
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS growth_os_runs (
-            id TEXT PRIMARY KEY,
-            organization_id TEXT NOT NULL,
-            bot_id TEXT NOT NULL,
-            mode TEXT NOT NULL DEFAULT 'recommend',
-            status TEXT NOT NULL DEFAULT 'completed',
-            goals_json TEXT NOT NULL DEFAULT '[]',
-            summary_json TEXT NOT NULL DEFAULT '{}',
-            decision_policy_json TEXT NOT NULL DEFAULT '{}',
-            metadata_json TEXT NOT NULL DEFAULT '{}',
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_growth_os_runs_org ON growth_os_runs(organization_id, bot_id, created_at DESC);
-
-        CREATE TABLE IF NOT EXISTS growth_os_targets (
-            id TEXT PRIMARY KEY,
-            growth_run_id TEXT NOT NULL,
-            organization_id TEXT NOT NULL,
-            bot_id TEXT NOT NULL,
-            candidate_id TEXT,
-            proactive_run_id TEXT,
-            contact_id TEXT,
-            conversation_id TEXT,
-            objective TEXT NOT NULL,
-            goal TEXT NOT NULL,
-            specialist_agent_key TEXT NOT NULL,
-            timing_decision TEXT,
-            channel TEXT NOT NULL DEFAULT 'whatsapp',
-            action_type TEXT NOT NULL DEFAULT 'materialize_playbook',
-            priority_score REAL NOT NULL DEFAULT 0,
-            expected_value REAL NOT NULL DEFAULT 0,
-            status TEXT NOT NULL DEFAULT 'selected',
-            scorecard_json TEXT NOT NULL DEFAULT '{}',
-            evidence_json TEXT NOT NULL DEFAULT '{}',
-            metadata_json TEXT NOT NULL DEFAULT '{}',
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY (growth_run_id) REFERENCES growth_os_runs(id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_growth_os_targets_run ON growth_os_targets(growth_run_id, priority_score DESC);
-        CREATE INDEX IF NOT EXISTS idx_growth_os_targets_contact ON growth_os_targets(organization_id, contact_id, created_at DESC);
-
-        CREATE TABLE IF NOT EXISTS growth_os_control_states (
-            id TEXT PRIMARY KEY,
-            organization_id TEXT NOT NULL,
-            bot_id TEXT NOT NULL UNIQUE,
-            is_enabled INTEGER NOT NULL DEFAULT 1,
-            scheduler_enabled INTEGER NOT NULL DEFAULT 1,
-            scheduler_mode TEXT NOT NULL DEFAULT 'recommend',
-            cycle_interval_minutes INTEGER NOT NULL DEFAULT 30,
-            default_goals_json TEXT NOT NULL DEFAULT '[]',
-            max_targets INTEGER NOT NULL DEFAULT 5,
-            auto_execute INTEGER NOT NULL DEFAULT 0,
-            include_suppressed INTEGER NOT NULL DEFAULT 0,
-            scorecard_window TEXT NOT NULL DEFAULT '28d',
-            prioritize_specialist INTEGER NOT NULL DEFAULT 1,
-            prioritize_tools INTEGER NOT NULL DEFAULT 1,
-            prioritize_handoffs INTEGER NOT NULL DEFAULT 1,
-            prioritize_playbooks INTEGER NOT NULL DEFAULT 1,
-            contact_focus_hours INTEGER NOT NULL DEFAULT 72,
-            latest_run_id TEXT,
-            last_started_at TEXT,
-            last_completed_at TEXT,
-            next_scheduled_at TEXT,
-            last_status TEXT NOT NULL DEFAULT 'idle',
-            last_summary_json TEXT NOT NULL DEFAULT '{}',
-            config_json TEXT NOT NULL DEFAULT '{}',
-            metadata_json TEXT NOT NULL DEFAULT '{}',
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_growth_os_control_states_due ON growth_os_control_states(is_enabled, scheduler_enabled, next_scheduled_at);
-        """
+    assert_schema_ready(
+        conn,
+        owner="growth_os_runtime",
+        tables=("growth_os_runs", "growth_os_targets", "growth_os_control_states"),
     )
 
 
@@ -214,94 +158,11 @@ def ensure_growth_os_control_state(
     ensure_growth_os_schema(conn)
     config = resolve_growth_os_config(bot_config, override=override)
     fields = _control_fields_from_config(config)
-    existing = fetch_one(conn, "SELECT * FROM growth_os_control_states WHERE bot_id = ?", (bot_id,))
-    now = utcnow_iso()
-    next_scheduled_at = now
-    if existing:
-        execute(
-            conn,
-            """
-            UPDATE growth_os_control_states
-            SET organization_id = ?, is_enabled = ?, scheduler_enabled = ?, scheduler_mode = ?, cycle_interval_minutes = ?,
-                default_goals_json = ?, max_targets = ?, auto_execute = ?, include_suppressed = ?, scorecard_window = ?,
-                prioritize_specialist = ?, prioritize_tools = ?, prioritize_handoffs = ?, prioritize_playbooks = ?,
-                contact_focus_hours = ?, config_json = ?, next_scheduled_at = COALESCE(next_scheduled_at, ?), updated_at = ?
-            WHERE bot_id = ?
-            """,
-            (
-                organization_id,
-                fields["is_enabled"],
-                fields["scheduler_enabled"],
-                fields["scheduler_mode"],
-                fields["cycle_interval_minutes"],
-                to_json(fields["default_goals"]),
-                fields["max_targets"],
-                fields["auto_execute"],
-                fields["include_suppressed"],
-                fields["scorecard_window"],
-                fields["prioritize_specialist"],
-                fields["prioritize_tools"],
-                fields["prioritize_handoffs"],
-                fields["prioritize_playbooks"],
-                fields["contact_focus_hours"],
-                fields["config_json"],
-                next_scheduled_at,
-                now,
-                bot_id,
-            ),
-        )
-    else:
-        execute(
-            conn,
-            """
-            INSERT INTO growth_os_control_states (
-                id, organization_id, bot_id, is_enabled, scheduler_enabled, scheduler_mode, cycle_interval_minutes,
-                default_goals_json, max_targets, auto_execute, include_suppressed, scorecard_window,
-                prioritize_specialist, prioritize_tools, prioritize_handoffs, prioritize_playbooks, contact_focus_hours,
-                latest_run_id, last_started_at, last_completed_at, next_scheduled_at, last_status,
-                last_summary_json, config_json, metadata_json, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, 'idle', '{}', ?, '{}', ?, ?)
-            """,
-            (
-                new_id("growthctl"),
-                organization_id,
-                bot_id,
-                fields["is_enabled"],
-                fields["scheduler_enabled"],
-                fields["scheduler_mode"],
-                fields["cycle_interval_minutes"],
-                to_json(fields["default_goals"]),
-                fields["max_targets"],
-                fields["auto_execute"],
-                fields["include_suppressed"],
-                fields["scorecard_window"],
-                fields["prioritize_specialist"],
-                fields["prioritize_tools"],
-                fields["prioritize_handoffs"],
-                fields["prioritize_playbooks"],
-                fields["contact_focus_hours"],
-                next_scheduled_at,
-                fields["config_json"],
-                now,
-                now,
-            ),
-        )
-    return _serialize_control(fetch_one(conn, "SELECT * FROM growth_os_control_states WHERE bot_id = ?", (bot_id,))) or {}
+    return _serialize_control(upsert_growth_control_state(conn, organization_id=organization_id, bot_id=bot_id, fields=fields)) or {}
 
 
 def _latest_scorecards(conn, *, organization_id: str, bot_id: str | None, window: str) -> dict[tuple[str, str], dict[str, Any]]:
-    if not table_exists(conn, "outcome_scorecard_snapshots"):
-        return {}
-    rows = fetch_all(
-        conn,
-        """
-        SELECT *
-        FROM outcome_scorecard_snapshots
-        WHERE organization_id = ? AND (? IS NULL OR bot_id = ?) AND scorecard_window = ?
-        ORDER BY computed_at DESC
-        """,
-        (organization_id, bot_id, bot_id, window),
-    )
+    rows = repo_load_latest_scorecards(conn, organization_id=organization_id, bot_id=bot_id, window=window)
     latest: dict[tuple[str, str], dict[str, Any]] = {}
     for row in rows:
         key = (str(row.get("entity_type")), str(row.get("entity_id")))
@@ -309,8 +170,7 @@ def _latest_scorecards(conn, *, organization_id: str, bot_id: str | None, window
             latest[key] = {
                 **row,
                 "metrics": from_json(row.get("metrics_json"), {}),
-                "guardrails": from_json(row.get("guardrails_json"), {}),
-                "rationale": from_json(row.get("rationale_json"), {}),
+                "recs": from_json(row.get("recommendations_json"), []),
             }
     return latest
 
@@ -373,22 +233,7 @@ def _timing_decision(candidate: dict[str, Any]) -> str:
 
 
 def _touch_control_state_after_run(conn, *, organization_id: str, bot_id: str, run_id: str, summary: dict[str, Any], status: str = "completed") -> None:
-    if not table_exists(conn, "growth_os_control_states"):
-        return
-    now = utcnow_iso()
-    control = fetch_one(conn, "SELECT * FROM growth_os_control_states WHERE bot_id = ?", (bot_id,))
-    if not control:
-        return
-    interval_minutes = int(control.get("cycle_interval_minutes") or 30)
-    execute(
-        conn,
-        """
-        UPDATE growth_os_control_states
-        SET latest_run_id = ?, last_completed_at = ?, next_scheduled_at = ?, last_status = ?, last_summary_json = ?, updated_at = ?
-        WHERE bot_id = ? AND organization_id = ?
-        """,
-        (run_id, now, add_minutes(now, interval_minutes), status, to_json(summary), now, bot_id, organization_id),
-    )
+    repo_touch_control_state_after_run(conn, organization_id=organization_id, bot_id=bot_id, run_id=run_id, summary=summary, status=status)
 
 
 def run_growth_os_cycle(
@@ -439,8 +284,6 @@ def run_growth_os_cycle(
     ranked.sort(key=lambda item: (item["expected_value"], float(item["candidate"].get("priority_score") or 0.0)), reverse=True)
     chosen = ranked[:max_targets]
 
-    now = utcnow_iso()
-    run_id = new_id("growthrun")
     summary = {
         "engine_version": "growth_os_v1",
         "candidate_count": len(ranked),
@@ -453,27 +296,17 @@ def run_growth_os_cycle(
         "scorecard_window": scorecard_window,
         "mode": mode,
     }
-    execute(
+    run_row = repo_create_growth_run(
         conn,
-        """
-        INSERT INTO growth_os_runs (
-            id, organization_id, bot_id, mode, status, goals_json, summary_json, decision_policy_json, metadata_json, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            run_id,
-            organization_id,
-            bot_id,
-            mode,
-            "completed",
-            to_json(goals or []),
-            to_json(summary),
-            to_json(decision_policy),
-            to_json(metadata or {}),
-            now,
-            now,
-        ),
+        organization_id=organization_id,
+        bot_id=bot_id,
+        mode=mode,
+        goals=goals or [],
+        summary=summary,
+        decision_policy=decision_policy,
+        metadata=metadata,
     )
+    run_id = run_row["id"]
 
     materialized_runs: list[dict[str, Any]] = []
     target_rows: list[dict[str, Any]] = []
@@ -494,50 +327,25 @@ def run_growth_os_cycle(
             target_status = "executed" if proactive_run_id else "selected"
             if materialized:
                 materialized_runs.append(materialized)
-        target_id = new_id("growthtarget")
-        execute(
-            conn,
-            """
-            INSERT INTO growth_os_targets (
-                id, growth_run_id, organization_id, bot_id, candidate_id, proactive_run_id, contact_id, conversation_id,
-                objective, goal, specialist_agent_key, timing_decision, channel, action_type, priority_score,
-                expected_value, status, scorecard_json, evidence_json, metadata_json, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                target_id,
-                run_id,
-                organization_id,
-                bot_id,
-                candidate.get("id"),
-                proactive_run_id,
-                candidate.get("contact_id"),
-                candidate.get("conversation_id"),
-                item["objective"],
-                item["goal"],
-                candidate.get("specialist_agent_key"),
-                item["timing_decision"],
-                candidate.get("channel") or "whatsapp",
-                "materialize_playbook",
-                float(candidate.get("priority_score") or 0.0),
-                float(item["expected_value"] or 0.0),
-                target_status,
-                to_json(
-                    {
-                        "playbook": item["evidence"].get("playbook_scorecard"),
-                        "specialist": item["evidence"].get("specialist_scorecard"),
-                        "channel": item["evidence"].get("channel_scorecard"),
-                    }
-                ),
-                to_json(item["evidence"]),
-                to_json({"candidate": candidate, "materialized": materialized}),
-                now,
-                now,
-            ),
+        target_rows.append(
+            repo_create_growth_target(
+                conn,
+                growth_run_id=run_id,
+                organization_id=organization_id,
+                bot_id=bot_id,
+                candidate=candidate,
+                proactive_run_id=proactive_run_id,
+                objective=item["objective"],
+                goal=item["goal"],
+                timing_decision=item["timing_decision"],
+                expected_value=float(item["expected_value"] or 0.0),
+                status=target_status,
+                evidence=item["evidence"],
+                materialized=materialized,
+            )
         )
-        target_rows.append(fetch_one(conn, "SELECT * FROM growth_os_targets WHERE id = ?", (target_id,)) or {})
 
-    run_row = fetch_one(conn, "SELECT * FROM growth_os_runs WHERE id = ?", (run_id,)) or {}
+    run_row = repo_get_latest_growth_run(conn, organization_id=organization_id, bot_id=bot_id) or {}
     result = {
         "run": _serialize_run(run_row, targets=[_serialize_target(row) for row in target_rows]),
         "candidate_count": len(ranked),
@@ -561,17 +369,7 @@ def _row_due(now_iso: str, row: dict[str, Any]) -> bool:
 def list_due_growth_os_controls(conn, *, limit: int = 25) -> list[dict[str, Any]]:
     ensure_growth_os_schema(conn)
     now = utcnow_iso()
-    bots = fetch_all(
-        conn,
-        """
-        SELECT id, organization_id, status, ai_paused, config_draft_json
-        FROM bots
-        WHERE deleted_at IS NULL AND status IN ('active', 'published', 'draft')
-        ORDER BY updated_at DESC
-        LIMIT ?
-        """,
-        (max(limit * 5, 20),),
-    )
+    bots = repo_list_active_bot_rows(conn, limit=limit)
     due: list[dict[str, Any]] = []
     for bot in bots:
         if int(bot.get("ai_paused") or 0) == 1:
@@ -593,11 +391,7 @@ def run_growth_os_master_scheduler(conn, *, limit: int = 25) -> list[dict[str, A
     processed: list[dict[str, Any]] = []
     for state in due_controls:
         now = utcnow_iso()
-        execute(
-            conn,
-            "UPDATE growth_os_control_states SET last_started_at = ?, last_status = 'running', updated_at = ? WHERE bot_id = ?",
-            (now, now, state["bot_id"]),
-        )
+        repo_mark_control_state_running(conn, bot_id=state["bot_id"], started_at=now)
         try:
             result = run_growth_os_cycle(
                 conn,
@@ -612,27 +406,17 @@ def run_growth_os_master_scheduler(conn, *, limit: int = 25) -> list[dict[str, A
                 metadata={"source": "growth_os_master_scheduler", "scheduler": True},
             )
             run_id = ((result.get("run") or {}).get("id"))
-            execute(
+            repo_mark_control_state_completed(
                 conn,
-                """
-                UPDATE growth_os_control_states
-                SET latest_run_id = ?, last_completed_at = ?, next_scheduled_at = ?, last_status = 'completed', last_summary_json = ?, updated_at = ?
-                WHERE bot_id = ?
-                """,
-                (
-                    run_id,
-                    now,
-                    add_minutes(now, int(state.get("cycle_interval_minutes") or 30)),
-                    to_json(
-                        {
-                            "selected_count": result.get("selected_count"),
-                            "materialized_count": result.get("materialized_count"),
-                            "candidate_count": result.get("candidate_count"),
-                        }
-                    ),
-                    now,
-                    state["bot_id"],
-                ),
+                bot_id=state["bot_id"],
+                run_id=run_id,
+                completed_at=now,
+                cycle_interval_minutes=int(state.get("cycle_interval_minutes") or 30),
+                summary={
+                    "selected_count": result.get("selected_count"),
+                    "materialized_count": result.get("materialized_count"),
+                    "candidate_count": result.get("candidate_count"),
+                },
             )
             processed.append(
                 {
@@ -646,21 +430,12 @@ def run_growth_os_master_scheduler(conn, *, limit: int = 25) -> list[dict[str, A
             )
         except Exception as exc:
             conn.rollback()
-            execute(
+            repo_mark_control_state_failed(
                 conn,
-                """
-                UPDATE growth_os_control_states
-                SET last_completed_at = ?, next_scheduled_at = ?, last_status = 'failed',
-                    metadata_json = ?, updated_at = ?
-                WHERE bot_id = ?
-                """,
-                (
-                    now,
-                    add_minutes(now, int(state.get("cycle_interval_minutes") or 30)),
-                    to_json({"last_error": str(exc)}),
-                    now,
-                    state["bot_id"],
-                ),
+                bot_id=state["bot_id"],
+                failed_at=now,
+                cycle_interval_minutes=int(state.get("cycle_interval_minutes") or 30),
+                error=str(exc),
             )
             processed.append(
                 {
@@ -693,28 +468,16 @@ def active_growth_os_focus(
     cutoff = utcnow() - __import__("datetime").timedelta(hours=lookback_hours)
     cutoff_iso = cutoff.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
-    def _fetch(where_sql: str, params: tuple[Any, ...]) -> dict[str, Any] | None:
-        return fetch_one(
-            conn,
-            f"""
-            SELECT * FROM growth_os_targets
-            WHERE organization_id = ? AND bot_id = ? AND created_at >= ? AND status IN ('selected','executed') {where_sql}
-            ORDER BY expected_value DESC, priority_score DESC, created_at DESC
-            LIMIT 1
-            """,
-            (organization_id, bot_id, cutoff_iso, *params),
-        )
-
     row = None
     scope = "global"
     if contact_id and conversation_id:
-        row = _fetch("AND contact_id = ? AND conversation_id = ?", (contact_id, conversation_id))
+        row = repo_find_focus_target(conn, organization_id=organization_id, bot_id=bot_id, cutoff_iso=cutoff_iso, contact_id=contact_id, conversation_id=conversation_id)
         scope = "conversation" if row else scope
     if row is None and contact_id:
-        row = _fetch("AND contact_id = ?", (contact_id,))
+        row = repo_find_focus_target(conn, organization_id=organization_id, bot_id=bot_id, cutoff_iso=cutoff_iso, contact_id=contact_id)
         scope = "contact" if row else scope
     if row is None:
-        row = _fetch("", ())
+        row = repo_find_focus_target(conn, organization_id=organization_id, bot_id=bot_id, cutoff_iso=cutoff_iso)
     target = _serialize_target(row)
     if not target:
         return {"enabled": True, "focus_target": None, "scope": scope, "recommended_runtime_action": None, "config": config}
@@ -777,16 +540,8 @@ def growth_os_overview(conn, *, organization_id: str, bot_id: str, scorecard_win
     ensure_growth_os_schema(conn)
     control = ensure_growth_os_control_state(conn, organization_id=organization_id, bot_id=bot_id, bot_config=bot_config)
     scorecards = _latest_scorecards(conn, organization_id=organization_id, bot_id=bot_id, window=scorecard_window)
-    latest_run = fetch_one(
-        conn,
-        "SELECT * FROM growth_os_runs WHERE organization_id = ? AND bot_id = ? ORDER BY created_at DESC LIMIT 1",
-        (organization_id, bot_id),
-    )
-    latest_targets = fetch_all(
-        conn,
-        "SELECT * FROM growth_os_targets WHERE organization_id = ? AND bot_id = ? ORDER BY created_at DESC LIMIT 20",
-        (organization_id, bot_id),
-    )
+    latest_run = repo_get_latest_growth_run(conn, organization_id=organization_id, bot_id=bot_id)
+    latest_targets = repo_list_candidate_target_rows(conn, organization_id=organization_id, bot_id=bot_id, limit=20)
     proactive_runs = list_proactive_runs(conn, organization_id=organization_id, bot_id=bot_id, limit=20)
     counts_by_goal: dict[str, int] = defaultdict(int)
     for row in latest_targets:
@@ -811,12 +566,9 @@ def growth_os_overview(conn, *, organization_id: str, bot_id: str, scorecard_win
 
 def list_growth_os_runs(conn, *, organization_id: str, bot_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
     ensure_growth_os_schema(conn)
-    if bot_id:
-        rows = fetch_all(conn, "SELECT * FROM growth_os_runs WHERE organization_id = ? AND bot_id = ? ORDER BY created_at DESC LIMIT ?", (organization_id, bot_id, limit))
-    else:
-        rows = fetch_all(conn, "SELECT * FROM growth_os_runs WHERE organization_id = ? ORDER BY created_at DESC LIMIT ?", (organization_id, limit))
+    rows = repo_list_growth_run_rows(conn, organization_id=organization_id, bot_id=bot_id, limit=limit)
     items: list[dict[str, Any]] = []
     for row in rows:
-        targets = fetch_all(conn, "SELECT * FROM growth_os_targets WHERE growth_run_id = ? ORDER BY priority_score DESC, created_at ASC", (row["id"],))
+        targets = repo_list_growth_targets_for_run(conn, growth_run_id=row["id"])
         items.append(_serialize_run(row, targets=[_serialize_target(target) for target in targets]))
     return items

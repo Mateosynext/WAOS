@@ -1,6 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { ACCESS_COOKIE, getCurrentBotId, getCurrentOrganizationId, refreshAccessToken } from "./session";
+import { refreshBrowserSession } from "./auth/refresh";
 import { explainMissingApiBase, getClientApiBase, getFrontendEnvConfig, getServerApiBase } from "./env";
 import { unwrapApiEnvelope } from "./contracts/shared";
 
@@ -98,22 +99,6 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: ApiRequestInit =
   }
 }
 
-async function refreshClientSession(): Promise<string | null> {
-  try {
-    const response = await fetch("/api/auth/refresh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-waos-refresh": "1" },
-      cache: "no-store",
-      credentials: "same-origin",
-    });
-    if (!response.ok) return null;
-    const data = await response.json();
-    return typeof data?.access_token === "string" ? data.access_token : null;
-  } catch {
-    return null;
-  }
-}
-
 async function buildContextHeaders(serverMode: boolean, headers: Headers, method: string) {
   headers.set("x-waos-frontend", "internal-console");
   headers.set("x-waos-request-method", method);
@@ -148,7 +133,7 @@ async function requestJson<T>(base: string | null, path: string, init: ApiReques
       const response = await fetchWithTimeout(`${base}${path}`, { ...init, method, headers, cache: "no-store" }, init.timeoutMs ?? ENV.timeoutMs);
       if (response.status === 401 && !refreshedOnce) {
         refreshedOnce = true;
-        const nextToken = serverMode ? (await refreshAccessToken())?.accessToken ?? null : await refreshClientSession();
+        const nextToken = serverMode ? (await refreshAccessToken())?.accessToken ?? null : (await refreshBrowserSession())?.accessToken ?? null;
         if (nextToken) {
           headers.set("Authorization", `Bearer ${nextToken}`);
           continue;
