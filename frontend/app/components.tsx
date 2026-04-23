@@ -1,6 +1,6 @@
 import "server-only";
 
-export type { AppMode } from "./components/layout/shell";
+export type { AppMode } from "./components/layout/shellContext";
 export { Shell } from "./components/layout/shell";
 
 export { Icon, Badge, ThemeBadge } from "./components/primitives/shared";
@@ -10,3 +10,4 @@ export { EmptyState, DataTable, KeyValueList, TimelineList, StoryBeat, StageRail
 export { SegmentedLinks, PortalTabs, SecondaryNav } from "./components/navigation";
 export { StatusPill, ContextTip, SuccessState, EmptyActionState, PermissionGate } from "./components/feedback";
 export { WhatsAppPreview } from "./components/domain/WhatsAppPreview";
+
