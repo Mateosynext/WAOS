@@ -1,11 +1,16 @@
-import { createSecretAction, rotateSecretAction } from "../actions";
-import { Badge, DataTable, PermissionGate, Section, Shell, StatCard } from "../components";
+import { createSecretAction, rotateSecretAction } from "@/app/actions/secrets";
+import { PermissionGate } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
+import { Badge } from "@/app/components/primitives/shared";
 import ConfirmSubmitButton from "../components/ConfirmSubmitButton";
 import CreateSecretForm from "../components/CreateSecretForm";
 import { canManageSecrets, canRotateSecrets, roleLabel } from "../lib/permissions";
 import { getCurrentOrganizationId, getSession } from "../lib/session";
 import { formatNumber, safeText } from "../lib/ui";
-import { getBots, getSecrets } from "../lib/waos";
+import { getBots } from "@/app/lib/data/bots";
+import { getSecrets } from "@/app/lib/data/integrations";
 
 export default async function SecretsPage() {
   const [session, secrets, bots, organizationId] = await Promise.all([getSession(), getSecrets(), getBots(), getCurrentOrganizationId()]);

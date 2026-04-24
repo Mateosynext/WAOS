@@ -1,6 +1,12 @@
-import { generateExecutiveReportAction } from "../actions";
-import { Badge, DataTable, Section, Shell, StatCard, StatusPill } from "../components";
-import { getBots, getConversationReviews, getDirectorMode, getExecutiveReports, getWhatsappDeliveryTruth } from "../lib/waos";
+import { generateExecutiveReportAction } from "@/app/actions/reports";
+import { StatusPill } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
+import { Badge } from "@/app/components/primitives/shared";
+import { getDirectorMode, getExecutiveReports, getWhatsappDeliveryTruth } from "@/app/lib/data/analytics";
+import { getBots } from "@/app/lib/data/bots";
+import { getConversationReviews } from "@/app/lib/data/inbox";
 import { getCurrentOrganizationId } from "../lib/session";
 import { formatDateTime, formatNumber, safeText } from "../lib/ui";
 

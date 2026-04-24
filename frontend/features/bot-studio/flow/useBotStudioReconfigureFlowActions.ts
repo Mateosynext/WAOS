@@ -1,9 +1,19 @@
 "use client";
 
-import { applyWizardRequest } from "../../../app/bot-studio/wizardApi";
-import { isSnapshotApplyReady } from "../../../app/bot-studio/wizardProgressGuards";
+import { applyWizardRequest } from "@/features/bot-studio/services/wizardApi";
+import { getCurrentWizardRevision, getValidatedWizardRevisionFromWizard, isSnapshotApplyReady } from "@/features/bot-studio/domain/wizardProgressGuards";
+import type { WizardDryRunResult } from "@/features/bot-studio/domain/wizardTypes";
 import type { BotStudioFlowActionDeps } from "./flowActionDeps";
 import { useBotStudioFlowActionHelpers } from "./useBotStudioFlowActionHelpers";
+
+function getValidationContext(state: BotStudioFlowActionDeps["state"], snapshot: BotStudioFlowActionDeps["snapshot"], dryRunResult?: WizardDryRunResult | null) {
+  const wizard = dryRunResult?.wizard || state.wizard;
+  return {
+    snapshot: dryRunResult?.validation_snapshot || dryRunResult?.wizard?.validation_snapshot || snapshot,
+    wizardRevision: getCurrentWizardRevision(wizard),
+    validatedWizardRevision: dryRunResult ? (getCurrentWizardRevision(dryRunResult.wizard) ?? getValidatedWizardRevisionFromWizard(dryRunResult.wizard) ?? getCurrentWizardRevision(state.wizard) ?? getValidatedWizardRevisionFromWizard(state.wizard) ?? state.validatedWizardRevision) : state.validatedWizardRevision,
+  };
+}
 
 export function useBotStudioReconfigureFlowActions(deps: BotStudioFlowActionDeps) {
   const { goTo, props, recordOperationEvent, setBanner, setBusy, snapshot, state } = deps;
@@ -24,16 +34,18 @@ export function useBotStudioReconfigureFlowActions(deps: BotStudioFlowActionDeps
     if (props.routeStep === "diff") return void goTo("dry-run", state.wizard);
     if (props.routeStep === "dry-run") {
       if (!state.wizardId) return;
-      if (!state.dryRunResult) await runDryRun("Corriendo dry run", "Dry run listo", "Dry run con bloqueos", "La reconfiguración quedó validada pero todavía no puede aplicarse. Revisa el gate antes de confirmar.");
-      if (!isSnapshotApplyReady(snapshot)) {
-        setBanner({ tone: "warning", title: "Confirmación bloqueada", detail: "La confirmación sigue bloqueada hasta que el dry run quede en verde." });
+      const dryRunResult = state.dryRunResult || await runDryRun("Corriendo dry run", "Dry run listo", "Dry run con bloqueos", "La reconfiguración quedó validada pero todavía no puede aplicarse. Revisa el gate antes de confirmar.");
+      const validation = getValidationContext(state, snapshot, dryRunResult);
+      if (!isSnapshotApplyReady(validation.snapshot, { wizardRevision: validation.wizardRevision, validatedWizardRevision: validation.validatedWizardRevision })) {
+        setBanner({ tone: "warning", title: "Confirmación bloqueada", detail: "La confirmación sigue bloqueada hasta que el dry run quede en verde y corresponda a la revisión actual." });
         return;
       }
-      return void goTo("confirm", state.wizard);
+      return void goTo("confirm", dryRunResult?.wizard || state.wizard);
     }
     if (props.routeStep !== "confirm" || !state.wizardId) return;
-    if (!isSnapshotApplyReady(snapshot)) {
-      setBanner({ tone: "warning", title: "Apply bloqueado", detail: "La reconfiguración todavía no tiene un dry run apto para aplicar." });
+    const validation = getValidationContext(state, snapshot, null);
+    if (!isSnapshotApplyReady(validation.snapshot, { wizardRevision: validation.wizardRevision, validatedWizardRevision: validation.validatedWizardRevision })) {
+      setBanner({ tone: "warning", title: "Apply bloqueado", detail: "La reconfiguración todavía no tiene un dry run fresco apto para aplicar." });
       return;
     }
     setBusy("Aplicando reconfiguración");

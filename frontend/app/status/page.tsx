@@ -1,7 +1,12 @@
 import Link from "next/link";
-import { Badge, ContextTip, DataTable, EmptyActionState, ModuleCard, Section, Shell, StatCard, TimelineList } from "../components";
+import { ContextTip, EmptyActionState } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { ModuleCard, Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable, TimelineList } from "@/app/components/primitives/data-display";
+import { Badge } from "@/app/components/primitives/shared";
 import { formatDateTime, formatNumber, humanizeToken, safeText } from "../lib/ui";
-import { getHealth, getIntegrations, getObservability, getQueue, getSystemStatus } from "../lib/waos";
+import { getObservability, getQueue } from "@/app/lib/data/analytics";
+import { getHealth, getIntegrations, getSystemStatus } from "@/app/lib/data/integrations";
 
 function asArray(value: unknown): Array<Record<string, unknown>> {
   return Array.isArray(value) ? value.filter((item) => item && typeof item === "object") as Array<Record<string, unknown>> : [];

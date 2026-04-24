@@ -53,65 +53,57 @@ test("critical chrome uses tokenized surfaces in refactored screens", () => {
 });
 
 
-test("wizard reactive loader is centralized in a shared module", () => {
-  const shared = read("app/bot-studio/wizardReactiveData.ts");
-  const flowClient = read("app/bot-studio/BotStudioFlowClient.tsx");
+test("wizard reactive loader is centralized in feature services", () => {
+  const shared = read("features/bot-studio/services/wizardReactiveData.ts");
+  const stateModel = read("features/bot-studio/flow/useBotStudioFlowStateModel.ts");
   const reactiveConfigurator = read("app/components/ReactiveVerticalConfigurator.tsx");
 
   assert.match(shared, /WIZARD_BLUEPRINT_ENDPOINT/);
   assert.match(shared, /WIZARD_VERTICAL_PROFILE_ENDPOINT/);
   assert.match(shared, /loadWizardReactiveSelection/);
-
-  assert.match(flowClient, /createLatestWizardReactiveSelectionLoader/);
+  assert.match(stateModel, /createLatestWizardReactiveSelectionLoader/);
   assert.match(reactiveConfigurator, /loadWizardReactiveSelection/);
 
-  for (const source of [flowClient, reactiveConfigurator]) {
-    assert.doesNotMatch(source, /\/api\/onboarding\/wizard\/blueprint\?/);
-    assert.doesNotMatch(source, /\/api\/onboarding\/wizard\/vertical-profile\?/);
+  for (const source of [stateModel, reactiveConfigurator]) {
+    assert.doesNotMatch(source, new RegExp("/api/onboarding/wizard/blueprint\\?"));
+    assert.doesNotMatch(source, new RegExp("/api/onboarding/wizard/vertical-profile\\?"));
   }
 });
 
-test("bot studio app routes delegate implementation to feature modules while route shims stay thin", () => {
-  const wizardClient = read("app/bot-studio/BotStudioWizardClient.tsx");
-  const flowClient = read("app/bot-studio/BotStudioFlowClient.tsx");
-  const createScreensShim = read("app/bot-studio/createScreens.tsx");
-  const reviewSectionsShim = read("app/bot-studio/wizardReviewSections.tsx");
-  const stateShim = read("app/bot-studio/useBotStudioWizardState.ts");
-  const featureCreateScreens = read("features/bot-studio/context/createScreens.tsx");
-  const featureReviewSections = read("features/bot-studio/review/wizardReviewSections.tsx");
+test("bot studio app routes stay thin and feature modules own implementation", () => {
+  const entryPage = read("app/bot-studio/page.tsx");
+  const routePage = read("app/bot-studio/[mode]/[[...slug]]/page.tsx");
+  const featureRoute = read("features/bot-studio/BotStudioRoute.tsx");
+  const featureCreateScreens = read("features/bot-studio/context/screens/CreateContextScreen.tsx");
+  const featureReviewSections = read("features/bot-studio/review/ValidationSnapshotPanel.tsx");
+  const featureSummaryRail = read("features/bot-studio/review/StickySummaryRail.tsx");
   const featureState = read("features/bot-studio/context/useBotStudioWizardState.ts");
 
-  assert.match(createScreensShim, /features\/bot-studio\/context\/createScreens/);
-  assert.match(reviewSectionsShim, /features\/bot-studio\/review\/wizardReviewSections/);
-  assert.match(stateShim, /features\/bot-studio\/context\/useBotStudioWizardState/);
+  assert.match(entryPage, new RegExp("features/bot-studio/domain/flowConfig"));
+  assert.match(routePage, new RegExp("features/bot-studio/server/loadBotStudioRoute"));
+  assert.match(routePage, new RegExp("features/bot-studio/BotStudioRoute"));
   assert.match(featureCreateScreens, /export function CreateContextScreen/);
   assert.match(featureReviewSections, /export function ValidationSnapshotPanel/);
-  assert.match(featureReviewSections, /export function StickySummaryRail/);
+  assert.match(featureSummaryRail, /export function StickySummaryRail/);
   assert.match(featureState, /export function useBotStudioWizardState/);
-  assert.match(flowClient, /features\/bot-studio\/context\/createScreens/);
-  assert.match(flowClient, /features\/bot-studio\/review\/wizardReviewSections/);
-  assert.match(flowClient, /features\/bot-studio\/context\/useBotStudioWizardState/);
-  assert.doesNotMatch(wizardClient, /wizardReviewSections/);
+  assert.match(featureRoute, /useBotStudioFlowController/);
+  assert.match(featureRoute, /BotStudioFlowBody/);
+  assert.doesNotMatch(featureRoute, new RegExp("app/bot-studio"));
 });
 
-
-test("components barrel delegates to focused folders instead of staying as a kitchen sink", () => {
-  const componentsBarrel = read("app/components.tsx");
+test("global components barrel is removed and callers use focused component modules", () => {
+  assert.equal(fs.existsSync(path.join(root, "app/components.tsx")), false);
   const shell = read("app/components/layout/shell.tsx");
   const shared = read("app/components/primitives/shared.tsx");
   const cards = read("app/components/primitives/cards.tsx");
   const navigation = read("app/components/navigation/index.tsx");
   const feedback = read("app/components/feedback/index.tsx");
   const domain = read("app/components/domain/WhatsAppPreview.tsx");
+  const home = read("app/page.tsx");
 
-  assert.match(componentsBarrel, /from "\.\/components\/layout\/shell"/);
-  assert.match(componentsBarrel, /from "\.\/components\/primitives\/shared"/);
-  assert.match(componentsBarrel, /from "\.\/components\/navigation"/);
-  assert.match(componentsBarrel, /from "\.\/components\/feedback"/);
-  assert.match(componentsBarrel, /from "\.\/components\/domain\/WhatsAppPreview"/);
-  assert.doesNotMatch(componentsBarrel, /export async function Shell\(/);
-  assert.doesNotMatch(componentsBarrel, /export function Icon\(/);
-
+  assert.match(home, /components\/layout\/shell/);
+  assert.match(home, /components\/primitives\/cards/);
+  assert.match(home, /components\/feedback/);
   assert.match(shell, /export async function Shell/);
   assert.match(shared, /export function Icon/);
   assert.match(cards, /export function Section/);
@@ -120,22 +112,20 @@ test("components barrel delegates to focused folders instead of staying as a kit
   assert.match(domain, /export function WhatsAppPreview/);
 });
 
-test("waos barrel delegates data access to domain modules", () => {
-  const waosBarrel = read("app/lib/waos.ts");
+test("waos compatibility barrel is removed and routes import data access directly", () => {
+  assert.equal(fs.existsSync(path.join(root, "app/lib/waos.ts")), false);
+  const home = read("app/page.tsx");
+  const botsPage = read("app/bots/page.tsx");
   const bots = read("app/lib/data/bots.ts");
   const verticals = read("app/lib/data/verticals.ts");
   const inbox = read("app/lib/data/inbox.ts");
   const onboarding = read("app/lib/data/onboarding.ts");
   const clientPortal = read("app/lib/data/client-portal.ts");
 
-  assert.match(waosBarrel, /from "\.\/data\/bots"/);
-  assert.match(waosBarrel, /from "\.\/data\/verticals"/);
-  assert.match(waosBarrel, /from "\.\/data\/inbox"/);
-  assert.match(waosBarrel, /from "\.\/data\/onboarding"/);
-  assert.match(waosBarrel, /from "\.\/data\/client-portal"/);
-  assert.doesNotMatch(waosBarrel, /export async function getBots\(/);
-  assert.doesNotMatch(waosBarrel, /\/api\/v1\//);
-
+  assert.match(home, /app\/lib\/data\/analytics/);
+  assert.match(home, /app\/lib\/data\/bots/);
+  assert.match(home, /app\/lib\/data\/verticals/);
+  assert.match(botsPage, /app\/lib\/data\/bots/);
   assert.match(bots, /export async function getBots/);
   assert.match(verticals, /export async function getVerticalProfile/);
   assert.match(inbox, /export async function getConversations/);
@@ -144,8 +134,8 @@ test("waos barrel delegates data access to domain modules", () => {
 });
 
 
-test("contracts barrel delegates to bounded contexts and data modules consume them directly", () => {
-  const contractsBarrel = read("app/lib/contracts.ts");
+test("contracts compatibility barrel is removed and modules consume bounded contracts directly", () => {
+  assert.equal(fs.existsSync(path.join(root, "app/lib/contracts.ts")), false);
   const shared = read("app/lib/contracts/shared.ts");
   const auth = read("app/lib/contracts/auth.ts");
   const bots = read("app/lib/contracts/bots.ts");
@@ -157,16 +147,6 @@ test("contracts barrel delegates to bounded contexts and data modules consume th
   const commerce = read("app/lib/contracts/commerce.ts");
   const portal = read("app/lib/contracts/portal.ts");
   const talent = read("app/lib/contracts/talent.ts");
-
-  assert.match(contractsBarrel, /from "\.\/contracts\/shared"/);
-  assert.match(contractsBarrel, /from "\.\/contracts\/auth"/);
-  assert.match(contractsBarrel, /from "\.\/contracts\/bots"/);
-  assert.match(contractsBarrel, /from "\.\/contracts\/onboarding"/);
-  assert.match(contractsBarrel, /from "\.\/contracts\/inbox"/);
-  assert.match(contractsBarrel, /from "\.\/contracts\/verticals"/);
-  assert.match(contractsBarrel, /from "\.\/contracts\/integrations"/);
-  assert.doesNotMatch(contractsBarrel, /export type SessionUser =/);
-  assert.doesNotMatch(contractsBarrel, /export type VerticalProfileContract =/);
 
   assert.match(shared, /export function unwrapApiEnvelope/);
   assert.match(auth, /export function normalizeSessionUser/);
@@ -199,7 +179,6 @@ test("contracts barrel delegates to bounded contexts and data modules consume th
   assert.match(commerceData, /from "\.\.\/contracts\/commerce"/);
   assert.match(session, /from "\.\/contracts\/auth"/);
 });
-
 test("client portal content consumes shared view models instead of embedding summary selectors inline", () => {
   const portalContent = read("app/client/ClientPortalContent.tsx");
   const portalViewModel = read("app/client/clientPortalViewModel.ts");
@@ -240,15 +219,15 @@ test("client portal operations use typed data access instead of inline any-shape
 
 test("bot studio routes and flow client share wizard gateway modules instead of hand-rolled proxy duplication", () => {
   const page = read("app/bot-studio/page.tsx");
-  const flowClient = read("app/bot-studio/BotStudioFlowClient.tsx");
-  const wizardApi = read("app/bot-studio/wizardApi.ts");
+  const flowClient = read("features/bot-studio/BotStudioRoute.tsx");
+  const wizardApi = read("features/bot-studio/services/wizardApi.ts");
   const wizardData = read("app/lib/data/wizard.ts");
   const routeHelpers = read("app/api/onboarding/wizard/route-helpers.ts");
   const startRoute = read("app/api/onboarding/wizard/start/route.ts");
   const blueprintRoute = read("app/api/onboarding/wizard/blueprint/route.ts");
 
-  assert.match(page, /from "\.\.\/lib\/data\/wizard"/);
-  assert.match(flowClient, /from "\.\/wizardApi"/);
+  assert.match(page, /features\/bot-studio\/domain\/flowConfig/);
+  assert.match(flowClient, /useBotStudioFlowController/);
   assert.match(wizardApi, /export function startWizardRequest/);
   assert.match(wizardData, /export async function getWizardBlueprint/);
   assert.match(routeHelpers, /export async function wizardRouteResponse/);

@@ -1,4 +1,4 @@
-import { Badge } from "../../../components";
+import { Badge } from "@/app/components/primitives/shared";
 import { ClientEmptyBlock, ClientSectionBlock } from "../../../components/client/ClientPortalPrimitives";
 import { safeText } from "../../../lib/ui";
 import type { ClientOperationsPayload } from "./types";

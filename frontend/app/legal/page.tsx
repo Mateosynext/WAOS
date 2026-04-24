@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { Badge, ModuleCard, Section, Shell, StatCard } from "../components";
+import { Shell } from "@/app/components/layout/shell";
+import { ModuleCard, Section, StatCard } from "@/app/components/primitives/cards";
+import { Badge } from "@/app/components/primitives/shared";
 import { legalOwner, legalProduct, publicLegalDocs } from "./legal-registry";
 
 export default async function LegalCenterPage() {

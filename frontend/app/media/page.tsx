@@ -1,6 +1,8 @@
-import { DataTable, Section, Shell, StatCard } from "../components";
+import { Shell } from "@/app/components/layout/shell";
+import { Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
 import { formatNumber, safeText } from "../lib/ui";
-import { getMediaAssets } from "../lib/waos";
+import { getMediaAssets } from "@/app/lib/data/commerce";
 
 export default async function MediaPage() {
   const assets = await getMediaAssets();

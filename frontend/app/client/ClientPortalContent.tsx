@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Shell } from "../components";
+import { Shell } from "@/app/components/layout/shell";
 import { getSession } from "../lib/session";
-import { type PortalModuleState } from "../lib/waos";
+import type { PortalModuleState } from "@/app/lib/data/shared";
 import { getClientPortalData } from "../lib/data/client-portal";
 import { buildClientPortalTimeline, clientSectionMeta, type ClientSection } from "./clientPortalViewModel";
 import { renderAgenda, renderBot, renderConversations, renderModuleErrors, renderOperations, renderPromotions, renderRequests, renderSummary } from "./ClientPortalSections";

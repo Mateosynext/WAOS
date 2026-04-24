@@ -2,16 +2,17 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { buildBotStudioHref, getFlowSteps, getNextRouteStep, getPreviousRouteStep, getStepMeta, type RouteStep } from "../../../app/bot-studio/flowConfig";
-import { buildWizardAwareRouteQuery } from "../../../app/bot-studio/navigationState";
-import { isCreateStepClientReady, isSnapshotApplyReady } from "../../../app/bot-studio/wizardProgressGuards";
+import { buildBotStudioHref, getFlowSteps, getNextRouteStep, getPreviousRouteStep, getStepMeta, type RouteStep } from "@/features/bot-studio/domain/flowConfig";
+import { buildWizardAwareRouteQuery } from "@/features/bot-studio/domain/navigationState";
+import { getCurrentWizardRevision, getValidatedWizardRevisionFromWizard, isCreateStepClientReady, isSnapshotApplyReady } from "@/features/bot-studio/domain/wizardProgressGuards";
 import { useBotStudioWizardState } from "../context/useBotStudioWizardState";
+import type { WizardValidationSnapshot } from "@/features/bot-studio/domain/wizardTypes";
 import type { BotStudioFlowProps } from "./types";
 
 export function useBotStudioFlowNavigation(
   props: BotStudioFlowProps,
   state: ReturnType<typeof useBotStudioWizardState>,
-  snapshot: Record<string, unknown> | null,
+  snapshot: WizardValidationSnapshot | null,
 ) {
   const router = useRouter();
   const flowSteps = getFlowSteps(props.routeMode);
@@ -68,17 +69,18 @@ export function useBotStudioFlowNavigation(
           : `Continuar a ${getStepMeta(props.routeMode, getNextRouteStep(props.routeMode, props.routeStep) || props.routeStep)?.label}`;
 
   const primaryDisabled = useMemo(() => {
+    const freshness = { wizardRevision: getCurrentWizardRevision(state.wizard), validatedWizardRevision: state.validatedWizardRevision ?? getValidatedWizardRevisionFromWizard(state.wizard) };
     if (props.routeMode === "create") {
       if (["context", "identity", "offer", "knowledge", "integrations"].includes(props.routeStep)) {
         return !isCreateStepClientReady(props.routeStep, state as unknown as Record<string, unknown>);
       }
-      if (props.routeStep === "validate" && state.dryRunResult) return !isSnapshotApplyReady(snapshot);
-      if (props.routeStep === "apply") return !isSnapshotApplyReady(snapshot);
+      if (props.routeStep === "validate" && state.dryRunResult) return !isSnapshotApplyReady(snapshot, freshness);
+      if (props.routeStep === "apply") return !isSnapshotApplyReady(snapshot, freshness);
       return false;
     }
     if (props.routeStep === "select") return !state.selectedBotId;
-    if (props.routeStep === "dry-run" && state.dryRunResult) return !isSnapshotApplyReady(snapshot);
-    if (props.routeStep === "confirm") return !isSnapshotApplyReady(snapshot);
+    if (props.routeStep === "dry-run" && state.dryRunResult) return !isSnapshotApplyReady(snapshot, freshness);
+    if (props.routeStep === "confirm") return !isSnapshotApplyReady(snapshot, freshness);
     return false;
   }, [props.routeMode, props.routeStep, snapshot, state]);
 

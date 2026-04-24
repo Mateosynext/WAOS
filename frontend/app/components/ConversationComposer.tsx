@@ -1,6 +1,6 @@
 "use client";
 
-import { sendConversationMessageAction } from "../actions";
+import { sendConversationMessageAction } from "@/app/actions/conversations";
 import { MODE_LABELS, QUICK_REPLIES, SNIPPETS } from "./conversation-composer/constants";
 import { ConversationComposerModePanels } from "./conversation-composer/ModePanels";
 import { useConversationComposerState } from "./conversation-composer/useConversationComposerState";

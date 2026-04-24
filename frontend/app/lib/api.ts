@@ -46,45 +46,26 @@ function wait(ms: number) {
 
 async function readError(response: Response): Promise<ApiRequestError> {
   let message = `La API respondió con ${response.status}.`;
-  let code =
-    response.status >= 500
-      ? "server_error"
-      : response.status === 401
-        ? "unauthorized"
-        : "request_error";
-
+  let code = response.status >= 500 ? "server_error" : response.status === 401 ? "unauthorized" : "request_error";
   let requestId = response.headers.get("x-request-id");
   let correlationId = response.headers.get("x-correlation-id");
   let details: unknown = null;
-
-  let rawBody = "";
   try {
-    rawBody = await response.text();
+    const data = await response.json();
+    if (typeof data?.detail === "string") message = data.detail;
+    else if (typeof data?.message === "string") message = data.message;
+    else if (typeof data?.error === "string") message = data.error;
+    else if (typeof data?.error?.message === "string") message = data.error.message;
+    else if (data?.detail?.message) message = data.detail.message;
+    if (typeof data?.error?.code === "string") code = data.error.code;
+    else if (typeof data?.code === "string") code = data.code;
+    requestId = typeof data?.request_id === "string" ? data.request_id : requestId;
+    correlationId = typeof data?.correlation_id === "string" ? data.correlation_id : correlationId;
+    details = data?.error?.details ?? data?.details ?? null;
   } catch {
-    rawBody = "";
+    const text = await response.text().catch(() => "");
+    if (text) message = text;
   }
-
-  if (rawBody) {
-    try {
-      const data = JSON.parse(rawBody);
-
-      if (typeof data?.detail === "string") message = data.detail;
-      else if (typeof data?.message === "string") message = data.message;
-      else if (typeof data?.error === "string") message = data.error;
-      else if (typeof data?.error?.message === "string") message = data.error.message;
-      else if (typeof data?.detail?.message === "string") message = data.detail.message;
-
-      if (typeof data?.error?.code === "string") code = data.error.code;
-      else if (typeof data?.code === "string") code = data.code;
-
-      requestId = typeof data?.request_id === "string" ? data.request_id : requestId;
-      correlationId = typeof data?.correlation_id === "string" ? data.correlation_id : correlationId;
-      details = data?.error?.details ?? data?.details ?? null;
-    } catch {
-      message = rawBody;
-    }
-  }
-
   return new ApiRequestError(message, {
     status: response.status,
     code,
@@ -109,7 +90,7 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: ApiRequestInit =
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       if (upstreamSignal?.aborted) throw error;
-      throw new ApiRequestError("La solicitud tardÃ³ demasiado y se cancelÃ³.", { code: "timeout", retryable: true });
+      throw new ApiRequestError("La solicitud tardó demasiado y se canceló.", { code: "timeout", retryable: true });
     }
     throw error;
   } finally {
@@ -201,5 +182,3 @@ export async function clientApiFetchResult<T>(path: string, init: ApiRequestInit
     return { ok: false, data: null, error: apiError };
   }
 }
-
-

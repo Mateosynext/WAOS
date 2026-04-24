@@ -9,12 +9,39 @@ function read(relativePath: string) {
   return fs.readFileSync(path.join(frontendRoot, relativePath), "utf8");
 }
 
-test("waos compatibility barrel uses explicit exports only", () => {
-  const waosBarrel = read("app/lib/waos.ts");
-  assert.match(waosBarrel, /Deprecated compatibility barrel/);
-  assert.doesNotMatch(waosBarrel, /export \* from /);
-  assert.match(waosBarrel, /export \{[\s\S]*getBots[\s\S]*\} from "\.\/data\/bots"/);
-  assert.match(waosBarrel, /export \{[\s\S]*getVerticalProfile[\s\S]*\} from "\.\/data\/verticals"/);
+test("legacy global barrels and Bot Studio shims stay deleted", () => {
+  for (const legacyPath of [
+    "app/actions.ts",
+    "app/components.tsx",
+    "app/lib/waos.ts",
+    "app/lib/contracts.ts",
+    "app/bot-studio/useBotStudioWizardState.ts",
+    "app/bot-studio/createScreens.tsx",
+    "app/bot-studio/wizardReviewSections.tsx",
+  ]) {
+    assert.equal(fs.existsSync(path.join(frontendRoot, legacyPath)), false, legacyPath);
+  }
+});
+
+test("eslint blocks legacy Bot Studio shims and global barrels", () => {
+  const eslint = read(".eslintrc.json");
+  const config = JSON.parse(eslint);
+  const rule = config.rules["no-restricted-imports"];
+  assert.equal(rule[0], "error");
+  const patterns = rule[1].patterns;
+  for (const forbidden of [
+    "@/app/lib/waos",
+    "@/app/lib/contracts",
+    "@/app/components",
+    "@/app/actions",
+    "@/app/bot-studio/*",
+    "../components",
+    "../actions",
+    "../lib/waos",
+    "../lib/contracts",
+  ]) {
+    assert.equal(patterns.includes(forbidden), true, forbidden);
+  }
 });
 
 test("wizard route response preserves transport metadata", () => {

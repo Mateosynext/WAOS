@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ClientEmptyBlock, ClientExecutiveSummary, ClientMetricCard } from "../../components/client/ClientPortalPrimitives";
 import { getClientOperationsData } from "../../lib/data/client-operations";
 import { formatNumber, safeText } from "../../lib/ui";
-import type { ClientPortalData } from "../../lib/waos";
+import type { ClientPortalData } from "@/app/lib/data/client-portal";
 import { renderOperationalAlerts } from "./operations/renderOperationalAlerts";
 import { renderOperationalAvailability } from "./operations/renderOperationalAvailability";
 import { renderOperationalForms } from "./operations/renderOperationalForms";

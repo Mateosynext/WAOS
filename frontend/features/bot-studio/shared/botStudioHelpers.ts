@@ -1,8 +1,10 @@
-import type { BotContract, SessionOrganization, VerticalProfileContract } from "../../../app/lib/contracts";
-import type { RouteStep, CreateRouteStep } from "../../../app/bot-studio/flowConfig";
-import type { WizardBlueprint, WizardInstance, WizardMode } from "../../../app/bot-studio/wizard-types";
-import { getCreateRouteMessage } from "../../../app/bot-studio/wizardProgressGuards";
-import { safeText } from "../../../app/lib/ui";
+import type { SessionOrganization } from "@/shared/contracts/auth";
+import type { BotContract } from "@/shared/contracts/bots";
+import type { VerticalProfileContract } from "@/shared/contracts/verticals";
+import type { RouteStep, CreateRouteStep } from "@/features/bot-studio/domain/flowConfig";
+import type { WizardBlueprint, WizardInstance, WizardMode, WizardRecommendedIntegration, WizardRecommendedPlaybook, WizardValidationSnapshot } from "@/features/bot-studio/domain/wizardTypes";
+import { getCreateRouteMessage } from "@/features/bot-studio/domain/wizardProgressGuards";
+import { safeText } from "@/shared/lib/ui";
 
 export function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? { ...(value as Record<string, unknown>) } : {};
@@ -44,6 +46,14 @@ export function resolveMatchingVertical(verticals: VerticalProfileContract[], se
     || null;
 }
 
+function integrationLabel(item: WizardRecommendedIntegration) {
+  return item.name || item.provider || item.integration_key || "";
+}
+
+function playbookLabel(item: WizardRecommendedPlaybook) {
+  return item.label || item.key || "";
+}
+
 export type BotStudioSummaryInput = {
   routeMode: WizardMode;
   routeStep: RouteStep;
@@ -60,8 +70,10 @@ export type BotStudioSummaryInput = {
   wizard: WizardInstance | null;
   wizardId: string;
   blueprint: WizardBlueprint | null;
-  snapshot: any;
+  snapshot: WizardValidationSnapshot | null;
   progress: number;
+  businessName: string;
+  botName: string;
 };
 
 export function buildBotStudioSummaryViewModel(input: BotStudioSummaryInput) {
@@ -71,19 +83,19 @@ export function buildBotStudioSummaryViewModel(input: BotStudioSummaryInput) {
     : safeText(input.selectedVerticalId ? input.verticals.find((item) => item.id === input.selectedVerticalId)?.name : input.selectedBot?.vertical, "");
   const summaryOperation = input.routeMode === "create" ? safeText(input.selectedSubvertical, "") : safeText(input.selectedSubvertical || pickBotSubvertical(input.selectedBot, organizationForSummary), "");
   const summaryObjective = input.routeMode === "create" ? safeText(input.selectedPrimaryObjective, "") : safeText(input.selectedPrimaryObjective || input.selectedBot?.objective || input.selectedBot?.goal, "");
-  const summaryBusinessName = input.routeMode === "create" ? safeText((input as any).businessName, "") : safeText((input as any).businessName || input.selectedBot?.business_name, "");
-  const summaryAssistantName = input.routeMode === "create" ? safeText((input as any).botName, "") : safeText((input as any).botName || input.selectedBot?.name, "");
+  const summaryBusinessName = input.routeMode === "create" ? safeText(input.businessName, "") : safeText(input.businessName || input.selectedBot?.business_name, "");
+  const summaryAssistantName = input.routeMode === "create" ? safeText(input.botName, "") : safeText(input.botName || input.selectedBot?.name, "");
   const recommendedChannels = unique([
     ...input.selectedIntegrationKeys,
-    ...((input.blueprint?.setup?.wizard?.recommended_integrations || []).map((item: any) => item.name || item.provider || item.integration_key || "")),
+    ...((input.blueprint?.setup?.wizard?.recommended_integrations || []).map(integrationLabel)),
   ]);
   const seededServices = unique([...(textLines(input.servicesText)), ...(input.blueprint?.setup?.services || [])]);
   const createdTemplates = unique([
     ...input.selectedPlaybookKeys,
-    ...((input.blueprint?.setup?.wizard?.recommended_playbooks || []).map((item: any) => item.label || item.key || "")),
+    ...((input.blueprint?.setup?.wizard?.recommended_playbooks || []).map(playbookLabel)),
   ]);
   const summaryRisks = unique([
-    ...((input.snapshot?.warnings || []).map((item: any) => item.label || item.detail || "")),
+    ...((input.snapshot?.warnings || []).map((item) => item.label || item.detail || "")),
     ...(input.wizard?.diagnostics?.required_steps_pending || []).map((item) => getCreateRouteMessage(({
       vertical_fit: "context",
       business_basics: "identity",

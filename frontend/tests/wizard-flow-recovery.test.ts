@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { getWizardRouteRecovery, mapRouteStepToWizardUiStep, mapWizardUiStepToRouteStep } from "../app/bot-studio/wizardFlowRecovery";
-import type { WizardInstance } from "../app/bot-studio/wizard-types";
+import { getWizardRouteRecovery, mapRouteStepToWizardUiStep, mapWizardUiStepToRouteStep } from "../features/bot-studio/domain/wizardFlowRecovery";
+import type { WizardInstance } from "../features/bot-studio/domain/wizardTypes";
 
 test("route/ui mappings keep create and reconfigure flows aligned", () => {
   assert.equal(mapRouteStepToWizardUiStep("create", "validate"), "dry_run");

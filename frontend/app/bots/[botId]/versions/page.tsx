@@ -1,7 +1,10 @@
 import Link from "next/link";
-import { DataTable, SecondaryNav, Section, Shell, StatCard } from "../../../components";
+import { Shell } from "@/app/components/layout/shell";
+import { SecondaryNav } from "@/app/components/navigation";
+import { Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
 import { formatNumber, safeText } from "../../../lib/ui";
-import { getBot, getBotValidation, getBuilds } from "../../../lib/waos";
+import { getBot, getBotValidation, getBuilds } from "@/app/lib/data/bots";
 
 export default async function BotVersionsPage({ params }: { params: Promise<{ botId: string }> }) {
   const { botId } = await params;

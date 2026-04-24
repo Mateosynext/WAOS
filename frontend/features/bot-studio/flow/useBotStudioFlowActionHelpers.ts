@@ -1,9 +1,10 @@
 "use client";
 
-import { applyWizardRequest, dryRunWizardRequest, saveWizardStepRequest, startWizardRequest } from "../../../app/bot-studio/wizardApi";
-import { isSnapshotApplyReady } from "../../../app/bot-studio/wizardProgressGuards";
-import { safeText } from "../../../app/lib/ui";
-import type { WizardInstance } from "../../../app/bot-studio/wizard-types";
+import { applyWizardRequest, dryRunWizardRequest, saveWizardStepRequest, startWizardRequest } from "@/features/bot-studio/services/wizardApi";
+import { normalizeWizardError, wizardErrorToMessage } from "@/features/bot-studio/services/wizardClient";
+import { getCurrentWizardRevision, getValidatedWizardRevisionFromWizard, isSnapshotApplyReady } from "@/features/bot-studio/domain/wizardProgressGuards";
+import { safeText } from "@/shared/lib/ui";
+import type { WizardInstance } from "@/features/bot-studio/domain/wizardTypes";
 import type { BotStudioFlowActionDeps } from "./flowActionDeps";
 
 export function useBotStudioFlowActionHelpers(deps: BotStudioFlowActionDeps) {
@@ -38,7 +39,8 @@ export function useBotStudioFlowActionHelpers(deps: BotStudioFlowActionDeps) {
       recordOperationEvent("wizard.step.save.succeeded", { stepKey, currentStep: saved.current_step || null, wizardRevision: saved.wizard_revision ?? null }, saved.id);
       return saved;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "No se pudo guardar el paso.";
+      const wizardError = normalizeWizardError(error);
+      const message = wizardErrorToMessage(wizardError);
       state.setAutosaveState("error");
       state.setAutosaveError(message);
       state.setWizardError(message);
@@ -51,23 +53,26 @@ export function useBotStudioFlowActionHelpers(deps: BotStudioFlowActionDeps) {
   const runDryRun = async (busyLabel: string, successTitle: string, blockedTitle: string, blockedDetail: string) => {
     if (!state.wizardId) {
       setBanner({ tone: "warning", title: "Wizard incompleto", detail: "Guarda los pasos anteriores antes de correr la validación." });
-      return;
+      return null;
     }
     setBusy(busyLabel);
     recordOperationEvent("wizard.dry_run.started", { mode: props.routeMode }, state.wizardId);
     const result = await dryRunWizardRequest(state.wizardId);
     state.setDryRunResult(result);
     if (result.wizard) syncWizard(result.wizard);
+    const validatedRevision = getCurrentWizardRevision(result.wizard) ?? getValidatedWizardRevisionFromWizard(result.wizard) ?? getCurrentWizardRevision(state.wizard);
+    state.setValidatedWizardRevision(validatedRevision);
     recordOperationEvent("wizard.dry_run.completed", {
       mode: props.routeMode,
       applyReady: Boolean(result.validation_snapshot?.apply_ready || result.wizard?.validation_snapshot?.apply_ready),
       gateStatus: result.validation_snapshot?.gate?.status || result.wizard?.validation_snapshot?.gate?.status || null,
     }, result.wizard?.id || state.wizardId);
-    if (isSnapshotApplyReady(result.validation_snapshot || result.wizard?.validation_snapshot || null)) {
+    if (isSnapshotApplyReady(result.validation_snapshot || result.wizard?.validation_snapshot || null, { wizardRevision: validatedRevision, validatedWizardRevision: validatedRevision })) {
       setBanner({ tone: "success", title: successTitle, detail: props.routeMode === "create" ? "La validación quedó fresca y el draft ya puede pasar a apply." : "La reconfiguración ya puede pasar a confirmación." });
-      return;
+      return result;
     }
     setBanner({ tone: "warning", title: blockedTitle, detail: blockedDetail });
+    return result;
   };
 
   return { ensureWizard, runDryRun, saveStep, syncWizard };

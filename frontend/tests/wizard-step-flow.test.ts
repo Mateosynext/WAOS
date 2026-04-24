@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getCreateAutosaveStepKeys, resolveWizardInitialStep } from "../app/bot-studio/wizardStepFlow";
+import { getCreateAutosaveStepKeys, resolveWizardInitialStep } from "../features/bot-studio/domain/wizardStepFlow";
 
 test("wizard step resolution stays aligned between hydration and client flow", () => {
   assert.equal(resolveWizardInitialStep("create", { current_step: "business_basics" } as never), "basics");

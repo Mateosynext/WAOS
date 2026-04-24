@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { VerticalProfileContract } from "../lib/contracts";
+import type { VerticalProfileContract } from "@/app/lib/contracts/verticals";
 import { safeText } from "../lib/ui";
 import { UiMessage } from "./UiMessage";
-import VerticalPicker from "../bot-studio/VerticalPicker";
-import SubverticalPicker from "../bot-studio/SubverticalPicker";
-import type { WizardBlueprint } from "../bot-studio/wizard-types";
-import { loadWizardReactiveSelection } from "../bot-studio/wizardReactiveData";
+import VerticalPicker from "@/features/bot-studio/ui/VerticalPicker";
+import SubverticalPicker from "@/features/bot-studio/ui/SubverticalPicker";
+import type { WizardBlueprint } from "@/features/bot-studio/domain/wizardTypes";
+import { loadWizardReactiveSelection } from "@/features/bot-studio/services/wizardReactiveData";
 import { buildReactiveVerticalPreviewModel, isSelectedSubverticalValid } from "./reactiveVerticalViewModel";
 
 type ReactiveVerticalConfiguratorProps = {

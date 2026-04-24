@@ -1,9 +1,9 @@
 "use client";
 
-import { canAdvanceAfterCreateSave, getCreateClientIncompleteMessage, getCreateRouteMessage, isCreateStepClientReady, isSnapshotApplyReady } from "../../../app/bot-studio/wizardProgressGuards";
-import { applyWizardRequest } from "../../../app/bot-studio/wizardApi";
-import type { CreateRouteStep, RouteStep } from "../../../app/bot-studio/flowConfig";
-import type { WizardInstance } from "../../../app/bot-studio/wizard-types";
+import { canAdvanceAfterCreateSave, getCreateClientIncompleteMessage, getCreateRouteMessage, getCurrentWizardRevision, getValidatedWizardRevisionFromWizard, isCreateStepClientReady, isSnapshotApplyReady } from "@/features/bot-studio/domain/wizardProgressGuards";
+import { applyWizardRequest } from "@/features/bot-studio/services/wizardApi";
+import type { CreateRouteStep, RouteStep } from "@/features/bot-studio/domain/flowConfig";
+import type { WizardDryRunResult, WizardInstance } from "@/features/bot-studio/domain/wizardTypes";
 import type { BotStudioFlowActionDeps } from "./flowActionDeps";
 import { useBotStudioFlowActionHelpers } from "./useBotStudioFlowActionHelpers";
 
@@ -23,6 +23,15 @@ function keepCreateStepUntilBackendAdvances(
   setBanner({ tone: "warning", title: message.title, detail: message.detail });
 }
 
+function getValidationContext(state: BotStudioFlowActionDeps["state"], snapshot: BotStudioFlowActionDeps["snapshot"], dryRunResult?: WizardDryRunResult | null) {
+  const wizard = dryRunResult?.wizard || state.wizard;
+  return {
+    snapshot: dryRunResult?.validation_snapshot || dryRunResult?.wizard?.validation_snapshot || snapshot,
+    wizardRevision: getCurrentWizardRevision(wizard),
+    validatedWizardRevision: dryRunResult ? (getCurrentWizardRevision(dryRunResult.wizard) ?? getValidatedWizardRevisionFromWizard(dryRunResult.wizard) ?? getCurrentWizardRevision(state.wizard) ?? getValidatedWizardRevisionFromWizard(state.wizard) ?? state.validatedWizardRevision) : state.validatedWizardRevision,
+  };
+}
+
 export function useBotStudioCreateFlowActions(deps: BotStudioFlowActionDeps) {
   const { goTo, payloads, props, recordOperationEvent, setBanner, setBusy, snapshot, state } = deps;
   const { runDryRun, saveStep, syncWizard } = useBotStudioFlowActionHelpers(deps);
@@ -40,16 +49,18 @@ export function useBotStudioCreateFlowActions(deps: BotStudioFlowActionDeps) {
     if (props.routeStep === "integrations") return void keepCreateStepUntilBackendAdvances("integrations", await saveStep("integrations_rules", payloads.integrations), "review", goTo, setBanner);
     if (props.routeStep === "review") return void goTo("validate", await saveStep("launch_review", payloads.launchReview));
     if (props.routeStep === "validate") {
-      if (!state.dryRunResult) await runDryRun("Ejecutando dry run", "Dry run listo", "Dry run completado con pendientes", "El draft fue validado, pero el gate todavía no permite aplicar. Corrige los pasos marcados y vuelve a validar.");
-      if (!isSnapshotApplyReady(snapshot)) {
+      const dryRunResult = state.dryRunResult || await runDryRun("Ejecutando dry run", "Dry run listo", "Dry run completado con pendientes", "El draft fue validado, pero el gate todavía no permite aplicar. Corrige los pasos marcados y vuelve a validar.");
+      const validation = getValidationContext(state, snapshot, dryRunResult);
+      if (!isSnapshotApplyReady(validation.snapshot, { wizardRevision: validation.wizardRevision, validatedWizardRevision: validation.validatedWizardRevision })) {
         const message = getCreateRouteMessage("apply");
         setBanner({ tone: "warning", title: message.title, detail: message.detail });
         return;
       }
-      return void goTo("apply", state.wizard);
+      return void goTo("apply", dryRunResult?.wizard || state.wizard);
     }
     if (props.routeStep !== "apply" || !state.wizardId) return;
-    if (!isSnapshotApplyReady(snapshot)) {
+    const validation = getValidationContext(state, snapshot, null);
+    if (!isSnapshotApplyReady(validation.snapshot, { wizardRevision: validation.wizardRevision, validatedWizardRevision: validation.validatedWizardRevision })) {
       const message = getCreateRouteMessage("apply");
       setBanner({ tone: "warning", title: message.title, detail: message.detail });
       return;

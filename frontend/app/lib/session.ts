@@ -60,11 +60,9 @@ export async function clearSessionCookies() {
 export async function refreshAccessToken(): Promise<{ accessToken: string; refreshToken: string } | null> {
   const store = await cookies();
   const refreshToken = store.get(REFRESH_COOKIE)?.value ?? null;
-  if (!refreshToken) return null;
-
   const refreshed = await requestSessionRefresh(refreshToken, API_BASE);
   if (!refreshed) {
-    await clearSessionCookies();
+    if (refreshToken) await clearSessionCookies();
     return null;
   }
   await persistSessionTokens(refreshed.accessToken, refreshed.refreshToken);
@@ -127,5 +125,4 @@ export async function requireSession(redirectTo = "/login") {
   if (!session) redirect(redirectTo);
   return session;
 }
-
 

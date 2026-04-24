@@ -1,5 +1,5 @@
-import type { BotContract } from "../lib/contracts";
-import { switchBotAction } from "../actions";
+import type { BotContract } from "@/app/lib/contracts/bots";
+import { switchBotAction } from "@/app/actions/selection";
 
 export default function BotScopeSwitcher({
   bots,

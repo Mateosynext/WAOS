@@ -1,12 +1,16 @@
 import Link from "next/link";
-import { switchOrganizationAction, updateOrganizationVerticalAction } from "../actions";
+import { updateOrganizationVerticalAction } from "@/app/actions/organizations";
+import { switchOrganizationAction } from "@/app/actions/selection";
 import BotScopeSwitcher from "../components/BotScopeSwitcher";
 import OrganizationSwitcher from "../components/OrganizationSwitcher";
-import { ContextTip, EmptyActionState, ModuleCard, Section, Shell, StatCard, SuccessState } from "../components";
+import { ContextTip, EmptyActionState, SuccessState } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { ModuleCard, Section, StatCard } from "@/app/components/primitives/cards";
 import ReactiveVerticalConfigurator from "../components/ReactiveVerticalConfigurator";
 import { getCurrentBotId, getSession } from "../lib/session";
 import { safeText } from "../lib/ui";
-import { getBots, getStrongestVerticals, getVerticalCatalog, getVerticalProfile } from "../lib/waos";
+import { getBots } from "@/app/lib/data/bots";
+import { getStrongestVerticals, getVerticalCatalog, getVerticalProfile } from "@/app/lib/data/verticals";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }

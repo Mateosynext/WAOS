@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { loginAction } from "../actions";
+import { loginAction } from "@/app/actions/auth";
 import { trackFrontendEvent } from "../lib/analytics";
 import { validateLogin } from "../lib/forms";
 import { FieldError, UiMessage } from "./UiMessage";

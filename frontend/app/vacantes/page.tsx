@@ -1,10 +1,13 @@
 import Link from "next/link";
-import { confirmTalentCandidateAction, createTalentVacancyAction, updateTalentPolicyAction } from "../actions";
+import { confirmTalentCandidateAction, createTalentVacancyAction, updateTalentPolicyAction } from "@/app/actions/talent";
 import BotScopeSwitcher from "../components/BotScopeSwitcher";
-import { DataTable, EmptyActionState, Section, Shell, StatCard } from "../components";
+import { EmptyActionState } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
 import { getCurrentBotId } from "../lib/session";
 import { formatNumber, safeText, yesNo } from "../lib/ui";
-import { getBots, getTalentOverview } from "../lib/waos";
+import { getBots, getTalentOverview } from "@/app/lib/data/bots";
 
 function summaryNumber(value: unknown) {
   const n = Number(value || 0);

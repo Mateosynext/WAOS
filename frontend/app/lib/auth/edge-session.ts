@@ -1,7 +1,9 @@
 import type { NextRequest } from "next/server";
-import { normalizeSessionUser, type SessionUser } from "../contracts/auth.ts";
+import type { SessionUser } from "../contracts/auth.ts";
 import { getServerApiBase } from "../env.ts";
+import { requestSessionRefresh } from "./refresh.ts";
 import { ACCESS_COOKIE, ORG_COOKIE, REFRESH_COOKIE } from "./cookies.ts";
+import { fetchSessionUserFromApi, resolveSessionOrganizationId } from "./shared-session.ts";
 
 const API_BASE = getServerApiBase();
 
@@ -47,101 +49,50 @@ export function isExpiredJwt(claims: JwtClaims | null, nowSeconds = Math.floor(D
 }
 
 async function refreshSession(refreshToken: string) {
-  if (!API_BASE || !refreshToken) return null;
-  try {
-    const response = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-      cache: "no-store",
-    });
-    if (!response.ok) return null;
-    const payload = await response.json().catch(() => null);
-    if (typeof payload?.access_token !== "string" || typeof payload?.refresh_token !== "string") return null;
-    return { accessToken: payload.access_token, refreshToken: payload.refresh_token };
-  } catch {
-    return null;
-  }
+  return requestSessionRefresh(refreshToken, API_BASE);
 }
 
 async function fetchSessionUser(accessToken: string, selectedOrganizationId: string | null) {
-  if (!API_BASE || !accessToken) return null;
-  const headers = new Headers({ Authorization: `Bearer ${accessToken}` });
-  if (selectedOrganizationId) {
-    headers.set("x-waos-org-id", selectedOrganizationId);
-    headers.set("x-organization-id", selectedOrganizationId);
-  }
-  try {
-    const response = await fetch(`${API_BASE}/api/v1/auth/me`, {
-      method: "GET",
-      headers,
-      cache: "no-store",
-    });
-    if (!response.ok) return null;
-    return normalizeSessionUser(await response.json());
-  } catch {
-    return null;
-  }
+  return fetchSessionUserFromApi(API_BASE, accessToken, selectedOrganizationId);
 }
 
 export async function verifyRequestSession(request: NextRequest): Promise<VerifiedSession | null> {
   const accessToken = request.cookies.get(ACCESS_COOKIE)?.value ?? null;
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value ?? null;
   const selectedOrganizationId = request.cookies.get(ORG_COOKIE)?.value ?? null;
-
   if (!accessToken && !refreshToken) return null;
 
   let activeAccessToken = accessToken || "";
   let activeRefreshToken = refreshToken;
-  let refreshAttempted = false;
+  const initialClaims = accessToken ? decodeAccessTokenClaims(activeAccessToken) : null;
 
-  const initialClaims = accessToken ? decodeAccessTokenClaims(accessToken) : null;
-  const needsRefresh =
-    !accessToken ||
-    !initialClaims ||
-    initialClaims.type !== "access" ||
-    isExpiredJwt(initialClaims);
-
-  if (needsRefresh) {
-    if (!refreshToken) return null;
+  if ((!accessToken || !initialClaims || initialClaims.type !== "access" || isExpiredJwt(initialClaims)) && refreshToken) {
     const refreshed = await refreshSession(refreshToken);
-    refreshAttempted = true;
     if (!refreshed) return null;
     activeAccessToken = refreshed.accessToken;
     activeRefreshToken = refreshed.refreshToken;
-  }
-
-  const activeClaims = decodeAccessTokenClaims(activeAccessToken);
-  if (!activeClaims || activeClaims.type !== "access" || isExpiredJwt(activeClaims)) {
+  } else if (!initialClaims || initialClaims.type !== "access") {
+    return null;
+  } else if (isExpiredJwt(initialClaims)) {
     return null;
   }
 
   let user = await fetchSessionUser(activeAccessToken, selectedOrganizationId);
-
-  if (!user && activeRefreshToken && !refreshAttempted) {
+  if (!user && activeRefreshToken) {
     const refreshed = await refreshSession(activeRefreshToken);
-    refreshAttempted = true;
     if (!refreshed) return null;
     activeAccessToken = refreshed.accessToken;
     activeRefreshToken = refreshed.refreshToken;
-
-    const refreshedClaims = decodeAccessTokenClaims(activeAccessToken);
-    if (!refreshedClaims || refreshedClaims.type !== "access" || isExpiredJwt(refreshedClaims)) {
-      return null;
-    }
-
     user = await fetchSessionUser(activeAccessToken, selectedOrganizationId);
   }
-
   if (!user) return null;
 
   const organizationIds = (user.organizations || []).map((item) => item.id).filter(Boolean);
-
   return {
     accessToken: activeAccessToken,
     refreshToken: activeRefreshToken,
     user,
     organizationIds,
-    selectedOrganizationId,
+    selectedOrganizationId: resolveSessionOrganizationId(user, selectedOrganizationId),
   };
 }

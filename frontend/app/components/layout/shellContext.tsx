@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { switchOrganizationAction } from "../../actions";
+import { switchOrganizationAction } from "@/app/actions/selection";
 import AppBreadcrumbs from "../AppBreadcrumbs";
 import AppNavLink from "../AppNavLink";
 import BotScopeSwitcher from "../BotScopeSwitcher";
@@ -7,7 +7,8 @@ import OrganizationSwitcher from "../OrganizationSwitcher";
 import ThemeToggle from "../ThemeToggle";
 import { clientNavigation } from "../navigation/config";
 import { Badge, toneClass } from "../primitives/shared";
-import type { BotContract, SessionOrganization } from "../../lib/contracts";
+import type { SessionOrganization } from "@/app/lib/contracts/auth";
+import type { BotContract } from "@/app/lib/contracts/bots";
 import { industryWithValue, operationTypeWithValue, operationalAssistantWithValue, organizationWithValue } from "../../lib/ui-glossary";
 export type AppMode = "superadmin" | "client";
 

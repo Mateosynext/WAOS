@@ -1,4 +1,7 @@
-import { Badge, ModuleCard, Section, Shell, StoryBeat } from "../components";
+import { Shell } from "@/app/components/layout/shell";
+import { ModuleCard, Section } from "@/app/components/primitives/cards";
+import { StoryBeat } from "@/app/components/primitives/data-display";
+import { Badge } from "@/app/components/primitives/shared";
 
 export default async function DesignSystemPage() {
   return (

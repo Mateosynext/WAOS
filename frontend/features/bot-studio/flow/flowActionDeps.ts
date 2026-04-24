@@ -1,16 +1,16 @@
 "use client";
 
-import type { buildWizardPayloads } from "../../../app/bot-studio/wizardPayloadBuilders";
-import type { RouteStep } from "../../../app/bot-studio/flowConfig";
-import type { WizardInstance } from "../../../app/bot-studio/wizard-types";
-import type { useBotStudioWizardState } from "../context/useBotStudioWizardState";
+import type { buildWizardPayloads } from "@/features/bot-studio/services/wizardPayloadBuilders";
+import type { RouteStep } from "@/features/bot-studio/domain/flowConfig";
+import type { WizardInstance, WizardValidationSnapshot } from "@/features/bot-studio/domain/wizardTypes";
+import type { BotStudioWizardStateModel } from "../context/useBotStudioWizardState";
 import type { BannerState, BotStudioFlowProps } from "./types";
 
 export type BotStudioFlowActionDeps = {
   props: BotStudioFlowProps;
-  state: ReturnType<typeof useBotStudioWizardState>;
+  state: BotStudioWizardStateModel;
   payloads: ReturnType<typeof buildWizardPayloads>;
-  snapshot: Record<string, unknown> | null;
+  snapshot: WizardValidationSnapshot | null;
   goTo: (step: RouteStep, wizard?: Pick<WizardInstance, "id"> | null) => void;
   setBanner: (banner: BannerState | null) => void;
   setBusy: (value: string) => void;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ACCESS_COOKIE, ORG_COOKIE, REFRESH_COOKIE, sessionCookieOptions } from "../../../lib/auth/cookies";
+import { ACCESS_COOKIE, REFRESH_COOKIE, sessionCookieOptions } from "../../../lib/auth/cookies";
 import { requestSessionRefresh } from "../../../lib/auth/refresh";
 
 export async function POST(request: NextRequest) {
@@ -19,4 +19,3 @@ export async function POST(request: NextRequest) {
   ok.cookies.set(REFRESH_COOKIE, refreshed.refreshToken, sessionCookieOptions.refresh());
   return ok;
 }
-

@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { ClientNotice } from "../../components/client/ClientPortalPrimitives";
-import type { PortalModuleState } from "../../lib/waos";
+import type { PortalModuleState } from "@/app/lib/data/shared";
 import { loadedModuleNotices } from "../clientPortalViewModel";
 
 export function renderModuleErrors(modules: Array<{ label: string; state: PortalModuleState<unknown> }>) {

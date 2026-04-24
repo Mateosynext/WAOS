@@ -1,8 +1,12 @@
 import Link from "next/link";
-import { DataTable, ModuleCard, Section, Shell, StatCard } from "../components";
+import { Shell } from "@/app/components/layout/shell";
+import { ModuleCard, Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
 import { getCurrentBotId, requireSession } from "../lib/session";
 import { formatMoney, formatNumber, safeText } from "../lib/ui";
-import { getBusinessHubOverview, getCRMPipelineSummary, getCatalogProducts, getCatalogServices, getCommerceInsights, getCRMLeads, getPayments, getPromotionRules, getPromotions, getReactivationRecommendations, getVerticalProfile } from "../lib/waos";
+import { getBusinessHubOverview, getReactivationRecommendations } from "@/app/lib/data/analytics";
+import { getCatalogProducts, getCatalogServices, getCommerceInsights, getCRMLeads, getCRMPipelineSummary, getPayments, getPromotionRules, getPromotions } from "@/app/lib/data/commerce";
+import { getVerticalProfile } from "@/app/lib/data/verticals";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }

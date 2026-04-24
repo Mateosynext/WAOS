@@ -1,41 +1,24 @@
-export type WizardBlueprintPathRequest = {
-  organizationId: string;
-  verticalId: string;
-  subvertical?: string | null;
-  primaryObjective?: string | null;
-  botId?: string | null;
-};
-
-export const WIZARD_API_PREFIX = "/api/v1/onboarding/wizard";
-
-function appendIfPresent(params: URLSearchParams, key: string, value: unknown) {
-  const rendered = String(value || "").trim();
-  if (rendered) params.set(key, rendered);
-}
+export type { WizardPathRequest as WizardBlueprintPathRequest } from "@/features/bot-studio/services/wizardEndpoints";
+export { SERVER_WIZARD_API_PREFIX as WIZARD_API_PREFIX, serverWizardEndpoints } from "@/features/bot-studio/services/wizardEndpoints";
+import { serverWizardEndpoints } from "@/features/bot-studio/services/wizardEndpoints";
+import type { WizardPathRequest } from "@/features/bot-studio/services/wizardEndpoints";
 
 export function buildWizardBackendBasePath(wizardId: string) {
-  return `${WIZARD_API_PREFIX}/${encodeURIComponent(wizardId)}`;
+  return serverWizardEndpoints.base(wizardId);
 }
 
 export function buildWizardStepBackendPath(wizardId: string, stepKey: string) {
-  return `${buildWizardBackendBasePath(wizardId)}/steps/${encodeURIComponent(stepKey)}`;
+  return serverWizardEndpoints.step(wizardId, stepKey);
 }
 
 export function buildWizardDryRunBackendPath(wizardId: string) {
-  return `${buildWizardBackendBasePath(wizardId)}/dry-run`;
+  return serverWizardEndpoints.dryRun(wizardId);
 }
 
 export function buildWizardApplyBackendPath(wizardId: string) {
-  return `${buildWizardBackendBasePath(wizardId)}/apply`;
+  return serverWizardEndpoints.apply(wizardId);
 }
 
-export function buildWizardBlueprintBackendPath(request: WizardBlueprintPathRequest) {
-  const params = new URLSearchParams();
-  appendIfPresent(params, "organization_id", request.organizationId);
-  appendIfPresent(params, "vertical_id", request.verticalId);
-  appendIfPresent(params, "subvertical", request.subvertical);
-  appendIfPresent(params, "primary_objective", request.primaryObjective);
-  appendIfPresent(params, "bot_id", request.botId);
-  const query = params.toString();
-  return `${WIZARD_API_PREFIX}/blueprint${query ? `?${query}` : ""}`;
+export function buildWizardBlueprintBackendPath(request: WizardPathRequest) {
+  return serverWizardEndpoints.blueprint(request);
 }

@@ -1,6 +1,7 @@
-import { useReducer, type SetStateAction } from "react";
-import { safeText } from "../../../app/lib/ui";
-import type { BotContract, ReleaseRequestContract, VerticalProfileContract } from "../../../app/lib/contracts";
+import { useReducer, type Dispatch, type SetStateAction } from "react";
+import { safeText } from "@/shared/lib/ui";
+import type { BotContract, ReleaseRequestContract } from "@/shared/contracts/bots";
+import type { VerticalProfileContract } from "@/shared/contracts/verticals";
 import type {
   WizardApplyResult,
   WizardBlueprint,
@@ -8,16 +9,17 @@ import type {
   WizardInstance,
   WizardMode,
   WizardRecommendedIntegration,
-} from "../../../app/bot-studio/wizard-types";
-import { resolveWizardInitialStep, type WizardUiActiveStep as ActiveStep } from "../../../app/bot-studio/wizardStepFlow";
+} from "@/features/bot-studio/domain/wizardTypes";
+import { resolveWizardInitialStep, type WizardUiActiveStep as ActiveStep } from "@/features/bot-studio/domain/wizardStepFlow";
+import { getValidatedWizardRevisionFromWizard } from "@/features/bot-studio/domain/wizardProgressGuards";
 
-type ObjectiveValue = "agendar" | "vender" | "calificar" | "responder" | "reactivar";
-type CompletionPath = "wizard" | "module";
-type AutosaveState = "idle" | "saving" | "saved" | "error";
+export type ObjectiveValue = "agendar" | "vender" | "calificar" | "responder" | "reactivar";
+export type CompletionPath = "wizard" | "module";
+export type AutosaveState = "idle" | "saving" | "saved" | "error";
 
 const OBJECTIVES: ObjectiveValue[] = ["agendar", "vender", "calificar", "responder", "reactivar"];
 
-type ScopeState = {
+export type WizardScopeState = {
   mode: WizardMode;
   selectedBotId: string;
   selectedOrganizationId: string;
@@ -29,7 +31,7 @@ type ScopeState = {
   activeStep: ActiveStep;
 };
 
-type BasicsState = {
+export type WizardBasicsState = {
   businessName: string;
   botName: string;
   tone: string;
@@ -39,20 +41,20 @@ type BasicsState = {
   whatsappNumber: string;
 };
 
-type CatalogState = {
+export type WizardCatalogState = {
   servicesText: string;
   featuredOffersText: string;
   primaryCtasText: string;
   pricingNotesText: string;
 };
 
-type KnowledgeState = {
+export type WizardKnowledgeState = {
   faqText: string;
   policiesText: string;
   knowledgeSourcesText: string;
 };
 
-type IntegrationsState = {
+export type WizardIntegrationsState = {
   selectedIntegrationKeys: string[];
   escalateWhenText: string;
   handoffKeywordsText: string;
@@ -63,13 +65,13 @@ type IntegrationsState = {
   ruleOverridesText: string;
 };
 
-type LaunchState = {
+export type WizardLaunchState = {
   launchNotesText: string;
   selectedPlaybookKeys: string[];
   autopublishKnowledge: boolean;
 };
 
-type SimulationState = {
+export type WizardSimulationState = {
   simulationTitle: string;
   simulationScenario: string;
   simulationExpectedAction: string;
@@ -78,14 +80,14 @@ type SimulationState = {
   simulationError: string;
 };
 
-type PreviewState = {
+export type WizardPreviewState = {
   blueprint: WizardBlueprint | null;
   verticalProfile: VerticalProfileContract | null;
   previewLoading: boolean;
   previewError: string;
 };
 
-type WizardRuntimeState = {
+export type WizardRuntimeState = {
   wizardId: string;
   wizard: WizardInstance | null;
   working: boolean;
@@ -93,9 +95,10 @@ type WizardRuntimeState = {
   applyResult: WizardApplyResult | null;
   dryRunResult: WizardDryRunResult | null;
   reviewConfirmed: boolean;
+  validatedWizardRevision: number | null;
 };
 
-type PostApplyState = {
+export type WizardPostApplyState = {
   postApplyBot: BotContract | null;
   postApplyReleases: ReleaseRequestContract[];
   postApplySimulationRuns: Array<Record<string, unknown>>;
@@ -104,27 +107,29 @@ type PostApplyState = {
   postApplyPath: CompletionPath;
 };
 
-type AutosaveStateSlice = {
+export type WizardAutosaveStateSlice = {
   autosaveState: AutosaveState;
   autosaveError: string;
   lastSavedAt: string;
 };
 
-type BotStudioWizardState = {
-  scope: ScopeState;
-  basics: BasicsState;
-  catalog: CatalogState;
-  knowledge: KnowledgeState;
-  integrations: IntegrationsState;
-  launch: LaunchState;
-  simulation: SimulationState;
-  preview: PreviewState;
+export type BotStudioWizardState = {
+  scope: WizardScopeState;
+  basics: WizardBasicsState;
+  catalog: WizardCatalogState;
+  knowledge: WizardKnowledgeState;
+  integrations: WizardIntegrationsState;
+  launch: WizardLaunchState;
+  simulation: WizardSimulationState;
+  preview: WizardPreviewState;
   wizardRuntime: WizardRuntimeState;
-  postApply: PostApplyState;
-  autosave: AutosaveStateSlice;
+  postApply: WizardPostApplyState;
+  autosave: WizardAutosaveStateSlice;
 };
 
-type StateDomainKey = keyof BotStudioWizardState;
+export type StateDomainKey = keyof BotStudioWizardState;
+export type DeepPartial<T> = { [K in keyof T]?: T[K] extends Array<unknown> ? T[K] : T[K] extends object ? DeepPartial<T[K]> : T[K] };
+export type WizardSetter<T> = (next: SetStateAction<T>) => void;
 
 type SetFieldAction = {
   type: "setField";
@@ -138,11 +143,33 @@ type PatchAction = {
   patch: DeepPartial<BotStudioWizardState>;
 };
 
-type DeepPartial<T> = { [K in keyof T]?: T[K] extends Array<unknown> ? T[K] : T[K] extends object ? DeepPartial<T[K]> : T[K] };
-
 type Action = SetFieldAction | PatchAction;
 
-type UseBotStudioWizardStateParams = {
+const VALIDATION_DIRTY_FIELDS: Partial<Record<StateDomainKey, Set<string>>> = {
+  scope: new Set([
+    "selectedBotId",
+    "selectedOrganizationId",
+    "selectedVerticalId",
+    "selectedSubvertical",
+    "selectedPrimaryObjective",
+  ]),
+  basics: new Set(["businessName", "botName", "tone", "language", "timezone", "hours", "whatsappNumber"]),
+  catalog: new Set(["servicesText", "featuredOffersText", "primaryCtasText", "pricingNotesText"]),
+  knowledge: new Set(["faqText", "policiesText", "knowledgeSourcesText"]),
+  integrations: new Set([
+    "selectedIntegrationKeys",
+    "escalateWhenText",
+    "handoffKeywordsText",
+    "handoffSlaText",
+    "humanDestinationChannelText",
+    "canSayText",
+    "cannotSayText",
+    "ruleOverridesText",
+  ]),
+  launch: new Set(["launchNotesText", "selectedPlaybookKeys", "autopublishKnowledge"]),
+};
+
+export type UseBotStudioWizardStateParams = {
   initialSelectedBotId: string;
   initialMode: WizardMode;
   initialOrganizationId: string;
@@ -154,6 +181,114 @@ type UseBotStudioWizardStateParams = {
   initialWizardId?: string;
   initialWizard?: WizardInstance | null;
   initialStepOverride?: string;
+};
+
+export type WizardScopeActions = {
+  setMode: WizardSetter<WizardScopeState["mode"]>;
+  setSelectedBotId: WizardSetter<string>;
+  setSelectedOrganizationId: WizardSetter<string>;
+  setSelectedVerticalId: WizardSetter<string>;
+  setSelectedSubvertical: WizardSetter<string>;
+  setCandidateVerticalId: WizardSetter<string>;
+  setCandidateSubvertical: WizardSetter<string>;
+  setSelectedPrimaryObjective: WizardSetter<ObjectiveValue>;
+  setActiveStep: WizardSetter<ActiveStep>;
+};
+
+export type WizardBasicsActions = {
+  setBusinessName: WizardSetter<string>;
+  setBotName: WizardSetter<string>;
+  setTone: WizardSetter<string>;
+  setLanguage: WizardSetter<string>;
+  setTimezone: WizardSetter<string>;
+  setHours: WizardSetter<string>;
+  setWhatsappNumber: WizardSetter<string>;
+};
+
+export type WizardCatalogActions = {
+  setServicesText: WizardSetter<string>;
+  setFeaturedOffersText: WizardSetter<string>;
+  setPrimaryCtasText: WizardSetter<string>;
+  setPricingNotesText: WizardSetter<string>;
+};
+
+export type WizardKnowledgeActions = {
+  setFaqText: WizardSetter<string>;
+  setPoliciesText: WizardSetter<string>;
+  setKnowledgeSourcesText: WizardSetter<string>;
+};
+
+export type WizardIntegrationsActions = {
+  setSelectedIntegrationKeys: WizardSetter<string[]>;
+  setEscalateWhenText: WizardSetter<string>;
+  setHandoffKeywordsText: WizardSetter<string>;
+  setHandoffSlaText: WizardSetter<string>;
+  setHumanDestinationChannelText: WizardSetter<string>;
+  setCanSayText: WizardSetter<string>;
+  setCannotSayText: WizardSetter<string>;
+  setRuleOverridesText: WizardSetter<string>;
+};
+
+export type WizardLaunchActions = {
+  setLaunchNotesText: WizardSetter<string>;
+  setSelectedPlaybookKeys: WizardSetter<string[]>;
+  setAutopublishKnowledge: WizardSetter<boolean>;
+};
+
+export type WizardSimulationActions = {
+  setSimulationTitle: WizardSetter<string>;
+  setSimulationScenario: WizardSetter<string>;
+  setSimulationExpectedAction: WizardSetter<string>;
+  setSimulationResult: WizardSetter<Record<string, unknown> | null>;
+  setSimulationRunning: WizardSetter<boolean>;
+  setSimulationError: WizardSetter<string>;
+};
+
+export type WizardPreviewActions = {
+  setBlueprint: WizardSetter<WizardBlueprint | null>;
+  setVerticalProfile: WizardSetter<VerticalProfileContract | null>;
+  setPreviewLoading: WizardSetter<boolean>;
+  setPreviewError: WizardSetter<string>;
+};
+
+export type WizardRuntimeActions = {
+  setWizardId: WizardSetter<string>;
+  setWizard: WizardSetter<WizardInstance | null>;
+  setWorking: WizardSetter<boolean>;
+  setWizardError: WizardSetter<string>;
+  setApplyResult: WizardSetter<WizardApplyResult | null>;
+  setDryRunResult: WizardSetter<WizardDryRunResult | null>;
+  setReviewConfirmed: WizardSetter<boolean>;
+  setValidatedWizardRevision: WizardSetter<number | null>;
+};
+
+export type WizardPostApplyActions = {
+  setPostApplyBot: WizardSetter<BotContract | null>;
+  setPostApplyReleases: WizardSetter<ReleaseRequestContract[]>;
+  setPostApplySimulationRuns: WizardSetter<Array<Record<string, unknown>>>;
+  setPostApplyLoading: WizardSetter<boolean>;
+  setPostApplyError: WizardSetter<string>;
+  setPostApplyPath: WizardSetter<CompletionPath>;
+};
+
+export type WizardAutosaveActions = {
+  setAutosaveState: WizardSetter<AutosaveState>;
+  setAutosaveError: WizardSetter<string>;
+  setLastSavedAt: WizardSetter<string>;
+};
+
+export type BotStudioWizardActions = {
+  scope: WizardScopeActions;
+  basics: WizardBasicsActions;
+  catalog: WizardCatalogActions;
+  knowledge: WizardKnowledgeActions;
+  integrations: WizardIntegrationsActions;
+  launch: WizardLaunchActions;
+  simulation: WizardSimulationActions;
+  preview: WizardPreviewActions;
+  wizardRuntime: WizardRuntimeActions;
+  postApply: WizardPostApplyActions;
+  autosave: WizardAutosaveActions;
 };
 
 function unique(values: Array<string | null | undefined>) {
@@ -220,7 +355,6 @@ function integrationIdentity(item: Partial<WizardRecommendedIntegration> | strin
   return safeText(item.integration_key, safeText(item.provider, safeText(item.name, "custom")));
 }
 
-
 function mergeState(state: BotStudioWizardState, patch: DeepPartial<BotStudioWizardState>): BotStudioWizardState {
   const nextState = { ...state } as BotStudioWizardState;
   for (const domain of Object.keys(patch) as StateDomainKey[]) {
@@ -232,19 +366,65 @@ function mergeState(state: BotStudioWizardState, patch: DeepPartial<BotStudioWiz
   return nextState;
 }
 
+function serializedEquality(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function hasValidatedRuntime(state: BotStudioWizardState): boolean {
+  return Boolean(state.wizardRuntime.dryRunResult || state.wizardRuntime.validatedWizardRevision !== null);
+}
+
+function shouldInvalidateValidationForField(state: BotStudioWizardState, domain: StateDomainKey, field: string, value: unknown): boolean {
+  if (!hasValidatedRuntime(state)) return false;
+  if (!VALIDATION_DIRTY_FIELDS[domain]?.has(field)) return false;
+  return !serializedEquality((state[domain] as Record<string, unknown>)[field], value);
+}
+
+function shouldInvalidateValidationForPatch(state: BotStudioWizardState, patch: DeepPartial<BotStudioWizardState>): boolean {
+  if (!hasValidatedRuntime(state)) return false;
+  for (const domain of Object.keys(patch) as StateDomainKey[]) {
+    const dirtyFields = VALIDATION_DIRTY_FIELDS[domain];
+    if (!dirtyFields) continue;
+    const domainPatch = patch[domain] as Record<string, unknown> | undefined;
+    if (!domainPatch) continue;
+    for (const field of Object.keys(domainPatch)) {
+      if (!dirtyFields.has(field)) continue;
+      if (!serializedEquality((state[domain] as Record<string, unknown>)[field], domainPatch[field])) return true;
+    }
+  }
+  return false;
+}
+
+function invalidateValidation(state: BotStudioWizardState): BotStudioWizardState {
+  if (!hasValidatedRuntime(state)) return state;
+  return {
+    ...state,
+    wizardRuntime: {
+      ...state.wizardRuntime,
+      dryRunResult: null,
+      applyResult: null,
+      reviewConfirmed: false,
+      validatedWizardRevision: null,
+    },
+  };
+}
+
 function reducer(state: BotStudioWizardState, action: Action): BotStudioWizardState {
   switch (action.type) {
     case "setField": {
-      return {
+      const baseState = {
         ...state,
         [action.domain]: {
           ...state[action.domain],
           [action.field]: action.value,
         },
       } as BotStudioWizardState;
+      return shouldInvalidateValidationForField(state, action.domain, action.field, action.value) ? invalidateValidation(baseState) : baseState;
     }
-    case "patch":
-      return mergeState(state, action.patch);
+    case "patch": {
+      const baseState = mergeState(state, action.patch);
+      return shouldInvalidateValidationForPatch(state, action.patch) ? invalidateValidation(baseState) : baseState;
+    }
     default:
       return state;
   }
@@ -359,7 +539,8 @@ function createInitialState(params: UseBotStudioWizardStateParams): BotStudioWiz
       applyResult: null,
       dryRunResult: null,
       reviewConfirmed: false,
-    } as WizardRuntimeState,
+      validatedWizardRevision: getValidatedWizardRevisionFromWizard(initialWizard),
+    },
     postApply: {
       postApplyBot: null,
       postApplyReleases: [],
@@ -376,9 +557,7 @@ function createInitialState(params: UseBotStudioWizardStateParams): BotStudioWiz
   };
 }
 
-export function useBotStudioWizardState(params: UseBotStudioWizardStateParams) {
-  const [state, dispatch] = useReducer(reducer, params, createInitialState);
-
+function buildActions(state: BotStudioWizardState, dispatch: Dispatch<Action>): BotStudioWizardActions {
   const createFieldSetter = <D extends StateDomainKey, F extends keyof BotStudioWizardState[D]>(
     domain: D,
     field: F,
@@ -390,96 +569,153 @@ export function useBotStudioWizardState(params: UseBotStudioWizardStateParams) {
     dispatch({ type: "setField", domain, field: String(field), value });
   };
 
-  const patchState = (patch: DeepPartial<BotStudioWizardState>) => {
-    dispatch({ type: "patch", patch });
+  return {
+    scope: {
+      setMode: createFieldSetter("scope", "mode", state.scope.mode),
+      setSelectedBotId: createFieldSetter("scope", "selectedBotId", state.scope.selectedBotId),
+      setSelectedOrganizationId: createFieldSetter("scope", "selectedOrganizationId", state.scope.selectedOrganizationId),
+      setSelectedVerticalId: createFieldSetter("scope", "selectedVerticalId", state.scope.selectedVerticalId),
+      setSelectedSubvertical: createFieldSetter("scope", "selectedSubvertical", state.scope.selectedSubvertical),
+      setCandidateVerticalId: createFieldSetter("scope", "candidateVerticalId", state.scope.candidateVerticalId),
+      setCandidateSubvertical: createFieldSetter("scope", "candidateSubvertical", state.scope.candidateSubvertical),
+      setSelectedPrimaryObjective: createFieldSetter("scope", "selectedPrimaryObjective", state.scope.selectedPrimaryObjective),
+      setActiveStep: createFieldSetter("scope", "activeStep", state.scope.activeStep),
+    },
+    basics: {
+      setBusinessName: createFieldSetter("basics", "businessName", state.basics.businessName),
+      setBotName: createFieldSetter("basics", "botName", state.basics.botName),
+      setTone: createFieldSetter("basics", "tone", state.basics.tone),
+      setLanguage: createFieldSetter("basics", "language", state.basics.language),
+      setTimezone: createFieldSetter("basics", "timezone", state.basics.timezone),
+      setHours: createFieldSetter("basics", "hours", state.basics.hours),
+      setWhatsappNumber: createFieldSetter("basics", "whatsappNumber", state.basics.whatsappNumber),
+    },
+    catalog: {
+      setServicesText: createFieldSetter("catalog", "servicesText", state.catalog.servicesText),
+      setFeaturedOffersText: createFieldSetter("catalog", "featuredOffersText", state.catalog.featuredOffersText),
+      setPrimaryCtasText: createFieldSetter("catalog", "primaryCtasText", state.catalog.primaryCtasText),
+      setPricingNotesText: createFieldSetter("catalog", "pricingNotesText", state.catalog.pricingNotesText),
+    },
+    knowledge: {
+      setFaqText: createFieldSetter("knowledge", "faqText", state.knowledge.faqText),
+      setPoliciesText: createFieldSetter("knowledge", "policiesText", state.knowledge.policiesText),
+      setKnowledgeSourcesText: createFieldSetter("knowledge", "knowledgeSourcesText", state.knowledge.knowledgeSourcesText),
+    },
+    integrations: {
+      setSelectedIntegrationKeys: createFieldSetter("integrations", "selectedIntegrationKeys", state.integrations.selectedIntegrationKeys),
+      setEscalateWhenText: createFieldSetter("integrations", "escalateWhenText", state.integrations.escalateWhenText),
+      setHandoffKeywordsText: createFieldSetter("integrations", "handoffKeywordsText", state.integrations.handoffKeywordsText),
+      setHandoffSlaText: createFieldSetter("integrations", "handoffSlaText", state.integrations.handoffSlaText),
+      setHumanDestinationChannelText: createFieldSetter("integrations", "humanDestinationChannelText", state.integrations.humanDestinationChannelText),
+      setCanSayText: createFieldSetter("integrations", "canSayText", state.integrations.canSayText),
+      setCannotSayText: createFieldSetter("integrations", "cannotSayText", state.integrations.cannotSayText),
+      setRuleOverridesText: createFieldSetter("integrations", "ruleOverridesText", state.integrations.ruleOverridesText),
+    },
+    launch: {
+      setLaunchNotesText: createFieldSetter("launch", "launchNotesText", state.launch.launchNotesText),
+      setSelectedPlaybookKeys: createFieldSetter("launch", "selectedPlaybookKeys", state.launch.selectedPlaybookKeys),
+      setAutopublishKnowledge: createFieldSetter("launch", "autopublishKnowledge", state.launch.autopublishKnowledge),
+    },
+    simulation: {
+      setSimulationTitle: createFieldSetter("simulation", "simulationTitle", state.simulation.simulationTitle),
+      setSimulationScenario: createFieldSetter("simulation", "simulationScenario", state.simulation.simulationScenario),
+      setSimulationExpectedAction: createFieldSetter("simulation", "simulationExpectedAction", state.simulation.simulationExpectedAction),
+      setSimulationResult: createFieldSetter("simulation", "simulationResult", state.simulation.simulationResult),
+      setSimulationRunning: createFieldSetter("simulation", "simulationRunning", state.simulation.simulationRunning),
+      setSimulationError: createFieldSetter("simulation", "simulationError", state.simulation.simulationError),
+    },
+    preview: {
+      setBlueprint: createFieldSetter("preview", "blueprint", state.preview.blueprint),
+      setVerticalProfile: createFieldSetter("preview", "verticalProfile", state.preview.verticalProfile),
+      setPreviewLoading: createFieldSetter("preview", "previewLoading", state.preview.previewLoading),
+      setPreviewError: createFieldSetter("preview", "previewError", state.preview.previewError),
+    },
+    wizardRuntime: {
+      setWizardId: createFieldSetter("wizardRuntime", "wizardId", state.wizardRuntime.wizardId),
+      setWizard: createFieldSetter("wizardRuntime", "wizard", state.wizardRuntime.wizard),
+      setWorking: createFieldSetter("wizardRuntime", "working", state.wizardRuntime.working),
+      setWizardError: createFieldSetter("wizardRuntime", "wizardError", state.wizardRuntime.wizardError),
+      setApplyResult: createFieldSetter("wizardRuntime", "applyResult", state.wizardRuntime.applyResult),
+      setDryRunResult: createFieldSetter("wizardRuntime", "dryRunResult", state.wizardRuntime.dryRunResult),
+      setReviewConfirmed: createFieldSetter("wizardRuntime", "reviewConfirmed", state.wizardRuntime.reviewConfirmed),
+      setValidatedWizardRevision: createFieldSetter("wizardRuntime", "validatedWizardRevision", state.wizardRuntime.validatedWizardRevision),
+    },
+    postApply: {
+      setPostApplyBot: createFieldSetter("postApply", "postApplyBot", state.postApply.postApplyBot),
+      setPostApplyReleases: createFieldSetter("postApply", "postApplyReleases", state.postApply.postApplyReleases),
+      setPostApplySimulationRuns: createFieldSetter("postApply", "postApplySimulationRuns", state.postApply.postApplySimulationRuns),
+      setPostApplyLoading: createFieldSetter("postApply", "postApplyLoading", state.postApply.postApplyLoading),
+      setPostApplyError: createFieldSetter("postApply", "postApplyError", state.postApply.postApplyError),
+      setPostApplyPath: createFieldSetter("postApply", "postApplyPath", state.postApply.postApplyPath),
+    },
+    autosave: {
+      setAutosaveState: createFieldSetter("autosave", "autosaveState", state.autosave.autosaveState),
+      setAutosaveError: createFieldSetter("autosave", "autosaveError", state.autosave.autosaveError),
+      setLastSavedAt: createFieldSetter("autosave", "lastSavedAt", state.autosave.lastSavedAt),
+    },
   };
+}
 
-  const {
-    scope,
-    basics,
-    catalog,
-    knowledge,
-    integrations,
-    launch,
-    simulation,
-    preview,
-    wizardRuntime,
-    postApply,
-    autosave,
-  } = state;
+export function useBotStudioWizardState(params: UseBotStudioWizardStateParams) {
+  const [slices, dispatch] = useReducer(reducer, params, createInitialState);
+  const actions = buildActions(slices, dispatch);
+  const patchState = (patch: DeepPartial<BotStudioWizardState>) => dispatch({ type: "patch", patch });
 
   return {
-    ...scope,
-    ...basics,
-    ...catalog,
-    ...knowledge,
-    ...integrations,
-    ...launch,
-    ...simulation,
-    ...preview,
-    ...wizardRuntime,
-    ...postApply,
-    ...autosave,
+    slices,
+    actions,
     patchState,
-    setMode: createFieldSetter("scope", "mode", scope.mode),
-    setSelectedBotId: createFieldSetter("scope", "selectedBotId", scope.selectedBotId),
-    setSelectedOrganizationId: createFieldSetter("scope", "selectedOrganizationId", scope.selectedOrganizationId),
-    setSelectedVerticalId: createFieldSetter("scope", "selectedVerticalId", scope.selectedVerticalId),
-    setSelectedSubvertical: createFieldSetter("scope", "selectedSubvertical", scope.selectedSubvertical),
-    setCandidateVerticalId: createFieldSetter("scope", "candidateVerticalId", scope.candidateVerticalId),
-    setCandidateSubvertical: createFieldSetter("scope", "candidateSubvertical", scope.candidateSubvertical),
-    setSelectedPrimaryObjective: createFieldSetter("scope", "selectedPrimaryObjective", scope.selectedPrimaryObjective),
-    setActiveStep: createFieldSetter("scope", "activeStep", scope.activeStep),
-    setBusinessName: createFieldSetter("basics", "businessName", basics.businessName),
-    setBotName: createFieldSetter("basics", "botName", basics.botName),
-    setTone: createFieldSetter("basics", "tone", basics.tone),
-    setLanguage: createFieldSetter("basics", "language", basics.language),
-    setTimezone: createFieldSetter("basics", "timezone", basics.timezone),
-    setHours: createFieldSetter("basics", "hours", basics.hours),
-    setWhatsappNumber: createFieldSetter("basics", "whatsappNumber", basics.whatsappNumber),
-    setServicesText: createFieldSetter("catalog", "servicesText", catalog.servicesText),
-    setFeaturedOffersText: createFieldSetter("catalog", "featuredOffersText", catalog.featuredOffersText),
-    setPrimaryCtasText: createFieldSetter("catalog", "primaryCtasText", catalog.primaryCtasText),
-    setPricingNotesText: createFieldSetter("catalog", "pricingNotesText", catalog.pricingNotesText),
-    setFaqText: createFieldSetter("knowledge", "faqText", knowledge.faqText),
-    setPoliciesText: createFieldSetter("knowledge", "policiesText", knowledge.policiesText),
-    setKnowledgeSourcesText: createFieldSetter("knowledge", "knowledgeSourcesText", knowledge.knowledgeSourcesText),
-    setSelectedIntegrationKeys: createFieldSetter("integrations", "selectedIntegrationKeys", integrations.selectedIntegrationKeys),
-    setEscalateWhenText: createFieldSetter("integrations", "escalateWhenText", integrations.escalateWhenText),
-    setHandoffKeywordsText: createFieldSetter("integrations", "handoffKeywordsText", integrations.handoffKeywordsText),
-    setHandoffSlaText: createFieldSetter("integrations", "handoffSlaText", integrations.handoffSlaText),
-    setHumanDestinationChannelText: createFieldSetter("integrations", "humanDestinationChannelText", integrations.humanDestinationChannelText),
-    setCanSayText: createFieldSetter("integrations", "canSayText", integrations.canSayText),
-    setCannotSayText: createFieldSetter("integrations", "cannotSayText", integrations.cannotSayText),
-    setRuleOverridesText: createFieldSetter("integrations", "ruleOverridesText", integrations.ruleOverridesText),
-    setLaunchNotesText: createFieldSetter("launch", "launchNotesText", launch.launchNotesText),
-    setSelectedPlaybookKeys: createFieldSetter("launch", "selectedPlaybookKeys", launch.selectedPlaybookKeys),
-    setAutopublishKnowledge: createFieldSetter("launch", "autopublishKnowledge", launch.autopublishKnowledge),
-    setSimulationTitle: createFieldSetter("simulation", "simulationTitle", simulation.simulationTitle),
-    setSimulationScenario: createFieldSetter("simulation", "simulationScenario", simulation.simulationScenario),
-    setSimulationExpectedAction: createFieldSetter("simulation", "simulationExpectedAction", simulation.simulationExpectedAction),
-    setSimulationResult: createFieldSetter("simulation", "simulationResult", simulation.simulationResult),
-    setSimulationRunning: createFieldSetter("simulation", "simulationRunning", simulation.simulationRunning),
-    setSimulationError: createFieldSetter("simulation", "simulationError", simulation.simulationError),
-    setBlueprint: createFieldSetter("preview", "blueprint", preview.blueprint),
-    setVerticalProfile: createFieldSetter("preview", "verticalProfile", preview.verticalProfile),
-    setPreviewLoading: createFieldSetter("preview", "previewLoading", preview.previewLoading),
-    setPreviewError: createFieldSetter("preview", "previewError", preview.previewError),
-    setWizardId: createFieldSetter("wizardRuntime", "wizardId", wizardRuntime.wizardId),
-    setWizard: createFieldSetter("wizardRuntime", "wizard", wizardRuntime.wizard),
-    setWorking: createFieldSetter("wizardRuntime", "working", wizardRuntime.working),
-    setWizardError: createFieldSetter("wizardRuntime", "wizardError", wizardRuntime.wizardError),
-    setApplyResult: createFieldSetter("wizardRuntime", "applyResult", wizardRuntime.applyResult),
-    setDryRunResult: createFieldSetter("wizardRuntime", "dryRunResult", wizardRuntime.dryRunResult),
-    setReviewConfirmed: createFieldSetter("wizardRuntime", "reviewConfirmed", wizardRuntime.reviewConfirmed),
-    setPostApplyBot: createFieldSetter("postApply", "postApplyBot", postApply.postApplyBot),
-    setPostApplyReleases: createFieldSetter("postApply", "postApplyReleases", postApply.postApplyReleases),
-    setPostApplySimulationRuns: createFieldSetter("postApply", "postApplySimulationRuns", postApply.postApplySimulationRuns),
-    setPostApplyLoading: createFieldSetter("postApply", "postApplyLoading", postApply.postApplyLoading),
-    setPostApplyError: createFieldSetter("postApply", "postApplyError", postApply.postApplyError),
-    setPostApplyPath: createFieldSetter("postApply", "postApplyPath", postApply.postApplyPath),
-    setAutosaveState: createFieldSetter("autosave", "autosaveState", autosave.autosaveState),
-    setAutosaveError: createFieldSetter("autosave", "autosaveError", autosave.autosaveError),
-    setLastSavedAt: createFieldSetter("autosave", "lastSavedAt", autosave.lastSavedAt),
+    ...slices.scope,
+    ...slices.basics,
+    ...slices.catalog,
+    ...slices.knowledge,
+    ...slices.integrations,
+    ...slices.launch,
+    ...slices.simulation,
+    ...slices.preview,
+    ...slices.wizardRuntime,
+    ...slices.postApply,
+    ...slices.autosave,
+    ...actions.scope,
+    ...actions.basics,
+    ...actions.catalog,
+    ...actions.knowledge,
+    ...actions.integrations,
+    ...actions.launch,
+    ...actions.simulation,
+    ...actions.preview,
+    ...actions.wizardRuntime,
+    ...actions.postApply,
+    ...actions.autosave,
   };
+}
+
+export type BotStudioWizardStateModel = ReturnType<typeof useBotStudioWizardState>;
+
+export function useWizardScope(model: BotStudioWizardStateModel) {
+  return { state: model.slices.scope, actions: model.actions.scope };
+}
+
+export function useWizardBasics(model: BotStudioWizardStateModel) {
+  return { state: model.slices.basics, actions: model.actions.basics };
+}
+
+export function useWizardCatalog(model: BotStudioWizardStateModel) {
+  return { state: model.slices.catalog, actions: model.actions.catalog };
+}
+
+export function useWizardKnowledge(model: BotStudioWizardStateModel) {
+  return { state: model.slices.knowledge, actions: model.actions.knowledge };
+}
+
+export function useWizardIntegrations(model: BotStudioWizardStateModel) {
+  return { state: model.slices.integrations, actions: model.actions.integrations };
+}
+
+export function useWizardRuntime(model: BotStudioWizardStateModel) {
+  return { state: model.slices.wizardRuntime, actions: model.actions.wizardRuntime };
+}
+
+export function useWizardAutosave(model: BotStudioWizardStateModel) {
+  return { state: model.slices.autosave, actions: model.actions.autosave };
 }

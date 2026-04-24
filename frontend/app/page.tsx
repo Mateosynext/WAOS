@@ -1,8 +1,15 @@
 import Link from "next/link";
-import { ContextTip, EmptyActionState, ModuleCard, Section, Shell, StatCard, SuccessState, TimelineList } from "./components";
+import { Shell } from "@/app/components/layout/shell";
+import { Section, StatCard, ModuleCard } from "@/app/components/primitives/cards";
+import { TimelineList } from "@/app/components/primitives/data-display";
+import { ContextTip, EmptyActionState, SuccessState } from "@/app/components/feedback";
 import { formatMoney, formatNumber, safeText } from "./lib/ui";
 import { getCurrentBotId, getSession } from "./lib/session";
-import { getAgendaOverview, getBots, getBusinessHubOverview, getDashboard, getIntegrations, getQueue, getVerticalProfile } from "./lib/waos";
+import { getDashboard, getQueue, getBusinessHubOverview } from "@/app/lib/data/analytics";
+import { getBots } from "@/app/lib/data/bots";
+import { getAgendaOverview } from "@/app/lib/data/inbox";
+import { getIntegrations } from "@/app/lib/data/integrations";
+import { getVerticalProfile } from "@/app/lib/data/verticals";
 
 function countConnectedIntegrations(integrations: Array<{ status?: string; credential_status?: string }>) {
   return integrations.filter((item) => {

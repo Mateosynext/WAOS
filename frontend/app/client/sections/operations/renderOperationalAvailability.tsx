@@ -1,4 +1,4 @@
-import { KeyValueList, TimelineList } from "../../../components";
+import { KeyValueList, TimelineList } from "@/app/components/primitives/data-display";
 import { ClientSectionBlock } from "../../../components/client/ClientPortalPrimitives";
 import { formatDateTime, formatNumber, safeText } from "../../../lib/ui";
 import type { ClientOperationsPayload } from "./types";

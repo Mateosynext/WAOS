@@ -1,6 +1,6 @@
-import type { VerticalProfileContract } from "../lib/contracts";
+import type { VerticalProfileContract } from "@/app/lib/contracts/verticals";
 import { safeText } from "../lib/ui";
-import type { WizardBlueprint, WizardSubverticalProfile } from "../bot-studio/wizard-types";
+import type { WizardBlueprint, WizardSubverticalProfile } from "@/features/bot-studio/domain/wizardTypes";
 
 export type ReactiveVerticalPreviewModel = {
   subverticalProfiles: WizardSubverticalProfile[];

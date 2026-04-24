@@ -1,7 +1,12 @@
 import Link from "next/link";
-import { ContextTip, DataTable, EmptyActionState, Section, Shell } from "../components";
+import { ContextTip, EmptyActionState } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { Section } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
 import { safeText } from "../lib/ui";
-import { getBots, getConversations, getIntegrations } from "../lib/waos";
+import { getBots } from "@/app/lib/data/bots";
+import { getConversations } from "@/app/lib/data/inbox";
+import { getIntegrations } from "@/app/lib/data/integrations";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }

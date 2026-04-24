@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { KeyValueList, ModuleCard, StoryBeat } from "../../components";
+import { ModuleCard } from "@/app/components/primitives/cards";
+import { KeyValueList, StoryBeat } from "@/app/components/primitives/data-display";
 import {
   ClientConversationCard,
   ClientEmptyBlock,
@@ -8,7 +9,7 @@ import {
   ClientMetricCard,
   ClientSectionBlock,
 } from "../../components/client/ClientPortalPrimitives";
-import type { ClientPortalData } from "../../lib/waos";
+import type { ClientPortalData } from "@/app/lib/data/client-portal";
 import { buildClientPortalSummaryViewModel, type ClientTimelineEntry } from "../clientPortalViewModel";
 
 export function renderSummary(data: ClientPortalData, timeline: ClientTimelineEntry[]) {

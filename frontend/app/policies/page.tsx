@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { DataTable, ModuleCard, Section, Shell, StatCard } from "../components";
+import { Shell } from "@/app/components/layout/shell";
+import { ModuleCard, Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
 import { formatNumber, safeText } from "../lib/ui";
-import { getAccessMatrix, getRateLimits } from "../lib/waos";
+import { getAccessMatrix, getRateLimits } from "@/app/lib/data/integrations";
 
 export default async function PoliciesPage() {
   const [matrix, rateLimits] = await Promise.all([getAccessMatrix(), getRateLimits()]);

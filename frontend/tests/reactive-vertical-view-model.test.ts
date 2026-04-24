@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildReactiveVerticalPreviewModel, isSelectedSubverticalValid, normalizeName } from "../app/components/reactiveVerticalViewModel";
 import { normalizeVerticalProfile } from "../app/lib/contracts/verticals";
-import type { WizardBlueprint } from "../app/bot-studio/wizard-types";
+import type { WizardBlueprint } from "../features/bot-studio/domain/wizardTypes";
 
 const verticalProfile = normalizeVerticalProfile({
   id: "vertical_dental",

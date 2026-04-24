@@ -1,6 +1,8 @@
-import { DataTable, Section, Shell, StatCard } from "../components";
+import { Shell } from "@/app/components/layout/shell";
+import { Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
 import { formatNumber, safeText } from "../lib/ui";
-import { getDailyAnalytics, getObservability } from "../lib/waos";
+import { getDailyAnalytics, getObservability } from "@/app/lib/data/analytics";
 
 export default async function UsagePage() {
   const [daily, observability] = await Promise.all([getDailyAnalytics(), getObservability()]);

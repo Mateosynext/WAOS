@@ -88,7 +88,7 @@ def test_schema_sql_is_split_into_numbered_domain_fragments() -> None:
 FRONTEND_DIR = ROOT_DIR.parent / "frontend"
 FRONTEND_COMPONENT_MAX_LINES = {
     FRONTEND_DIR / "app" / "components" / "ConversationComposer.tsx": 120,
-    FRONTEND_DIR / "app" / "bot-studio" / "BotStudioFlowClient.tsx": 140,
+    FRONTEND_DIR / "features" / "bot-studio" / "BotStudioRoute.tsx": 160,
     FRONTEND_DIR / "app" / "components" / "conversation-composer" / "ModePanels.tsx": 80,
     FRONTEND_DIR / "app" / "components" / "conversation-composer" / "modes" / "InteractiveModePanel.tsx": 140,
     FRONTEND_DIR / "app" / "client" / "sections" / "renderOperations.tsx": 100,
@@ -97,6 +97,15 @@ FRONTEND_COMPONENT_MAX_LINES = {
 
 FRONTEND_EXPECTED_SPLITS = [
     FRONTEND_DIR / "app" / "components" / "conversation-composer" / "modes" / "BasicModePanels.tsx",
+    FRONTEND_DIR / "features" / "bot-studio" / "BotStudioRoute.tsx",
+    FRONTEND_DIR / "features" / "bot-studio" / "domain" / "wizardTypes.ts",
+    FRONTEND_DIR / "features" / "bot-studio" / "domain" / "flowConfig.ts",
+    FRONTEND_DIR / "features" / "bot-studio" / "domain" / "wizardProgressGuards.ts",
+    FRONTEND_DIR / "features" / "bot-studio" / "services" / "wizardApi.ts",
+    FRONTEND_DIR / "features" / "bot-studio" / "services" / "wizardPayloadBuilders.ts",
+    FRONTEND_DIR / "features" / "bot-studio" / "services" / "wizardReactiveData.ts",
+    FRONTEND_DIR / "features" / "bot-studio" / "server" / "loadBotStudioRoute.ts",
+    FRONTEND_DIR / "features" / "bot-studio" / "ui" / "flowUi.tsx",
     FRONTEND_DIR / "features" / "bot-studio" / "flow" / "types.ts",
     FRONTEND_DIR / "features" / "bot-studio" / "flow" / "BotStudioFlowBody.tsx",
     FRONTEND_DIR / "features" / "bot-studio" / "flow" / "useBotStudioFlowController.ts",

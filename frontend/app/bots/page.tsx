@@ -1,9 +1,14 @@
 import Link from "next/link";
 import BotScopeSwitcher from "../components/BotScopeSwitcher";
-import { Badge, ContextTip, DataTable, EmptyActionState, Section, Shell, SecondaryNav, StatCard, SuccessState } from "../components";
+import { ContextTip, EmptyActionState, SuccessState } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { SecondaryNav } from "@/app/components/navigation";
+import { Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
+import { Badge } from "@/app/components/primitives/shared";
 import { getCurrentBotId } from "../lib/session";
 import { formatNumber, safeText } from "../lib/ui";
-import { getBots } from "../lib/waos";
+import { getBots } from "@/app/lib/data/bots";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }

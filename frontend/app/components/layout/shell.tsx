@@ -1,6 +1,6 @@
 import "server-only";
 import type { ReactNode } from "react";
-import { logoutAction } from "../../actions";
+import { logoutAction } from "@/app/actions/auth";
 import AppBreadcrumbs from "../AppBreadcrumbs";
 import AppNavLink from "../AppNavLink";
 import CommandPalette from "../CommandPalette";

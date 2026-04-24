@@ -1,8 +1,12 @@
-import { ContextTip, DataTable, PermissionGate, SecondaryNav, Section, Shell, StatCard } from "../components";
+import { ContextTip, PermissionGate } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { SecondaryNav } from "@/app/components/navigation";
+import { Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
 import { canAccessSecurity, canManageRateLimits, canManageSecurityPolicy, canManageSSOProviders, roleLabel, screenPermissionReview, sensitiveEvents } from "../lib/permissions";
 import { requireSession } from "../lib/session";
 import { formatNumber, listOrFallback, safeText, yesNo } from "../lib/ui";
-import { getAccessMatrix, getRateLimits, getSSOProviders, getSecurityPolicy } from "../lib/waos";
+import { getAccessMatrix, getRateLimits, getSecurityPolicy, getSSOProviders } from "@/app/lib/data/integrations";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }

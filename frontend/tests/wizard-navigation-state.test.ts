@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildWizardAwareRouteQuery } from "../app/bot-studio/navigationState";
+import { buildWizardAwareRouteQuery } from "../features/bot-studio/domain/navigationState";
 
 test("wizard-aware route query prioritizes the freshly saved wizard id", () => {
   const query = buildWizardAwareRouteQuery({

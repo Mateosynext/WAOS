@@ -1,6 +1,9 @@
-import { DataTable, Section, Shell, StatCard } from "../components";
+import { Shell } from "@/app/components/layout/shell";
+import { Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
 import { formatNumber, safeText } from "../lib/ui";
-import { getFeedback, getOmnichannelOverview, getPortalRequests, getVoiceNotes } from "../lib/waos";
+import { getOmnichannelOverview } from "@/app/lib/data/analytics";
+import { getFeedback, getPortalRequests, getVoiceNotes } from "@/app/lib/data/inbox";
 
 export default async function OmnichannelPage() {
   const [overview, feedback, voiceNotes, portalRequests] = await Promise.all([getOmnichannelOverview(), getFeedback(), getVoiceNotes(), getPortalRequests()]);

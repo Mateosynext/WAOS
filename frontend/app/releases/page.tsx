@@ -1,12 +1,18 @@
 import Link from "next/link";
 import BotScopeSwitcher from "../components/BotScopeSwitcher";
-import { Badge, ContextTip, DataTable, EmptyActionState, ModuleCard, PermissionGate, SecondaryNav, Section, Shell, StageRail, StatCard } from "../components";
+import { ContextTip, EmptyActionState, PermissionGate } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { SecondaryNav } from "@/app/components/navigation";
+import { ModuleCard, Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable, StageRail } from "@/app/components/primitives/data-display";
+import { Badge } from "@/app/components/primitives/shared";
 import ConfirmSubmitButton from "../components/ConfirmSubmitButton";
-import { approveReleaseAction, publishReleaseAction, requestReleaseAction } from "../actions";
+import { approveReleaseAction, publishReleaseAction, requestReleaseAction } from "@/app/actions/releases";
 import { canApproveRelease, canPublishRelease, roleLabel } from "../lib/permissions";
 import { getCurrentBotId, getSession } from "../lib/session";
 import { formatNumber, safeText } from "../lib/ui";
-import { getBots, getReleaseReadiness, getReleases, getTraceability, getV14PublishSchedules, getV15PublishRuns } from "../lib/waos";
+import { getV14PublishSchedules, getV15PublishRuns } from "@/app/lib/data/analytics";
+import { getBots, getReleaseReadiness, getReleases, getTraceability } from "@/app/lib/data/bots";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }

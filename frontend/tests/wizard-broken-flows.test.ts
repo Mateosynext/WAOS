@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeDisplayError } from "../app/lib/error-display";
-import { createLatestWizardReactiveSelectionLoader, loadWizardReactiveSelection } from "../app/bot-studio/wizardReactiveData";
-import { saveWizardStepRequest } from "../app/bot-studio/wizardApi";
+import { createLatestWizardReactiveSelectionLoader, loadWizardReactiveSelection } from "../features/bot-studio/services/wizardReactiveData";
+import { saveWizardStepRequest } from "../features/bot-studio/services/wizardApi";
 
 type FetchCall = { url: string; init?: RequestInit };
 

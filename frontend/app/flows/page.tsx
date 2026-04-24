@@ -1,7 +1,11 @@
 import Link from "next/link";
-import { DataTable, ModuleCard, Section, Shell, StatCard } from "../components";
+import { Shell } from "@/app/components/layout/shell";
+import { ModuleCard, Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
 import { formatNumber, safeText } from "../lib/ui";
-import { getI18nAnalytics, getI18nConfig, getPlaybooks, getWhatsappFlows } from "../lib/waos";
+import { getI18nAnalytics, getI18nConfig } from "@/app/lib/data/analytics";
+import { getPlaybooks } from "@/app/lib/data/commerce";
+import { getWhatsappFlows } from "@/app/lib/data/inbox";
 
 export default async function FlowsPage() {
   const [playbooks, whatsappFlows, i18nConfig, i18nAnalytics] = await Promise.all([getPlaybooks(), getWhatsappFlows(), getI18nConfig(), getI18nAnalytics()]);

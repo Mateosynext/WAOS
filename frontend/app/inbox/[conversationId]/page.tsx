@@ -1,12 +1,16 @@
 import Link from "next/link";
-import { reactivateConversationAction, takeoverConversationAction } from "../../actions";
+import { reactivateConversationAction, takeoverConversationAction } from "@/app/actions/conversations";
 import ConversationComposer from "../../components/ConversationComposer";
-import { Badge, ContextTip, DataTable, KeyValueList, PermissionGate, Section, Shell, StatCard, TimelineList } from "../../components";
+import { ContextTip, PermissionGate } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable, KeyValueList, TimelineList } from "@/app/components/primitives/data-display";
+import { Badge } from "@/app/components/primitives/shared";
 import ConfirmSubmitButton from "../../components/ConfirmSubmitButton";
 import { canReactivateConversation, canReplyConversation, canTakeoverConversation, roleLabel } from "../../lib/permissions";
 import { getSession } from "../../lib/session";
 import { formatNumber, safeText } from "../../lib/ui";
-import { getConversation } from "../../lib/waos";
+import { getConversation } from "@/app/lib/data/inbox";
 
 function urgencyLabel(level?: string) {
   const normalized = String(level || "normal").toLowerCase();

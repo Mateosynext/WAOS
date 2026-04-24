@@ -1,4 +1,5 @@
-import type { ClientPortalData, PortalModuleState } from "../lib/waos";
+import type { ClientPortalData } from "@/app/lib/data/client-portal";
+import type { PortalModuleState } from "@/app/lib/data/shared";
 import { formatDate, formatDateTime, formatNumber, humanizeToken, safeText, summarizeCount, yesNo } from "../lib/ui";
 
 export type ClientSection = "resumen" | "conversaciones" | "agenda" | "promociones" | "solicitudes" | "bot" | "operaciones";

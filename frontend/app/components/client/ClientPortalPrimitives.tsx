@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
-import { Badge, Icon, StatusPill } from "../../components";
+import { StatusPill } from "@/app/components/feedback";
+import { Badge, Icon } from "@/app/components/primitives/shared";
 
 const surfaceClass = "rounded-[28px] border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)]";
 const subtleSurfaceClass = "rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)]";

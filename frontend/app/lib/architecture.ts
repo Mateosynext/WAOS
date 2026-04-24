@@ -2,7 +2,8 @@ export const frontendArchitecture = {
   activeAppRoot: "frontend/app",
   sourceOfTruth: [
     "frontend/app/layout.tsx",
-    "frontend/app/lib/contracts.ts",
+    "frontend/app/lib/contracts/",
+    "frontend/app/lib/data/",
     "frontend/app/lib/api.ts",
     "frontend/app/lib/architecture.ts",
     "frontend/app/(legacy)",

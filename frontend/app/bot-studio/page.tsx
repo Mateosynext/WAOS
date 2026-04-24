@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ContextTip, EmptyActionState, ModuleCard, Section, Shell } from "../components";
-import { getWizardInstance } from "../lib/data/wizard";
-import { buildBotStudioHref, getFirstRouteStep, normalizeRouteStep } from "./flowConfig";
+import { ContextTip, EmptyActionState } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { ModuleCard, Section } from "@/app/components/primitives/cards";
+import { buildBotStudioHref, getFirstRouteStep, normalizeRouteStep } from "@/features/bot-studio/domain/flowConfig";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function firstParam(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] || "" : value || ""; }
@@ -17,7 +18,6 @@ export default async function BotStudioPage({ searchParams }: { searchParams?: P
   const routeVerticalId = firstParam(resolvedParams?.vertical);
   const routeSubvertical = firstParam(resolvedParams?.subvertical);
   const routePrimaryObjective = firstParam(resolvedParams?.primary_objective);
-  void getWizardInstance;
   if (routeMode || routeBotId || routeWizardId || routeStep) {
     const mode = routeMode === "reconfigure" || routeBotId ? "reconfigure" : "create";
     const normalizedStep = normalizeRouteStep(mode, routeStep) || getFirstRouteStep(mode);

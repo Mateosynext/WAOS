@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
-import { Badge, Shell } from "../../components";
+import { Shell } from "@/app/components/layout/shell";
+import { Badge } from "@/app/components/primitives/shared";
 import { findPublicLegalDoc, getPublicLegalDocContent } from "../legal-loader";
 
 type Params = { slug: string };

@@ -1,9 +1,14 @@
 import Link from "next/link";
-import { Badge, ContextTip, DataTable, EmptyActionState, ModuleCard, Section, Shell, StageRail, StatCard } from "../components";
+import { ContextTip, EmptyActionState } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { ModuleCard, Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable, StageRail } from "@/app/components/primitives/data-display";
+import { Badge } from "@/app/components/primitives/shared";
 import BotScopeSwitcher from "../components/BotScopeSwitcher";
 import { getCurrentBotId } from "../lib/session";
 import { formatDateTime, formatNumber, safeText } from "../lib/ui";
-import { getBots, getReleaseReadiness, getReleases, getTraceability, getV14PublishSchedules, getV15PublishRuns } from "../lib/waos";
+import { getV14PublishSchedules, getV15PublishRuns } from "@/app/lib/data/analytics";
+import { getBots, getReleaseReadiness, getReleases, getTraceability } from "@/app/lib/data/bots";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }

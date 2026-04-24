@@ -1,4 +1,4 @@
-import { Badge } from "../../components";
+import { Badge } from "@/app/components/primitives/shared";
 import {
   ClientAppointmentCard,
   ClientBotAttribute,
@@ -10,7 +10,7 @@ import {
   ClientSectionBlock,
 } from "../../components/client/ClientPortalPrimitives";
 import { formatNumber } from "../../lib/ui";
-import type { ClientPortalData } from "../../lib/waos";
+import type { ClientPortalData } from "@/app/lib/data/client-portal";
 import { buildAgendaViewModel, buildBotAttributeModels, buildConversationCardModels, buildPromotionCardModels, buildRequestCardModels, hasPendingTimelineEntries, type ClientTimelineEntry } from "../clientPortalViewModel";
 
 export function renderConversations(data: ClientPortalData) {

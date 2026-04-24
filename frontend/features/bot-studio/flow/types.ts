@@ -1,6 +1,8 @@
-import type { BotContract, SessionOrganization, VerticalProfileContract } from "../../../app/lib/contracts";
-import type { RouteStep } from "../../../app/bot-studio/flowConfig";
-import type { WizardBlueprint, WizardInstance, WizardMode } from "../../../app/bot-studio/wizard-types";
+import type { SessionOrganization } from "@/shared/contracts/auth";
+import type { BotContract } from "@/shared/contracts/bots";
+import type { VerticalProfileContract } from "@/shared/contracts/verticals";
+import type { RouteStep } from "@/features/bot-studio/domain/flowConfig";
+import type { WizardBlueprint, WizardInstance, WizardMode } from "@/features/bot-studio/domain/wizardTypes";
 
 export type BotStudioFlowProps = {
   organizations: SessionOrganization[];

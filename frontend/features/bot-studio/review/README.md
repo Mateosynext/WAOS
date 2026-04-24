@@ -1,1 +1,1 @@
-Paneles de diff, validación y resumen sticky del wizard. Implementación activa consumida por app/bot-studio.
+Paneles de diff, validación y resumen sticky del wizard, aislados dentro del feature.

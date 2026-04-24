@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getBot } from "../lib/waos";
+import { getBot } from "@/app/lib/data/bots";
 import { BOT_COOKIE, ORG_COOKIE, cookies, normalizeActionError, patchJson, postJson, readString, runAndRefresh, sessionCookieOptions, withActionError } from "./shared";
 
 export type BotStudioActionState = {

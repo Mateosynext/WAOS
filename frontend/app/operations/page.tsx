@@ -1,9 +1,16 @@
 import Link from "next/link";
-import { Badge, ContextTip, DataTable, PermissionGate, Section, Shell, StatCard } from "../components";
+import { ContextTip, PermissionGate } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
+import { Badge } from "@/app/components/primitives/shared";
 import { canUseSupportMode, canViewObservability, roleLabel } from "../lib/permissions";
 import { requireSession } from "../lib/session";
 import { formatNumber, safeText } from "../lib/ui";
-import { getBots, getConversations, getDeadLetters, getIntegrationSyncRuns, getIntegrations, getObservability, getQueue, getRuntimeCallbacks } from "../lib/waos";
+import { getObservability, getQueue } from "@/app/lib/data/analytics";
+import { getBots } from "@/app/lib/data/bots";
+import { getConversations } from "@/app/lib/data/inbox";
+import { getDeadLetters, getIntegrations, getIntegrationSyncRuns, getRuntimeCallbacks } from "@/app/lib/data/integrations";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }

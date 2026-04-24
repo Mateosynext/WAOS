@@ -1,7 +1,13 @@
 import Link from "next/link";
-import { Badge, ContextTip, DataTable, EmptyActionState, ModuleCard, Section, Shell, StatCard } from "../components";
+import { ContextTip, EmptyActionState } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { ModuleCard, Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
+import { Badge } from "@/app/components/primitives/shared";
 import { formatDateTime, formatNumber, safeText } from "../lib/ui";
-import { getBots, getConversations, getFeedback, getIntegrations } from "../lib/waos";
+import { getBots } from "@/app/lib/data/bots";
+import { getConversations, getFeedback } from "@/app/lib/data/inbox";
+import { getIntegrations } from "@/app/lib/data/integrations";
 
 export default async function SupportPage() {
   const [conversations, bots, integrations, feedback] = await Promise.all([

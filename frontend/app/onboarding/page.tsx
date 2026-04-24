@@ -1,9 +1,16 @@
 import Link from "next/link";
-import { setTenantModeAction } from "../actions";
-import { ContextTip, ModuleCard, Section, Shell, StatCard, TimelineList } from "../components";
+import { setTenantModeAction } from "@/app/actions/onboarding";
+import { ContextTip } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { ModuleCard, Section, StatCard } from "@/app/components/primitives/cards";
+import { TimelineList } from "@/app/components/primitives/data-display";
 import { getSession } from "../lib/session";
 import { formatNumber, safeText } from "../lib/ui";
-import { getActivationSummary, getBots, getBusinessHubOverview, getIntegrations, getVerticalProfile } from "../lib/waos";
+import { getBusinessHubOverview } from "@/app/lib/data/analytics";
+import { getBots } from "@/app/lib/data/bots";
+import { getIntegrations } from "@/app/lib/data/integrations";
+import { getActivationSummary } from "@/app/lib/data/onboarding";
+import { getVerticalProfile } from "@/app/lib/data/verticals";
 
 export default async function OnboardingPage() {
   const session = await getSession();

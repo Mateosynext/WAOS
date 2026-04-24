@@ -7,7 +7,7 @@ import {
   readWizardTimelineEvents,
   recordWizardAutosaveMetric,
   recordWizardTimelineEvent,
-} from "../app/bot-studio/wizardEnterpriseGuards";
+} from "../features/bot-studio/domain/wizardEnterpriseGuards";
 
 class MemoryStorage {
   private store = new Map<string, string>();

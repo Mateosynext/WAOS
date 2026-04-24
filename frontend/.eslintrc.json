@@ -1,0 +1,33 @@
+{
+  "extends": ["next/core-web-vitals"],
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          "@/app/lib/waos",
+          "@/app/lib/contracts",
+          "@/app/components",
+          "@/app/actions",
+          "@/app/bot-studio/*",
+          "./lib/waos",
+          "../lib/waos",
+          "../../lib/waos",
+          "../../../lib/waos",
+          "./lib/contracts",
+          "../lib/contracts",
+          "../../lib/contracts",
+          "../../../lib/contracts",
+          "./components",
+          "../components",
+          "../../components",
+          "../../../components",
+          "./actions",
+          "../actions",
+          "../../actions",
+          "../../../actions"
+        ]
+      }
+    ]
+  }
+}

@@ -1,11 +1,18 @@
 import Link from "next/link";
-import { pauseBotAction, resumeBotAction, switchBotAction } from "../../actions";
-import { Badge, ContextTip, DataTable, KeyValueList, PermissionGate, Section, Shell, SecondaryNav, StatCard, SuccessState, TimelineList } from "../../components";
+import { pauseBotAction, resumeBotAction } from "@/app/actions/bots";
+import { switchBotAction } from "@/app/actions/selection";
+import { ContextTip, PermissionGate, SuccessState } from "@/app/components/feedback";
+import { Shell } from "@/app/components/layout/shell";
+import { SecondaryNav } from "@/app/components/navigation";
+import { Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable, KeyValueList, TimelineList } from "@/app/components/primitives/data-display";
+import { Badge } from "@/app/components/primitives/shared";
 import ConfirmSubmitButton from "../../components/ConfirmSubmitButton";
 import { canManageBots, roleLabel } from "../../lib/permissions";
 import { getSession } from "../../lib/session";
 import { formatNumber, safeText, yesNo } from "../../lib/ui";
-import { getBot, getBotValidation, getIntegrations } from "../../lib/waos";
+import { getBot, getBotValidation } from "@/app/lib/data/bots";
+import { getIntegrations } from "@/app/lib/data/integrations";
 
 export default async function BotPage({ params }: { params: Promise<{ botId: string }> }) {
   const { botId } = await params;

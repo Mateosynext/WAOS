@@ -1,7 +1,10 @@
-import { DataTable, Section, Shell, StatCard } from "../components";
-import { createAgendaCapacityRuleAction, createAgendaResourceAction } from "../actions";
+import { Shell } from "@/app/components/layout/shell";
+import { Section, StatCard } from "@/app/components/primitives/cards";
+import { DataTable } from "@/app/components/primitives/data-display";
+import { createAgendaCapacityRuleAction, createAgendaResourceAction } from "@/app/actions/scheduling";
 import { formatNumber, safeText } from "../lib/ui";
-import { getAgendaCapacityOverview, getAgendaCapacityRules, getAgendaOverview, getAgendaResources, getAppointments, getVerticalProfile } from "../lib/waos";
+import { getAgendaCapacityOverview, getAgendaCapacityRules, getAgendaOverview, getAgendaResources, getAppointments } from "@/app/lib/data/inbox";
+import { getVerticalProfile } from "@/app/lib/data/verticals";
 import { getCurrentBotId, getSession } from "../lib/session";
 
 export default async function AgendaPage() {
