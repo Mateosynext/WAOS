@@ -352,6 +352,7 @@ export type WizardDryRunResult = {
     tone?: "success" | "warning" | "danger";
   };
   summary?: {
+    status?: string;
     mode?: string;
     snapshot_required?: boolean;
     apply_ready?: boolean;
@@ -359,4 +360,22 @@ export type WizardDryRunResult = {
     bot_id?: string | null;
     organization_id?: string | null;
   };
+};
+
+export type WizardIssue = {
+  key?: string;
+  code?: string;
+  label?: string;
+  detail?: string;
+  message?: string;
+  severity?: "blocking" | "high" | "medium" | "low" | "error" | "warning" | "info";
+};
+
+export type WizardError = {
+  code?: string;
+  error_code?: string;
+  title?: string;
+  detail?: string;
+  message?: string;
+  issues?: WizardIssue[];
 };

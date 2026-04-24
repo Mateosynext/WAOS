@@ -16,10 +16,13 @@ test("legacy global barrels and Bot Studio shims stay deleted", () => {
     "app/lib/waos.ts",
     "app/lib/contracts.ts",
     "app/bot-studio/BotStudioFlowClient.tsx",
+    "app/bot-studio/BotStudioWizardClient.tsx",
     "app/bot-studio/BotStudioFlow.tsx",
     "app/bot-studio/useBotStudioWizardState.ts",
     "app/bot-studio/createScreens.tsx",
     "app/bot-studio/wizardReviewSections.tsx",
+    "features/bot-studio/services/wizardClient.ts",
+    "features/bot-studio/ui/WizardErrorPanel.tsx",
   ]) {
     assert.equal(fs.existsSync(path.join(frontendRoot, legacyPath)), false, legacyPath);
   }

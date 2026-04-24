@@ -8,7 +8,7 @@
     "vercel-build": "npm run build",
     "start": "next start -p 3000",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node ./scripts/clean-stale-botstudio.mjs && tsc --noEmit",
     "smoke": "node --no-warnings --import tsx ./scripts/smoke-routes.mjs",
     "test": "npm run test:node",
     "test:critical": "npm run smoke && npm run test:node && npm run test:e2e:real:critical",
