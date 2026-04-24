@@ -45,7 +45,7 @@ function wait(ms: number) {
 }
 
 async function readError(response: Response): Promise<ApiRequestError> {
-  let message = `La API respondi� con ${response.status}.`;
+  let message = `La API respondió con ${response.status}.`;
   let code =
     response.status >= 500
       ? "server_error"
@@ -109,7 +109,7 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: ApiRequestInit =
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       if (upstreamSignal?.aborted) throw error;
-      throw new ApiRequestError("La solicitud tardó demasiado y se canceló.", { code: "timeout", retryable: true });
+      throw new ApiRequestError("La solicitud tardÃ³ demasiado y se cancelÃ³.", { code: "timeout", retryable: true });
     }
     throw error;
   } finally {
