@@ -3,23 +3,24 @@ import { redirect } from "next/navigation";
 import { ContextTip, EmptyActionState } from "@/app/components/feedback";
 import { Shell } from "@/app/components/layout/shell";
 import { ModuleCard, Section } from "@/app/components/primitives/cards";
-import { buildBotStudioHref, getFirstRouteStep, normalizeRouteStep } from "@/features/bot-studio/domain/flowConfig";
+import { buildBotStudioHref, cleanRouteSearchValue, getFirstRouteStep, normalizeRouteStep } from "@/features/bot-studio/domain/flowConfig";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function firstParam(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] || "" : value || ""; }
+function cleanParam(value: string | string[] | undefined) { return cleanRouteSearchValue(firstParam(value)); }
 
 export default async function BotStudioPage({ searchParams }: { searchParams?: Promise<SearchParams> }) {
   const resolvedParams = (await searchParams) ?? {};
-  const routeMode = firstParam(resolvedParams?.mode);
-  const routeBotId = firstParam(resolvedParams?.bot);
-  const routeWizardId = firstParam(resolvedParams?.wizard_id);
-  const routeStep = firstParam(resolvedParams?.step);
-  const routeOrganizationId = firstParam(resolvedParams?.organization_id);
-  const routeVerticalId = firstParam(resolvedParams?.vertical);
-  const routeSubvertical = firstParam(resolvedParams?.subvertical);
-  const routePrimaryObjective = firstParam(resolvedParams?.primary_objective);
+  const routeMode = cleanParam(resolvedParams?.mode);
+  const routeBotId = cleanParam(resolvedParams?.bot);
+  const routeWizardId = cleanParam(resolvedParams?.wizard_id);
+  const routeStep = cleanParam(resolvedParams?.step);
+  const routeOrganizationId = cleanParam(resolvedParams?.organization_id);
+  const routeVerticalId = cleanParam(resolvedParams?.vertical);
+  const routeSubvertical = cleanParam(resolvedParams?.subvertical);
+  const routePrimaryObjective = cleanParam(resolvedParams?.primary_objective);
   if (routeMode || routeBotId || routeWizardId || routeStep) {
-    const mode = routeMode === "reconfigure" || routeBotId ? "reconfigure" : "create";
+    const mode = routeMode === "reconfigure" || (!routeMode && routeBotId) ? "reconfigure" : "create";
     const normalizedStep = normalizeRouteStep(mode, routeStep) || getFirstRouteStep(mode);
     redirect(buildBotStudioHref(mode, normalizedStep, { wizard_id: routeWizardId, bot: routeBotId, organization_id: routeOrganizationId, vertical: routeVerticalId, subvertical: routeSubvertical, primary_objective: routePrimaryObjective }));
   }

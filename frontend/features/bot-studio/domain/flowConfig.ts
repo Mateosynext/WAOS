@@ -42,9 +42,18 @@ export function normalizeRouteStep(mode: WizardMode, value: string | null | unde
 export function getStepMeta(mode: WizardMode, step: RouteStep) { return getFlowSteps(mode).find((item) => item.key === step) || getFlowSteps(mode)[0]; }
 export function getPreviousRouteStep(mode: WizardMode, step: RouteStep): RouteStep | null { const s=getFlowSteps(mode); const i=s.findIndex((item)=>item.key===step); return i>0 ? s[i-1]?.key || null : null; }
 export function getNextRouteStep(mode: WizardMode, step: RouteStep): RouteStep | null { const s=getFlowSteps(mode); const i=s.findIndex((item)=>item.key===step); return i>=0 && i<s.length-1 ? s[i+1]?.key || null : null; }
+export function cleanRouteSearchValue(value: unknown) {
+  const raw = String(value ?? "").trim();
+  const normalized = raw.toLowerCase();
+  return raw && raw !== "-" && normalized !== "null" && normalized !== "undefined" && normalized !== "nan" ? raw : "";
+}
+
 export function buildBotStudioHref(mode: WizardMode, step: RouteStep, searchParams?: Record<string,string|null|undefined>) {
   const params = new URLSearchParams();
-  Object.entries(searchParams || {}).forEach(([key, value]) => { const rendered = String(value || "").trim(); if (rendered) params.set(key, rendered); });
+  Object.entries(searchParams || {}).forEach(([key, value]) => {
+    const rendered = cleanRouteSearchValue(value);
+    if (rendered) params.set(key, rendered);
+  });
   const query = params.toString();
   return `/bot-studio/${mode}/${step}${query ? `?${query}` : ""}`;
 }

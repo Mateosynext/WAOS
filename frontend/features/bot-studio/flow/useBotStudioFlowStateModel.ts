@@ -1,54 +1,26 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { createLatestWizardReactiveSelectionLoader } from "@/features/bot-studio/services/wizardReactiveData";
-import { buildWizardPayloads } from "@/features/bot-studio/services/wizardPayloadBuilders";
 import { safeText } from "@/app/lib/ui";
 import { buildBotStudioSummaryViewModel, pickBotSubvertical, pickBotTone, resolveMatchingVertical } from "../shared/botStudioHelpers";
-import type { BotStudioWizardStateModel, ObjectiveValue } from "../context/useBotStudioWizardState";
-import type {
-  CreateApplyViewModel,
-  CreateContextActions,
-  CreateContextViewModel,
-  CreateIdentityViewModel,
-  CreateIntegrationsViewModel,
-  CreateKnowledgeViewModel,
-  CreateOfferViewModel,
-  CreateReviewViewModel,
-  CreateValidationViewModel,
-} from "../context/createScreenTypes";
-import type {
-  ReconfigureDiffViewModel,
-  ReconfigureSelectActions,
-  ReconfigureSelectViewModel,
-  ReconfigureValidationViewModel,
-} from "../reconfigure/reconfigureScreenTypes";
+import type { BotStudioWizardStateModel } from "../context/useBotStudioWizardState";
+import { buildWizardPayloads } from "../services/wizardPayloadBuilders";
+import { createLatestWizardReactiveSelectionLoader } from "../services/wizardReactiveData";
 import type { BotStudioFlowProps } from "./types";
+import {
+  buildBlueprintSeedPatch,
+  buildReactiveSelectionKey,
+  hasBlueprintSeedPatch,
+  normalizeObjectiveValue,
+} from "./wizardPreviewSeed";
+import {
+  buildCreateWizardScreenModels,
+  buildReconfigureWizardScreenModels,
+  type CreateWizardScreenModels,
+  type ReconfigureWizardScreenModels,
+} from "./wizardScreenModels";
 
-export type CreateWizardScreenModels = {
-  context: { viewModel: CreateContextViewModel; actions: CreateContextActions };
-  identity: { viewModel: CreateIdentityViewModel; actions: BotStudioWizardStateModel["actions"]["basics"] };
-  offer: { viewModel: CreateOfferViewModel; actions: BotStudioWizardStateModel["actions"]["catalog"] };
-  knowledge: { viewModel: CreateKnowledgeViewModel; actions: BotStudioWizardStateModel["actions"]["knowledge"] };
-  integrations: { viewModel: CreateIntegrationsViewModel; actions: BotStudioWizardStateModel["actions"]["integrations"] };
-  review: { viewModel: CreateReviewViewModel; actions: BotStudioWizardStateModel["actions"]["launch"] };
-  validate: { viewModel: CreateValidationViewModel };
-  apply: { viewModel: CreateApplyViewModel };
-};
-
-export type ReconfigureWizardScreenModels = {
-  select: { viewModel: ReconfigureSelectViewModel; actions: ReconfigureSelectActions };
-  diff: { viewModel: ReconfigureDiffViewModel };
-  dryRun: { viewModel: ReconfigureValidationViewModel };
-  confirm: { viewModel: ReconfigureValidationViewModel };
-};
-
-function normalizeObjectiveValue(value: unknown, fallback: ObjectiveValue): ObjectiveValue {
-  const normalized = String(value || "").trim().toLowerCase();
-  return (["agendar", "vender", "calificar", "responder", "reactivar"] as ObjectiveValue[]).includes(normalized as ObjectiveValue)
-    ? (normalized as ObjectiveValue)
-    : fallback;
-}
+export type { CreateWizardScreenModels, ReconfigureWizardScreenModels } from "./wizardScreenModels";
 
 function hasPatchDelta(current: Record<string, unknown>, next: Record<string, unknown>) {
   return Object.entries(next).some(([key, value]) => current[key] !== value);
@@ -59,22 +31,14 @@ export function useBotStudioFlowStateModel(
   state: BotStudioWizardStateModel,
   progress: number,
 ) {
-  const {
-    scope,
-    basics,
-    catalog,
-    knowledge,
-    integrations,
-    launch,
-    preview,
-    wizardRuntime,
-  } = state.slices;
+  const { scope, basics, catalog, knowledge, integrations, launch, preview, wizardRuntime } = state.slices;
   const actions = state.actions;
 
   const selectedOrganization = useMemo(
     () => props.organizations.find((item) => item.id === scope.selectedOrganizationId) || null,
     [props.organizations, scope.selectedOrganizationId],
   );
+
   const selectedBot = useMemo(
     () => props.bots.find((item) => item.id === scope.selectedBotId) || null,
     [props.bots, scope.selectedBotId],
@@ -106,8 +70,8 @@ export function useBotStudioFlowStateModel(
     basics.businessName,
     basics.botName,
     basics.language,
-    basics.tone,
     basics.timezone,
+    basics.tone,
     basics.whatsappNumber,
     props.routeMode,
     props.verticals,
@@ -121,18 +85,60 @@ export function useBotStudioFlowStateModel(
   ]);
 
   const loader = useRef(createLatestWizardReactiveSelectionLoader());
+  const didHydrateInitialPreview = useRef(false);
+  const lastInitialPreviewSelectionKey = useRef("");
+  const lastLoadedPreviewKey = useRef("");
+  const lastSeededPreviewKey = useRef("");
+
+  const initialPreviewSelectionKey = useMemo(() => buildReactiveSelectionKey({
+    organizationId: props.initialOrganizationId,
+    verticalId: props.initialVerticalId,
+    subvertical: props.initialSubvertical,
+    primaryObjective: props.initialPrimaryObjective,
+    mode: props.routeMode,
+    botId: props.initialSelectedBotId,
+  }), [
+    props.initialOrganizationId,
+    props.initialPrimaryObjective,
+    props.initialSelectedBotId,
+    props.initialSubvertical,
+    props.initialVerticalId,
+    props.routeMode,
+  ]);
+
+  useEffect(() => {
+    if (lastInitialPreviewSelectionKey.current === initialPreviewSelectionKey) return;
+    lastInitialPreviewSelectionKey.current = initialPreviewSelectionKey;
+    didHydrateInitialPreview.current = false;
+  }, [initialPreviewSelectionKey]);
+
   useEffect(() => {
     if (!scope.selectedOrganizationId || !scope.candidateVerticalId) return;
-    actions.preview.setPreviewLoading(true);
-    loader.current.load({
+
+    const selectionRequest = {
       organizationId: scope.selectedOrganizationId,
       verticalId: scope.candidateVerticalId,
       subvertical: scope.candidateSubvertical || scope.selectedSubvertical,
       primaryObjective: scope.selectedPrimaryObjective,
       mode: props.routeMode,
       botId: props.routeMode === "reconfigure" ? scope.selectedBotId : undefined,
-    }).then((result) => {
+    };
+    const currentPreviewSelectionKey = buildReactiveSelectionKey(selectionRequest);
+    const hasInitialPreview = Boolean(props.initialBlueprint || props.initialVerticalProfile);
+    const hasLocalPreviewForSameSelection = Boolean(preview.blueprint || preview.verticalProfile) && lastLoadedPreviewKey.current === currentPreviewSelectionKey;
+
+    if (hasLocalPreviewForSameSelection) return;
+
+    if (!didHydrateInitialPreview.current && hasInitialPreview && currentPreviewSelectionKey === initialPreviewSelectionKey) {
+      didHydrateInitialPreview.current = true;
+      lastLoadedPreviewKey.current = currentPreviewSelectionKey;
+      return;
+    }
+
+    actions.preview.setPreviewLoading(true);
+    loader.current.load(selectionRequest).then((result) => {
       if (!result) return;
+      lastLoadedPreviewKey.current = currentPreviewSelectionKey;
       actions.preview.setBlueprint(result.blueprint);
       actions.preview.setVerticalProfile(result.verticalProfile);
       actions.preview.setPreviewError(result.errors.join(" "));
@@ -141,6 +147,40 @@ export function useBotStudioFlowStateModel(
     }).finally(() => actions.preview.setPreviewLoading(false));
     return () => loader.current.cancel();
   }, [
+    initialPreviewSelectionKey,
+    preview.blueprint,
+    preview.verticalProfile,
+    props.initialBlueprint,
+    props.initialVerticalProfile,
+    props.routeMode,
+    scope.candidateSubvertical,
+    scope.candidateVerticalId,
+    scope.selectedBotId,
+    scope.selectedOrganizationId,
+    scope.selectedPrimaryObjective,
+    scope.selectedSubvertical,
+  ]);
+
+  useEffect(() => {
+    if (!preview.blueprint || !scope.selectedOrganizationId || !scope.candidateVerticalId) return;
+    const currentPreviewSelectionKey = buildReactiveSelectionKey({
+      organizationId: scope.selectedOrganizationId,
+      verticalId: scope.candidateVerticalId,
+      subvertical: scope.candidateSubvertical || scope.selectedSubvertical,
+      primaryObjective: scope.selectedPrimaryObjective,
+      mode: props.routeMode,
+      botId: props.routeMode === "reconfigure" ? scope.selectedBotId : undefined,
+    });
+
+    if (lastSeededPreviewKey.current === currentPreviewSelectionKey) return;
+    const seedPatch = buildBlueprintSeedPatch(preview.blueprint, catalog, knowledge, integrations);
+    lastSeededPreviewKey.current = currentPreviewSelectionKey;
+    if (hasBlueprintSeedPatch(seedPatch)) state.patchState(seedPatch);
+  }, [
+    catalog,
+    integrations,
+    knowledge,
+    preview.blueprint,
     props.routeMode,
     scope.candidateSubvertical,
     scope.candidateVerticalId,
@@ -186,31 +226,11 @@ export function useBotStudioFlowStateModel(
     launchNotesText: launch.launchNotesText,
     autopublishKnowledge: launch.autopublishKnowledge,
   }), [
-    basics.businessName,
-    basics.botName,
-    basics.hours,
-    basics.language,
-    basics.timezone,
-    basics.tone,
-    basics.whatsappNumber,
-    catalog.featuredOffersText,
-    catalog.pricingNotesText,
-    catalog.primaryCtasText,
-    catalog.servicesText,
-    integrations.canSayText,
-    integrations.cannotSayText,
-    integrations.escalateWhenText,
-    integrations.handoffKeywordsText,
-    integrations.handoffSlaText,
-    integrations.humanDestinationChannelText,
-    integrations.ruleOverridesText,
-    integrations.selectedIntegrationKeys,
-    knowledge.faqText,
-    knowledge.knowledgeSourcesText,
-    knowledge.policiesText,
-    launch.autopublishKnowledge,
-    launch.launchNotesText,
-    launch.selectedPlaybookKeys,
+    basics,
+    catalog,
+    integrations,
+    knowledge,
+    launch,
     preview.blueprint,
     props.routeMode,
     scope.selectedBotId,
@@ -226,146 +246,30 @@ export function useBotStudioFlowStateModel(
     [props.initialWizard?.validation_snapshot, wizardRuntime.dryRunResult?.validation_snapshot, wizardRuntime.wizard?.validation_snapshot],
   );
 
-  const createScreens: CreateWizardScreenModels = useMemo(() => ({
-    context: {
-      viewModel: {
-        organizations: props.organizations,
-        verticals: props.verticals,
-        strongestVerticals: props.strongestVerticals,
-        selectedOrganizationId: scope.selectedOrganizationId,
-        selectedVerticalId: scope.selectedVerticalId,
-        selectedSubvertical: scope.selectedSubvertical,
-        candidateVerticalId: scope.candidateVerticalId,
-        candidateSubvertical: scope.candidateSubvertical,
-        selectedPrimaryObjective: scope.selectedPrimaryObjective,
-        blueprint: preview.blueprint,
-        verticalProfile: preview.verticalProfile,
-        previewLoading: preview.previewLoading,
-        previewError: preview.previewError,
-      },
-      actions: {
-        setSelectedOrganizationId: actions.scope.setSelectedOrganizationId,
-        setSelectedPrimaryObjective: (value) => actions.scope.setSelectedPrimaryObjective(normalizeObjectiveValue(value, scope.selectedPrimaryObjective)),
-        setCandidateVerticalId: actions.scope.setCandidateVerticalId,
-        setSelectedVerticalId: actions.scope.setSelectedVerticalId,
-        setCandidateSubvertical: actions.scope.setCandidateSubvertical,
-        setSelectedSubvertical: actions.scope.setSelectedSubvertical,
-      },
-    },
-    identity: { viewModel: basics, actions: actions.basics },
-    offer: { viewModel: catalog, actions: actions.catalog },
-    knowledge: { viewModel: knowledge, actions: actions.knowledge },
-    integrations: {
-      viewModel: {
-        blueprint: preview.blueprint,
-        selectedIntegrationKeys: integrations.selectedIntegrationKeys,
-        escalateWhenText: integrations.escalateWhenText,
-        handoffKeywordsText: integrations.handoffKeywordsText,
-        handoffSlaText: integrations.handoffSlaText,
-        humanDestinationChannelText: integrations.humanDestinationChannelText,
-        canSayText: integrations.canSayText,
-        cannotSayText: integrations.cannotSayText,
-        ruleOverridesText: integrations.ruleOverridesText,
-      },
-      actions: actions.integrations,
-    },
-    review: {
-      viewModel: {
-        organizations: props.organizations,
-        verticals: props.verticals,
-        strongestVerticals: props.strongestVerticals,
-        selectedOrganizationId: scope.selectedOrganizationId,
-        selectedVerticalId: scope.selectedVerticalId,
-        selectedSubvertical: scope.selectedSubvertical,
-        candidateVerticalId: scope.candidateVerticalId,
-        candidateSubvertical: scope.candidateSubvertical,
-        selectedPrimaryObjective: scope.selectedPrimaryObjective,
-        blueprint: preview.blueprint,
-        verticalProfile: preview.verticalProfile,
-        previewLoading: preview.previewLoading,
-        previewError: preview.previewError,
-        servicesText: catalog.servicesText,
-        featuredOffersText: catalog.featuredOffersText,
-        primaryCtasText: catalog.primaryCtasText,
-        pricingNotesText: catalog.pricingNotesText,
-        faqText: knowledge.faqText,
-        policiesText: knowledge.policiesText,
-        knowledgeSourcesText: knowledge.knowledgeSourcesText,
-        selectedIntegrationKeys: integrations.selectedIntegrationKeys,
-        selectedPlaybookKeys: launch.selectedPlaybookKeys,
-        launchNotesText: launch.launchNotesText,
-        autopublishKnowledge: launch.autopublishKnowledge,
-      },
-      actions: actions.launch,
-    },
-    validate: {
-      viewModel: {
-        validationSnapshot: snapshot,
-        wizard: wizardRuntime.wizard,
-        dryRunResult: wizardRuntime.dryRunResult,
-      },
-    },
-    apply: {
-      viewModel: {
-        validationSnapshot: snapshot,
-        wizard: wizardRuntime.wizard,
-        dryRunResult: wizardRuntime.dryRunResult,
-        autopublishKnowledge: launch.autopublishKnowledge,
-      },
-    },
-  }), [
-    actions.basics,
-    actions.catalog,
-    actions.integrations,
-    actions.knowledge,
-    actions.launch,
-    actions.scope,
+  const createScreens: CreateWizardScreenModels = useMemo(() => buildCreateWizardScreenModels({
+    props,
+    actions,
+    scope,
     basics,
     catalog,
-    integrations,
     knowledge,
-    launch.autopublishKnowledge,
-    launch.launchNotesText,
-    launch.selectedPlaybookKeys,
-    preview.blueprint,
-    preview.previewError,
-    preview.previewLoading,
-    preview.verticalProfile,
-    props.organizations,
-    props.strongestVerticals,
-    props.verticals,
-    scope.candidateSubvertical,
-    scope.candidateVerticalId,
-    scope.selectedOrganizationId,
-    scope.selectedPrimaryObjective,
-    scope.selectedSubvertical,
-    scope.selectedVerticalId,
+    integrations,
+    launch,
+    preview,
+    wizardRuntime,
     snapshot,
-    wizardRuntime.dryRunResult,
-    wizardRuntime.wizard,
-  ]);
+    normalizeObjectiveValue,
+  }), [actions, basics, catalog, integrations, knowledge, launch, preview, props, scope, snapshot, wizardRuntime]);
 
-  const reconfigureScreens: ReconfigureWizardScreenModels = useMemo(() => {
-    const diffViewModel = {
-      selectedBot,
-      blueprint: preview.blueprint,
-      wizard: wizardRuntime.wizard,
-    };
-    const validationViewModel = {
-      ...diffViewModel,
-      validationSnapshot: snapshot,
-      dryRunResult: wizardRuntime.dryRunResult,
-    };
-    return {
-      select: {
-        viewModel: { bots: props.bots, selectedBot },
-        actions: { setSelectedBotId: actions.scope.setSelectedBotId },
-      },
-      diff: { viewModel: diffViewModel },
-      dryRun: { viewModel: validationViewModel },
-      confirm: { viewModel: validationViewModel },
-    };
-  }, [actions.scope.setSelectedBotId, preview.blueprint, props.bots, selectedBot, snapshot, wizardRuntime.dryRunResult, wizardRuntime.wizard]);
+  const reconfigureScreens: ReconfigureWizardScreenModels = useMemo(() => buildReconfigureWizardScreenModels({
+    props,
+    actions,
+    selectedBot,
+    blueprint: preview.blueprint,
+    wizard: wizardRuntime.wizard,
+    snapshot,
+    dryRunResult: wizardRuntime.dryRunResult,
+  }), [actions, preview.blueprint, props, selectedBot, snapshot, wizardRuntime.dryRunResult, wizardRuntime.wizard]);
 
   const summary = useMemo(() => buildBotStudioSummaryViewModel({
     routeMode: props.routeMode,

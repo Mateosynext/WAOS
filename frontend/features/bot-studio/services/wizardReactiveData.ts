@@ -21,7 +21,8 @@ export type WizardReactiveSelectionResult = {
 
 function appendIfPresent(params: URLSearchParams, key: string, value: unknown) {
   const rendered = String(value || "").trim();
-  if (rendered) params.set(key, rendered);
+  const normalized = rendered.toLowerCase();
+  if (rendered && rendered !== "-" && normalized !== "null" && normalized !== "undefined" && normalized !== "nan") params.set(key, rendered);
 }
 
 export function buildWizardBlueprintParams(request: WizardReactiveSelectionRequest) {

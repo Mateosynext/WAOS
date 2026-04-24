@@ -333,10 +333,10 @@ function textBlockFromFaqs(items: Array<{ q?: string; a?: string }>) {
     .map((item) => {
       const q = String(item.q || "").trim();
       const a = String(item.a || "").trim();
-      return q && a ? `Q: ${q}\nA: ${a}` : "";
+      return q && a ? `${q} | ${a}` : "";
     })
     .filter(Boolean)
-    .join("\n\n");
+    .join("\n");
 }
 
 function parseJsonObject(value: string) {
@@ -463,8 +463,8 @@ function createInitialState(params: UseBotStudioWizardStateParams): BotStudioWiz
       mode: initialMode,
       selectedBotId: initialSelectedBotId || String(initialWizard?.bot_id || ""),
       selectedOrganizationId: String(initialWizard?.organization_id || initialOrganizationId || ""),
-      selectedVerticalId: initialConfirmedVerticalId,
-      selectedSubvertical: initialConfirmedSubvertical,
+      selectedVerticalId: initialConfirmedVerticalId || initialVerticalId,
+      selectedSubvertical: initialConfirmedSubvertical || initialSubvertical,
       candidateVerticalId: initialCandidateVerticalId,
       candidateSubvertical: initialCandidateSubvertical,
       selectedPrimaryObjective: normalizeObjective(initialWizardFit.primary_objective || initialPrimaryObjective),

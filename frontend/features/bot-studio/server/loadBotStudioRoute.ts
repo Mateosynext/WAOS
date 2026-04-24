@@ -2,10 +2,10 @@ import { requireSession } from "@/app/lib/session";
 import type { SessionOrganization } from "@/app/lib/contracts/auth";
 import type { BotContract } from "@/app/lib/contracts/bots";
 import type { VerticalProfileContract } from "@/app/lib/contracts/verticals";
-import { getBots } from "@/app/lib/data/bots";
+import { getBot, getBots } from "@/app/lib/data/bots";
 import { getStrongestVerticals, getVerticalCatalog } from "@/app/lib/data/verticals";
 import { getWizardBlueprint, getWizardInstance, getWizardVerticalProfile } from "@/app/lib/data/wizard";
-import type { RouteStep } from "../domain/flowConfig";
+import type { CreateRouteStep, ReconfigureRouteStep, RouteStep } from "../domain/flowConfig";
 import type { WizardBlueprint, WizardInstance, WizardMode } from "../domain/wizardTypes";
 
 export type BotStudioFlowData = {
@@ -44,6 +44,18 @@ type CatalogPickSource = {
   subverticals?: string[];
 };
 
+type RouteLoadPlan = {
+  loadVerticalCatalog: boolean;
+  loadStrongestVerticals: boolean;
+  loadBotList: boolean;
+  loadSelectedBot: boolean;
+  loadBlueprintAndProfile: boolean;
+};
+
+const CREATE_CONTEXT_STEP: CreateRouteStep = "context";
+const CREATE_PREFILL_STEPS = new Set<RouteStep>(["context", "offer", "knowledge", "integrations", "review", "validate", "apply", "success"]);
+const RECONFIGURE_SELECT_STEP: ReconfigureRouteStep = "select";
+
 function pickCatalogSubvertical(profile?: CatalogPickSource | null) {
   return profile?.selected_subvertical?.name || profile?.recommended_subverticals?.[0] || profile?.subvertical_profiles?.[0]?.name || profile?.subverticals?.[0] || "";
 }
@@ -52,29 +64,100 @@ function byId<T extends { id: string }>(items: T[]) {
   return Object.fromEntries(items.map((item) => [item.id, item])) as Record<string, T>;
 }
 
-export async function loadBotStudioRoute(args: Args): Promise<BotStudioFlowData> {
-  const routeMode = String(args.mode || "").trim();
-  const routeBotId = String(args.botId || "").trim();
-  const routeWizardId = String(args.wizardId || "").trim();
-  const routeOrganizationId = String(args.organizationId || "").trim();
-  const routeVerticalId = String(args.verticalId || "").trim();
-  const routeSubvertical = String(args.subvertical || "").trim();
-  const routePrimaryObjective = String(args.primaryObjective || "").trim();
+function cleanRouteParam(value?: string | null) {
+  const raw = String(value || "").trim();
+  const normalized = raw.toLowerCase();
+  return raw && raw !== "-" && normalized !== "null" && normalized !== "undefined" && normalized !== "nan" ? raw : "";
+}
 
-  const session = await requireSession();
-  const [verticals, strongestVerticals, bots, initialWizard] = await Promise.all([
-    getVerticalCatalog(),
-    getStrongestVerticals(),
-    getBots(),
-    routeWizardId ? getWizardInstance(routeWizardId) : Promise.resolve(null),
+function buildRouteLoadPlan(mode: WizardMode, step?: RouteStep | string | null): RouteLoadPlan {
+  const routeStep = cleanRouteParam(step);
+  const isCreate = mode === "create";
+  const isContext = isCreate && routeStep === CREATE_CONTEXT_STEP;
+  const isCreatePrefill = isCreate && CREATE_PREFILL_STEPS.has(routeStep as RouteStep);
+  const isReconfigureSelect = mode === "reconfigure" && routeStep === RECONFIGURE_SELECT_STEP;
+  const isReconfigureDetail = mode === "reconfigure" && !isReconfigureSelect;
+
+  return {
+    loadVerticalCatalog: isContext,
+    loadStrongestVerticals: isContext,
+    loadBotList: isReconfigureSelect,
+    loadSelectedBot: isReconfigureDetail,
+    loadBlueprintAndProfile: isCreatePrefill || isReconfigureDetail,
+  };
+}
+
+async function safeOptional<T>(loader: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await loader();
+  } catch {
+    return fallback;
+  }
+}
+
+async function getSelectedBotOrNull(botId: string) {
+  if (!botId) return null;
+  const bot = await safeOptional(() => getBot(botId), null);
+  return bot?.id ? bot : null;
+}
+
+function pickRouteSelectedBot(botList: BotContract[], routeBotId: string) {
+  return botList.find((item) => item.id === routeBotId) || null;
+}
+
+function pickWizardSelectedBot(botList: BotContract[], wizardBotId?: string | null) {
+  return wizardBotId ? botList.find((item) => item.id === wizardBotId) || null : null;
+}
+
+function resolveCatalogVertical({
+  verticals,
+  wizardVerticalId,
+  routeVerticalId,
+  selectedBot,
+  skipBotMatch,
+}: {
+  verticals: VerticalProfileContract[];
+  wizardVerticalId: string;
+  routeVerticalId: string;
+  selectedBot: BotContract | null;
+  skipBotMatch: boolean;
+}) {
+  return verticals.find((item) => item.id === wizardVerticalId)
+    || verticals.find((item) => item.id === routeVerticalId)
+    || (!skipBotMatch ? verticals.find((item) => item.name.toLowerCase() === String(selectedBot?.vertical || "").trim().toLowerCase()) : null)
+    || null;
+}
+
+export async function loadBotStudioRoute(args: Args): Promise<BotStudioFlowData> {
+  const routeMode = cleanRouteParam(args.mode);
+  const routeBotId = cleanRouteParam(args.botId);
+  const routeWizardId = cleanRouteParam(args.wizardId);
+  const routeOrganizationId = cleanRouteParam(args.organizationId);
+  const routeVerticalId = cleanRouteParam(args.verticalId);
+  const routeSubvertical = cleanRouteParam(args.subvertical);
+  const routePrimaryObjective = cleanRouteParam(args.primaryObjective);
+  const routeStep = cleanRouteParam(args.step);
+  const initialMode: WizardMode = routeMode === "reconfigure" ? "reconfigure" : "create";
+  const loadPlan = buildRouteLoadPlan(initialMode, routeStep);
+
+  const [session, initialWizard] = await Promise.all([
+    requireSession(),
+    routeWizardId ? safeOptional(() => getWizardInstance(routeWizardId), null) : Promise.resolve(null),
+  ]);
+
+  const selectedBotIdFromRouteOrWizard = initialMode === "reconfigure" ? routeBotId || cleanRouteParam(initialWizard?.bot_id) : "";
+  const [verticals, strongestVerticals, botList, selectedBotFromDetailRoute] = await Promise.all([
+    loadPlan.loadVerticalCatalog ? safeOptional(() => getVerticalCatalog(), []) : Promise.resolve([]),
+    loadPlan.loadStrongestVerticals ? safeOptional(() => getStrongestVerticals(), []) : Promise.resolve([]),
+    loadPlan.loadBotList ? safeOptional(() => getBots(), []) : Promise.resolve([]),
+    loadPlan.loadSelectedBot ? getSelectedBotOrNull(selectedBotIdFromRouteOrWizard) : Promise.resolve(null),
   ]);
 
   const organizations = session?.user.organizations || [];
   const organizationsById = byId(organizations);
-  const routeSelectedBot = bots.find((item: BotContract) => item.id === routeBotId) || null;
-  const initialMode: WizardMode = routeMode === "reconfigure" || Boolean(routeBotId) || Boolean(initialWizard?.bot_id) ? "reconfigure" : "create";
+  const routeSelectedBot = pickRouteSelectedBot(botList, routeBotId) || selectedBotFromDetailRoute;
   const initialSelectedBot = initialMode === "reconfigure"
-    ? (routeSelectedBot || (initialWizard?.bot_id ? bots.find((item: BotContract) => item.id === initialWizard.bot_id) || null : null))
+    ? (routeSelectedBot || pickWizardSelectedBot(botList, initialWizard?.bot_id) || selectedBotFromDetailRoute)
     : null;
   const waitingForExplicitBotSelection = initialMode === "reconfigure" && !initialSelectedBot && !initialWizard?.bot_id;
   const explicitWizardOrganization = initialWizard?.organization_id ? organizationsById[initialWizard.organization_id] || null : null;
@@ -83,26 +166,31 @@ export async function loadBotStudioRoute(args: Args): Promise<BotStudioFlowData>
   const wizardOrganization = waitingForExplicitBotSelection ? null : explicitWizardOrganization || explicitRouteOrganization || botOrganization || null;
   const initialOrganizationId = initialMode === "create" ? (explicitWizardOrganization?.id || explicitRouteOrganization?.id || "") : (wizardOrganization?.id || "");
   const wizardFit = (initialWizard?.answers?.vertical_fit || {}) as Record<string, unknown>;
+  const wizardVerticalId = cleanRouteParam(String(wizardFit.vertical_id || initialWizard?.vertical_id || ""));
   const catalogVertical = waitingForExplicitBotSelection
     ? null
-    : verticals.find((item: VerticalProfileContract) => item.id === String(wizardFit.vertical_id || ""))
-      || verticals.find((item: VerticalProfileContract) => item.id === routeVerticalId)
-      || verticals.find((item: VerticalProfileContract) => item.name.toLowerCase() === String(initialSelectedBot?.vertical || "").trim().toLowerCase())
-      || null;
-  const initialVerticalId = catalogVertical?.id || "";
+    : resolveCatalogVertical({
+      verticals,
+      wizardVerticalId,
+      routeVerticalId,
+      selectedBot: initialSelectedBot,
+      skipBotMatch: initialMode === "create",
+    });
+  const initialVerticalId = catalogVertical?.id || wizardVerticalId || routeVerticalId || "";
   const initialSubvertical = waitingForExplicitBotSelection ? "" : String(wizardFit.subvertical || routeSubvertical || initialWizard?.subvertical || pickCatalogSubvertical(catalogVertical));
   const initialPrimaryObjective = waitingForExplicitBotSelection ? "agendar" : String(wizardFit.primary_objective || routePrimaryObjective || initialWizard?.primary_objective || initialSelectedBot?.objective || "agendar");
-  const initialSelectedBotId = initialMode === "reconfigure" ? initialSelectedBot?.id || String(initialWizard?.bot_id || "") : "";
-  const [initialBlueprint, initialVerticalProfile] = initialOrganizationId && initialVerticalId ? await Promise.all([
-    getWizardBlueprint({ organizationId: initialOrganizationId, verticalId: initialVerticalId, subvertical: initialSubvertical, primaryObjective: initialPrimaryObjective, botId: initialSelectedBotId || undefined }),
-    getWizardVerticalProfile({ organizationId: initialOrganizationId, verticalId: initialVerticalId, subvertical: initialSubvertical || undefined, botId: initialSelectedBotId || undefined, mode: initialMode }),
+  const initialSelectedBotId = initialMode === "reconfigure" ? initialSelectedBot?.id || cleanRouteParam(initialWizard?.bot_id) : "";
+  const shouldLoadPreview = loadPlan.loadBlueprintAndProfile && initialOrganizationId && initialVerticalId;
+  const [initialBlueprint, initialVerticalProfile] = shouldLoadPreview ? await Promise.all([
+    safeOptional(() => getWizardBlueprint({ organizationId: initialOrganizationId, verticalId: initialVerticalId, subvertical: initialSubvertical, primaryObjective: initialPrimaryObjective, botId: initialSelectedBotId || undefined }), null),
+    safeOptional(() => getWizardVerticalProfile({ organizationId: initialOrganizationId, verticalId: initialVerticalId, subvertical: initialSubvertical || undefined, botId: initialSelectedBotId || undefined, mode: initialMode }), null),
   ]) : [null, null];
 
   return {
     organizations,
     verticals,
     strongestVerticals,
-    bots,
+    bots: initialSelectedBot && !botList.some((item) => item.id === initialSelectedBot.id) ? [initialSelectedBot] : botList,
     initialSelectedBotId,
     initialMode,
     initialOrganizationId,
@@ -113,7 +201,7 @@ export async function loadBotStudioRoute(args: Args): Promise<BotStudioFlowData>
     initialVerticalProfile,
     initialWizardId: routeWizardId || undefined,
     initialWizard: initialWizard || null,
-    initialStepOverride: args.step || undefined,
+    initialStepOverride: routeStep || undefined,
   };
 }
 

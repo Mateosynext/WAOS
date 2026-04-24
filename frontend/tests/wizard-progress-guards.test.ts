@@ -16,6 +16,7 @@ test('create client readiness enforces the required fields for identity, offer, 
   assert.equal(isCreateStepClientReady('offer', { servicesText: 'Consulta inicial', primaryCtasText: 'Agendar valoración' }), true);
   assert.equal(isCreateStepClientReady('offer', { servicesText: 'Consulta inicial', primaryCtasText: '' }), false);
   assert.equal(isCreateStepClientReady('knowledge', { faqText: '¿Atienden sábados? | Sí', policiesText: 'No prometer diagnóstico', knowledgeSourcesText: 'Drive operativa' }), true);
+  assert.equal(isCreateStepClientReady('knowledge', { faqText: '¿Atienden sábados? | Sí, con cita previa', policiesText: 'No prometer diagnóstico', knowledgeSourcesText: 'Drive operativo' }), true);
   assert.equal(isCreateStepClientReady('knowledge', { faqText: 'FAQ inválida sin separador', policiesText: 'No prometer diagnóstico', knowledgeSourcesText: 'Drive operativa' }), false);
   assert.equal(isCreateStepClientReady('integrations', { selectedIntegrationKeys: ['whatsapp'], escalateWhenText: 'Urgencia' }), true);
   assert.equal(isCreateStepClientReady('integrations', { selectedIntegrationKeys: [], escalateWhenText: 'Urgencia' }), false);

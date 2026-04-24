@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { buildBotStudioHref, getFlowSteps, getNextRouteStep, getPreviousRouteStep, getStepMeta, type RouteStep } from "@/features/bot-studio/domain/flowConfig";
 import { buildWizardAwareRouteQuery } from "@/features/bot-studio/domain/navigationState";
@@ -20,18 +20,26 @@ export function useBotStudioFlowNavigation(
   const currentStepMeta = getStepMeta(props.routeMode, props.routeStep);
   const progress = ((currentIndex + 1) / flowSteps.length) * 100;
 
-  const buildRouteQuery = (wizardIdOverride?: string | null) => buildWizardAwareRouteQuery({
+  const buildRouteQuery = useCallback((wizardIdOverride?: string | null) => buildWizardAwareRouteQuery({
     wizardId: state.wizardId,
     botId: props.routeMode === "reconfigure" ? state.selectedBotId : undefined,
     organizationId: state.selectedOrganizationId,
     verticalId: state.selectedVerticalId,
     subvertical: state.selectedSubvertical,
     primaryObjective: state.selectedPrimaryObjective,
-  }, wizardIdOverride);
+  }, wizardIdOverride), [
+    props.routeMode,
+    state.selectedBotId,
+    state.selectedOrganizationId,
+    state.selectedPrimaryObjective,
+    state.selectedSubvertical,
+    state.selectedVerticalId,
+    state.wizardId,
+  ]);
 
-  const goTo = (step: RouteStep, wizard?: { id: string } | null) => {
+  const goTo = useCallback((step: RouteStep, wizard?: { id: string } | null) => {
     router.push(buildBotStudioHref(props.routeMode, step, buildRouteQuery(wizard?.id)));
-  };
+  }, [buildRouteQuery, props.routeMode, router]);
 
   const prev = getPreviousRouteStep(props.routeMode, props.routeStep);
   const createPrimaryTestIds: Partial<Record<RouteStep, string>> = {

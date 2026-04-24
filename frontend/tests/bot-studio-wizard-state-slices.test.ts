@@ -51,3 +51,13 @@ test("wizard payload memo uses explicit dependencies instead of the whole state 
   assert.match(source, /catalog\.servicesText/);
   assert.match(source, /integrations\.selectedIntegrationKeys/);
 });
+
+
+test("wizard initial selected vertical falls back to route params before persisted answers exist", () => {
+  const source = read("features/bot-studio/context/useBotStudioWizardState.ts");
+
+  assert.match(source, /selectedVerticalId:\s*initialConfirmedVerticalId\s*\|\|\s*initialVerticalId/);
+  assert.match(source, /selectedSubvertical:\s*initialConfirmedSubvertical\s*\|\|\s*initialSubvertical/);
+  assert.match(source, /candidateVerticalId:\s*initialCandidateVerticalId/);
+  assert.match(source, /candidateSubvertical:\s*initialCandidateSubvertical/);
+});

@@ -59,3 +59,109 @@ test("wizard route response preserves transport metadata", () => {
   assert.match(helper, /correlation_id/);
   assert.match(helper, /status,/);
 });
+
+test("Bot Studio route loader keeps create mode explicit", () => {
+  const loader = read("features/bot-studio/server/loadBotStudioRoute.ts");
+  assert.match(loader, /function cleanRouteParam\(value\?: string \| null\)/);
+  assert.match(loader, /const routeBotId = cleanRouteParam\(args\.botId\);/);
+  assert.match(loader, /const initialMode: WizardMode = routeMode === "reconfigure" \? "reconfigure" : "create";/);
+  assert.doesNotMatch(loader, /Boolean\(routeBotId\)/);
+  assert.doesNotMatch(loader, /Boolean\(initialWizard\?\.bot_id\)/);
+});
+
+test("Bot Studio route loader keeps RSC work scoped to the active step", () => {
+  const loader = read("features/bot-studio/server/loadBotStudioRoute.ts");
+  const page = read("app/bot-studio/[mode]/[[...slug]]/page.tsx");
+  assert.match(loader, /type RouteLoadPlan/);
+  assert.match(loader, /function buildRouteLoadPlan\(mode: WizardMode, step\?: RouteStep \| string \| null\)/);
+  assert.match(loader, /loadBotList: isReconfigureSelect/);
+  assert.match(loader, /loadSelectedBot: isReconfigureDetail/);
+  assert.match(loader, /loadBlueprintAndProfile: isCreatePrefill \|\| isReconfigureDetail/);
+  assert.match(loader, /loadPlan\.loadBotList \? safeOptional\(\(\) => getBots\(\), \[\]\) : Promise\.resolve\(\[\]\)/);
+  assert.match(loader, /loadPlan\.loadSelectedBot \? getSelectedBotOrNull\(selectedBotIdFromRouteOrWizard\) : Promise\.resolve\(null\)/);
+  assert.match(loader, /async function safeOptional<T>\(loader: \(\) => Promise<T>, fallback: T\): Promise<T>/);
+  assert.match(loader, /safeOptional\(\(\) => getWizardBlueprint/);
+  assert.match(page, /mode === "create" && normalizedStep === "context" && !model\.verticals\.length/);
+  assert.doesNotMatch(loader, /Promise\.all\(\[\s*getVerticalCatalog\(\),\s*getStrongestVerticals\(\),\s*getBots\(\),\s*routeWizardId/);
+});
+
+
+test("Bot Studio flow reuses server-hydrated preview on first matching selection", () => {
+  const flow = read("features/bot-studio/flow/useBotStudioFlowStateModel.ts");
+  const previewSeed = read("features/bot-studio/flow/wizardPreviewSeed.ts");
+  assert.ok(previewSeed.includes("function buildReactiveSelectionKey(input: ReactiveSelectionKeyInput)"));
+  assert.ok(flow.includes("const didHydrateInitialPreview = useRef(false);"));
+  assert.ok(flow.includes("const initialPreviewSelectionKey = useMemo(() => buildReactiveSelectionKey({"));
+  assert.ok(flow.includes("const currentPreviewSelectionKey = buildReactiveSelectionKey(selectionRequest);"));
+  assert.ok(flow.includes("const hasInitialPreview = Boolean(props.initialBlueprint || props.initialVerticalProfile);"));
+  assert.ok(flow.includes("const hasLocalPreviewForSameSelection = Boolean(preview.blueprint || preview.verticalProfile) && lastLoadedPreviewKey.current === currentPreviewSelectionKey;"));
+  assert.ok(flow.includes("!didHydrateInitialPreview.current && hasInitialPreview && currentPreviewSelectionKey === initialPreviewSelectionKey"));
+
+  const skipIndex = flow.indexOf("currentPreviewSelectionKey === initialPreviewSelectionKey");
+  const fetchIndex = flow.indexOf("loader.current.load(selectionRequest)");
+  assert.ok(skipIndex > -1, "missing hydration skip guard");
+  assert.ok(fetchIndex > -1, "missing reactive fetch call");
+  assert.ok(skipIndex < fetchIndex, "hydration skip must run before the client preview fetch");
+});
+
+test("Bot Studio initial FAQ text renders in the same pipe format parsed by guards and payloads", () => {
+  const state = read("features/bot-studio/context/useBotStudioWizardState.ts");
+  assert.ok(state.includes("return q && a ? `${q} | ${a}` : \"\";"));
+  assert.ok(state.includes(".join(\"\\n\");"));
+  assert.doesNotMatch(state, /Q: \${q}\\nA: \${a}/);
+});
+
+test("Bot Studio canonical href strips placeholder query values", () => {
+  const flowConfig = read("features/bot-studio/domain/flowConfig.ts");
+  assert.match(flowConfig, /export function cleanRouteSearchValue\(value: unknown\)/);
+  assert.match(flowConfig, /normalized !== "null" && normalized !== "undefined" && normalized !== "nan"/);
+  assert.match(flowConfig, /const rendered = cleanRouteSearchValue\(value\);/);
+});
+
+test("Bot Studio legacy entry routes sanitize placeholder query params", () => {
+  const rootPage = read("app/bot-studio/page.tsx");
+  const dynamicPage = read("app/bot-studio/[mode]/[[...slug]]/page.tsx");
+
+  assert.match(rootPage, /function cleanParam\(value: string \| string\[\] \| undefined\)/);
+  assert.match(rootPage, /const routeBotId = cleanParam\(resolvedParams\?\.bot\);/);
+  assert.match(rootPage, /const mode = routeMode === "reconfigure" \|\| \(!routeMode && routeBotId\) \? "reconfigure" : "create";/);
+  assert.doesNotMatch(rootPage, /routeMode === "reconfigure" \|\| routeBotId \? "reconfigure"/);
+
+  assert.match(dynamicPage, /function cleanParam\(value: string \| string\[\] \| undefined\)/);
+  assert.match(dynamicPage, /bot: cleanParam\(resolvedParams\?\.bot\)/);
+  assert.match(dynamicPage, /botId: cleanParam\(resolvedParams\?\.bot\)/);
+});
+
+test("Bot Studio create prefill is available on editable direct-entry steps", () => {
+  const loader = read("features/bot-studio/server/loadBotStudioRoute.ts");
+  assert.match(loader, /const CREATE_PREFILL_STEPS = new Set<RouteStep>\(\["context", "offer", "knowledge", "integrations", "review", "validate", "apply", "success"\]\);/);
+  assert.match(loader, /const isCreatePrefill = isCreate && CREATE_PREFILL_STEPS\.has\(routeStep as RouteStep\);/);
+  assert.match(loader, /loadBlueprintAndProfile: isCreatePrefill \|\| isReconfigureDetail/);
+});
+
+test("Bot Studio client preview can seed empty editable steps after reactive load", () => {
+  const flow = read("features/bot-studio/flow/useBotStudioFlowStateModel.ts");
+  const previewSeed = read("features/bot-studio/flow/wizardPreviewSeed.ts");
+  assert.ok(previewSeed.includes("function buildBlueprintSeedPatch("));
+  assert.ok(previewSeed.includes("function hasBlueprintSeedPatch(patch: DeepPartial<BotStudioWizardState>)"));
+  assert.ok(flow.includes("if (hasBlueprintSeedPatch(seedPatch)) state.patchState(seedPatch);"));
+  assert.ok(flow.includes("lastSeededPreviewKey.current = currentPreviewSelectionKey;"));
+});
+
+test("Bot Studio navigation callbacks and guard redirects are deduped", () => {
+  const navigation = read("features/bot-studio/flow/useBotStudioFlowNavigation.ts");
+  const runtime = read("features/bot-studio/shared/useWizardRuntime.ts");
+
+  assert.match(navigation, /import \{ useCallback, useMemo \} from "react";/);
+  assert.match(navigation, /const buildRouteQuery = useCallback\(/);
+  assert.match(navigation, /const goTo = useCallback\(/);
+  assert.match(navigation, /\}, \[buildRouteQuery, props\.routeMode, router\]\);/);
+  assert.doesNotMatch(navigation, /const goTo = \(step: RouteStep/);
+
+  assert.match(runtime, /const lastRedirectRef = useRef\(""\);/);
+  assert.match(runtime, /const redirectKey = `\$\{props\.routeMode\}:\$\{props\.routeStep\}:\$\{targetStep\}:\$\{wizard\?\.id \|\| ""\}`;/);
+  assert.match(runtime, /if \(lastRedirectRef\.current === redirectKey\) return;/);
+  assert.match(runtime, /redirectOnce\(routeGuard\.blockingRoute, activeWizard\);/);
+  assert.match(runtime, /redirectOnce\(recovery\.routeStep, activeWizard\);/);
+});
+

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { getFlowSteps } from "@/features/bot-studio/domain/flowConfig";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getFlowSteps, type RouteStep } from "@/features/bot-studio/domain/flowConfig";
 import { canEnterWizardRoute, getCurrentWizardRevision, getValidatedWizardRevisionFromWizard, isWizardValidationFresh } from "@/features/bot-studio/domain/wizardProgressGuards";
 import { getWizardRouteRecovery } from "@/features/bot-studio/domain/wizardFlowRecovery";
 import type { BotStudioWizardStateModel } from "../context/useBotStudioWizardState";
@@ -40,6 +40,7 @@ export function useWizardRuntime(props: BotStudioFlowProps, state: BotStudioWiza
   const stateModel = useBotStudioFlowStateModel(props, state, progressBase);
   const telemetry = useBotStudioFlowTelemetry(props, state);
   const navigation = useBotStudioFlowNavigation(props, state, stateModel.snapshot);
+  const lastRedirectRef = useRef("");
 
   const actionDeps: BotStudioFlowActionDeps = useMemo(() => ({
     props,
@@ -55,6 +56,12 @@ export function useWizardRuntime(props: BotStudioFlowProps, state: BotStudioWiza
 
   useEffect(() => {
     const activeWizard = state.wizard || props.initialWizard || null;
+    const redirectOnce = (targetStep: RouteStep, wizard?: { id: string } | null) => {
+      const redirectKey = `${props.routeMode}:${props.routeStep}:${targetStep}:${wizard?.id || ""}`;
+      if (lastRedirectRef.current === redirectKey) return;
+      lastRedirectRef.current = redirectKey;
+      navigation.goTo(targetStep, wizard);
+    };
     const routeGuard = canEnterWizardRoute({
       mode: props.routeMode,
       routeStep: props.routeStep,
@@ -67,7 +74,7 @@ export function useWizardRuntime(props: BotStudioFlowProps, state: BotStudioWiza
     });
     if (!routeGuard.ok) {
       setBanner({ tone: "warning", title: "Ruta inválida", detail: `${routeGuard.title}. ${routeGuard.detail}` });
-      if (routeGuard.blockingRoute !== props.routeStep) navigation.goTo(routeGuard.blockingRoute, activeWizard);
+      if (routeGuard.blockingRoute !== props.routeStep) redirectOnce(routeGuard.blockingRoute, activeWizard);
       return;
     }
 
@@ -80,9 +87,12 @@ export function useWizardRuntime(props: BotStudioFlowProps, state: BotStudioWiza
       hasDryRunResult: hasFreshDryRun,
       hasSelectedBot: Boolean(state.selectedBotId || stateModel.selectedBot?.id),
     });
-    if (!recovery) return;
+    if (!recovery) {
+      lastRedirectRef.current = "";
+      return;
+    }
     setBanner({ tone: "warning", title: "Ruta recuperada", detail: recovery.message });
-    navigation.goTo(recovery.routeStep, activeWizard);
+    redirectOnce(recovery.routeStep, activeWizard);
   }, [navigation.goTo, props.initialWizard, props.routeMode, props.routeStep, state, stateModel.selectedBot?.id, stateModel.snapshot]);
 
   return { actionDeps, banner, busy, navigation, setBanner, setBusy, stateModel };
