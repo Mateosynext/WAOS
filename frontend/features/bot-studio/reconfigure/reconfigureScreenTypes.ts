@@ -1,5 +1,5 @@
-import type { BotContract } from "@/shared/contracts/bots";
-import type { WizardBlueprint, WizardDryRunResult, WizardInstance, WizardValidationSnapshot, WizardError } from "../domain/wizardTypes";
+import type { BotContract } from "@/app/lib/contracts/bots";
+import type { WizardBlueprint, WizardDryRunResult, WizardInstance, WizardValidationSnapshot } from "../domain/wizardTypes";
 
 export type ReconfigureSelectViewModel = {
   bots: BotContract[];
@@ -15,7 +15,6 @@ export type ReconfigureDiffViewModel = {
 export type ReconfigureValidationViewModel = ReconfigureDiffViewModel & {
   validationSnapshot?: WizardValidationSnapshot | null;
   dryRunResult?: WizardDryRunResult | null;
-  wizardError?: WizardError | string | null;
 };
 
 export type ReconfigureSelectActions = {

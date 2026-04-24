@@ -1,4 +1,4 @@
-import type { VerticalProfileContract } from "@/shared/contracts";
+import type { VerticalProfileContract } from "@/app/lib/contracts";
 import type { WizardBlueprint, WizardMode } from "../domain/wizardTypes";
 
 export const WIZARD_BLUEPRINT_ENDPOINT = "/api/onboarding/wizard/blueprint";

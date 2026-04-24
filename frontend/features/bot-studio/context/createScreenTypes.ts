@@ -1,6 +1,6 @@
-import type { SessionOrganization } from "@/shared/contracts/auth";
-import type { VerticalProfileContract } from "@/shared/contracts/verticals";
-import type { WizardBlueprint, WizardDryRunResult, WizardInstance, WizardValidationSnapshot, WizardError } from "@/features/bot-studio/domain/wizardTypes";
+import type { SessionOrganization } from "@/app/lib/contracts/auth";
+import type { VerticalProfileContract } from "@/app/lib/contracts/verticals";
+import type { WizardBlueprint, WizardDryRunResult, WizardInstance, WizardValidationSnapshot } from "@/features/bot-studio/domain/wizardTypes";
 
 export type WizardSetter<T> = (next: T | ((previous: T) => T)) => void;
 
@@ -66,7 +66,6 @@ export type CreateValidationViewModel = {
   validationSnapshot?: WizardValidationSnapshot | null;
   wizard?: WizardInstance | null;
   dryRunResult?: WizardDryRunResult | null;
-  wizardError?: WizardError | string | null;
 };
 
 export type CreateApplyViewModel = CreateValidationViewModel & {

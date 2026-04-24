@@ -1,10 +1,10 @@
-import type { SessionOrganization } from "@/shared/contracts/auth";
-import type { BotContract } from "@/shared/contracts/bots";
-import type { VerticalProfileContract } from "@/shared/contracts/verticals";
+import type { SessionOrganization } from "@/app/lib/contracts/auth";
+import type { BotContract } from "@/app/lib/contracts/bots";
+import type { VerticalProfileContract } from "@/app/lib/contracts/verticals";
 import type { RouteStep, CreateRouteStep } from "@/features/bot-studio/domain/flowConfig";
 import type { WizardBlueprint, WizardInstance, WizardMode, WizardRecommendedIntegration, WizardRecommendedPlaybook, WizardValidationSnapshot } from "@/features/bot-studio/domain/wizardTypes";
 import { getCreateRouteMessage } from "@/features/bot-studio/domain/wizardProgressGuards";
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 
 export function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? { ...(value as Record<string, unknown>) } : {};

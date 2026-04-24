@@ -1,6 +1,5 @@
 "use client";
 
-import { normalizeWizardError, wizardErrorToMessage } from "../services/wizardClient";
 import { useBotStudioCreateFlowActions } from "../flow/useBotStudioCreateFlowActions";
 import { buildWizardRuntimeController } from "../shared/useWizardRuntime";
 import type { useWizardRuntime } from "../shared/useWizardRuntime";
@@ -10,12 +9,9 @@ export function useCreateFlowController(runtime: ReturnType<typeof useWizardRunt
   const handleNext = async () => {
     try {
       runtime.setBanner(null);
-      runtime.actionDeps.state.setWizardError("");
       await handleCreateNext();
     } catch (error) {
-      const wizardError = normalizeWizardError(error);
-      runtime.actionDeps.state.setWizardError(wizardErrorToMessage(wizardError));
-      runtime.setBanner({ tone: "error", title: "No se pudo continuar", detail: wizardErrorToMessage(wizardError) });
+      runtime.setBanner({ tone: "error", title: "No se pudo continuar", detail: error instanceof Error ? error.message : "La operación falló." });
     } finally {
       runtime.setBusy("");
     }

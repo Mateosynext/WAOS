@@ -1,5 +1,7 @@
-import { requireSession, getBots, getStrongestVerticals, getVerticalCatalog, getWizardBlueprint, getWizardInstance, getWizardVerticalProfile } from "@/shared/server/botStudioRouteData";
-import type { BotContract, SessionOrganization, VerticalProfileContract } from "@/shared/contracts";
+import { requireSession } from "@/app/lib/session";
+import { getBots, getStrongestVerticals, getVerticalCatalog } from "@/app/lib/waos";
+import { getWizardBlueprint, getWizardInstance, getWizardVerticalProfile } from "@/app/lib/data/wizard";
+import type { BotContract, SessionOrganization, VerticalProfileContract } from "@/app/lib/contracts";
 import type { RouteStep } from "../domain/flowConfig";
 import type { WizardBlueprint, WizardInstance, WizardMode } from "../domain/wizardTypes";
 

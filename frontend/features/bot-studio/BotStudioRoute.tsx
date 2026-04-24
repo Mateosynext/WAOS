@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { UiMessage } from "@/shared/components/UiMessage";
+import { UiMessage } from "@/app/components/UiMessage";
 import { ActionBar, ProgressHeader, StepRail } from "./ui/flowUi";
 import { StickySummaryRail } from "@/features/bot-studio/review/StickySummaryRail";
 import { useBotStudioWizardState } from "@/features/bot-studio/context/useBotStudioWizardState";

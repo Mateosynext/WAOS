@@ -1,6 +1,6 @@
 "use client";
 
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 import SubverticalPicker from "@/features/bot-studio/ui/SubverticalPicker";
 import VerticalPicker from "@/features/bot-studio/ui/VerticalPicker";
 import { FieldGroup, SelectField, SummaryCard } from "@/features/bot-studio/ui/flowUi";

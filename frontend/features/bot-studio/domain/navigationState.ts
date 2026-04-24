@@ -1,4 +1,4 @@
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 
 type QueryStateInput = {
   wizardId?: string | null;

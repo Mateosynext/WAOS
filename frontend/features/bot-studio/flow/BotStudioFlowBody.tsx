@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import SuccessState from "@/shared/components/SuccessState";
+import SuccessState from "@/app/components/SuccessState";
 import type { BotStudioFlowProps } from "./types";
 import type { CreateWizardScreenModels, ReconfigureWizardScreenModels } from "./useBotStudioFlowStateModel";
 

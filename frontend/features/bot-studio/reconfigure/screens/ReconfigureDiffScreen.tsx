@@ -1,6 +1,6 @@
 "use client";
 
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 import { DiffCard } from "@/features/bot-studio/review/DiffCard";
 import { FieldGroup, SummaryCard } from "@/features/bot-studio/ui/flowUi";
 import { botIntegrations, botPolicies, botServices, integrationLabel, splitList } from "../reconfigureScreenHelpers";

@@ -1,9 +1,8 @@
 "use client";
 
 import { applyWizardRequest, dryRunWizardRequest, saveWizardStepRequest, startWizardRequest } from "@/features/bot-studio/services/wizardApi";
-import { normalizeWizardError, wizardErrorToMessage } from "@/features/bot-studio/services/wizardClient";
 import { getCurrentWizardRevision, getValidatedWizardRevisionFromWizard, isSnapshotApplyReady } from "@/features/bot-studio/domain/wizardProgressGuards";
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 import type { WizardInstance } from "@/features/bot-studio/domain/wizardTypes";
 import type { BotStudioFlowActionDeps } from "./flowActionDeps";
 
@@ -39,8 +38,7 @@ export function useBotStudioFlowActionHelpers(deps: BotStudioFlowActionDeps) {
       recordOperationEvent("wizard.step.save.succeeded", { stepKey, currentStep: saved.current_step || null, wizardRevision: saved.wizard_revision ?? null }, saved.id);
       return saved;
     } catch (error) {
-      const wizardError = normalizeWizardError(error);
-      const message = wizardErrorToMessage(wizardError);
+      const message = error instanceof Error ? error.message : "No se pudo guardar el paso.";
       state.setAutosaveState("error");
       state.setAutosaveError(message);
       state.setWizardError(message);

@@ -15,6 +15,8 @@ test("legacy global barrels and Bot Studio shims stay deleted", () => {
     "app/components.tsx",
     "app/lib/waos.ts",
     "app/lib/contracts.ts",
+    "app/bot-studio/BotStudioFlowClient.tsx",
+    "app/bot-studio/BotStudioFlow.tsx",
     "app/bot-studio/useBotStudioWizardState.ts",
     "app/bot-studio/createScreens.tsx",
     "app/bot-studio/wizardReviewSections.tsx",

@@ -1,6 +1,6 @@
 "use client";
 
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 import { ChecklistChips, FieldGroup, SummaryCard, TextAreaField } from "@/features/bot-studio/ui/flowUi";
 import { WizardReviewSummary } from "@/features/bot-studio/review/WizardReviewSummary";
 import { lines, recommendedPlaybooks } from "../createScreenHelpers";

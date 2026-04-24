@@ -1,4 +1,4 @@
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 import type { WizardValidationSnapshot } from "@/features/bot-studio/domain/wizardTypes";
 import { SummaryList, validationStatusMeta } from "./reviewUtils";
 

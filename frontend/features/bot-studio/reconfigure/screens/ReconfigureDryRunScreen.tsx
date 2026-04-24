@@ -1,10 +1,9 @@
 "use client";
 
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 import { ValidationSnapshotPanel } from "@/features/bot-studio/review/ValidationSnapshotPanel";
 import { VerticalScorecardPanel } from "@/features/bot-studio/review/VerticalScorecardPanel";
 import { FieldGroup, SummaryCard } from "@/features/bot-studio/ui/flowUi";
-import { WizardErrorPanel } from "@/features/bot-studio/ui/WizardErrorPanel";
 import type { ReconfigureValidationViewModel } from "../reconfigureScreenTypes";
 
 export function ReconfigureDryRunScreen({ viewModel: state }: { viewModel: ReconfigureValidationViewModel }) {
@@ -18,7 +17,6 @@ export function ReconfigureDryRunScreen({ viewModel: state }: { viewModel: Recon
           <SummaryCard title="Gate">{safeText(snapshot?.gate?.label, "Sin gate visible")}</SummaryCard>
         </div>
       </FieldGroup>
-      <WizardErrorPanel error={state.wizardError} context="dry-run" />
       <ValidationSnapshotPanel title="Checklist de reconfiguración" description="La validación vive sola aquí." snapshot={snapshot} />
       <VerticalScorecardPanel title="Cobertura del cambio" description="Lectura de señales para no aplicar una reconfiguración a ciegas." snapshot={snapshot} />
     </div>

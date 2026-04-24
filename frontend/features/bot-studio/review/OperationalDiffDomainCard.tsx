@@ -1,4 +1,4 @@
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 import type { WizardDryRunDomain } from "@/features/bot-studio/domain/wizardTypes";
 import { diffStatusMeta } from "./reviewUtils";
 

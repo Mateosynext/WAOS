@@ -1,6 +1,6 @@
 "use client";
 
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 import { FieldGroup, SelectField, SummaryCard } from "@/features/bot-studio/ui/flowUi";
 import type { ReconfigureSelectActions, ReconfigureSelectViewModel } from "../reconfigureScreenTypes";
 

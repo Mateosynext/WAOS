@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { VerticalProfileContract } from "@/shared/contracts";
-import { safeText } from "@/shared/lib/ui";
+import type { VerticalProfileContract } from "@/app/lib/contracts";
+import { safeText } from "@/app/lib/ui";
 
 type VerticalPickerProps = {
   verticals: VerticalProfileContract[];

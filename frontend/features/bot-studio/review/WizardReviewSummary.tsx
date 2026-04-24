@@ -1,4 +1,4 @@
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 import { SummaryCard } from "@/features/bot-studio/ui/flowUi";
 
 export function WizardReviewSummary({

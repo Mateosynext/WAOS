@@ -87,15 +87,7 @@ const emptyObservability: IntegrationObservabilityContract = {
   recent: [],
 };
 
-const emptyCenter: IntegrationCenter = {
-  summary: {},
-  integrations: [],
-  observability: {},
-  recent_sync_runs: [],
-  failed_receipts: [],
-  retry_hotspots: [],
-  dependency_map: [],
-};
+const emptyCenter = { failed_receipts: [], retry_hotspots: [], dependency_map: [] } as IntegrationCenter;
 
 export async function getIntegrationsPageModel(searchParams?: IntegrationsSearchParams): Promise<IntegrationsPageModel> {
   const params = searchParams || {};

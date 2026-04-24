@@ -4,7 +4,7 @@
   "version": "0.17.5",
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "node ./scripts/validate-env.mjs && npm run typecheck && next build --no-lint",
+    "build": "node ./scripts/validate-env.mjs && node ./scripts/clean-stale-botstudio.mjs && npm run typecheck && next build",
     "vercel-build": "npm run build",
     "start": "next start -p 3000",
     "lint": "next lint",
@@ -18,7 +18,8 @@
     "test:e2e:real": "playwright test --config=playwright.real.config.ts",
     "test:e2e:real:critical": "playwright test --config=playwright.real.config.ts --grep @critical",
     "validate:delivery": "node ./scripts/validate-static-delivery.mjs",
-    "clean": "rm -rf .next node_modules tsconfig.tsbuildinfo playwright-report test-results coverage"
+    "clean": "rm -rf .next node_modules tsconfig.tsbuildinfo playwright-report test-results coverage",
+    "clean:stale": "node ./scripts/clean-stale-botstudio.mjs"
   },
   "engines": {
     "node": ">=20 <23"

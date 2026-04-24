@@ -1,8 +1,7 @@
 "use client";
 
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 import { FieldGroup, SummaryCard } from "@/features/bot-studio/ui/flowUi";
-import { WizardErrorPanel } from "@/features/bot-studio/ui/WizardErrorPanel";
 import type { ReconfigureValidationViewModel } from "../reconfigureScreenTypes";
 
 export function ReconfigureConfirmScreen({ viewModel: state }: { viewModel: ReconfigureValidationViewModel }) {
@@ -14,7 +13,6 @@ export function ReconfigureConfirmScreen({ viewModel: state }: { viewModel: Reco
         <SummaryCard title="Gate de salida" tone={snapshot?.gate?.status === "green" ? "success" : "warning"}>{safeText(snapshot?.gate?.detail, "Sin detalle")}</SummaryCard>
         <SummaryCard title="Wizard">{safeText(state.wizard?.id, "Sin wizard")}</SummaryCard>
       </div>
-      <WizardErrorPanel error={state.wizardError} context="confirm" />
     </FieldGroup>
   );
 }

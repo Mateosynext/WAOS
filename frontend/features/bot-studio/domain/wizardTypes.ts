@@ -1,18 +1,5 @@
 export type WizardMode = "create" | "reconfigure";
 
-export type WizardIssue = {
-  key?: string;
-  field?: string;
-  message: string;
-  severity?: "warning" | "error" | "blocking";
-};
-
-export type WizardError =
-  | { type: "network_error"; message: string }
-  | { type: "revision_conflict"; serverRevision: number }
-  | { type: "validation_failed"; issues: WizardIssue[] }
-  | { type: "partial_failure"; completed: string[]; failed: string[] };
-
 export type WizardSubverticalTemplate = {
   key?: string;
   template_key?: string;
@@ -365,7 +352,6 @@ export type WizardDryRunResult = {
     tone?: "success" | "warning" | "danger";
   };
   summary?: {
-    status?: string;
     mode?: string;
     snapshot_required?: boolean;
     apply_ready?: boolean;

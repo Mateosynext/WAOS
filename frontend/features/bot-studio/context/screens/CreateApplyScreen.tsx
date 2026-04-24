@@ -1,8 +1,7 @@
 "use client";
 
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 import { FieldGroup, SummaryCard } from "@/features/bot-studio/ui/flowUi";
-import { WizardErrorPanel } from "@/features/bot-studio/ui/WizardErrorPanel";
 import type { CreateApplyViewModel } from "../createScreenTypes";
 
 export function CreateApplyScreen({ viewModel: state }: { viewModel: CreateApplyViewModel }) {
@@ -16,7 +15,6 @@ export function CreateApplyScreen({ viewModel: state }: { viewModel: CreateApply
           <SummaryCard title="Knowledge autopublish">{state.autopublishKnowledge ? "Sí" : "No"}</SummaryCard>
         </div>
       </FieldGroup>
-      <WizardErrorPanel error={state.wizardError} context="apply" />
     </div>
   );
 }

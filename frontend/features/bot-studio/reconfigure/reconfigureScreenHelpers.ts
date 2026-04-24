@@ -1,4 +1,4 @@
-import type { BotContract } from "@/shared/contracts/bots";
+import type { BotContract } from "@/app/lib/contracts/bots";
 import type { WizardRecommendedIntegration } from "../domain/wizardTypes";
 
 export function asRecord(value: unknown): Record<string, unknown> {

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { createLatestWizardReactiveSelectionLoader } from "@/features/bot-studio/services/wizardReactiveData";
 import { buildWizardPayloads } from "@/features/bot-studio/services/wizardPayloadBuilders";
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 import { buildBotStudioSummaryViewModel, pickBotSubvertical, pickBotTone, resolveMatchingVertical } from "../shared/botStudioHelpers";
 import type { BotStudioWizardStateModel, ObjectiveValue } from "../context/useBotStudioWizardState";
 import type {
@@ -303,7 +303,6 @@ export function useBotStudioFlowStateModel(
         validationSnapshot: snapshot,
         wizard: wizardRuntime.wizard,
         dryRunResult: wizardRuntime.dryRunResult,
-        wizardError: wizardRuntime.wizardError,
       },
     },
     apply: {
@@ -311,7 +310,6 @@ export function useBotStudioFlowStateModel(
         validationSnapshot: snapshot,
         wizard: wizardRuntime.wizard,
         dryRunResult: wizardRuntime.dryRunResult,
-        wizardError: wizardRuntime.wizardError,
         autopublishKnowledge: launch.autopublishKnowledge,
       },
     },
@@ -344,7 +342,6 @@ export function useBotStudioFlowStateModel(
     scope.selectedVerticalId,
     snapshot,
     wizardRuntime.dryRunResult,
-    wizardRuntime.wizardError,
     wizardRuntime.wizard,
   ]);
 
@@ -358,7 +355,6 @@ export function useBotStudioFlowStateModel(
       ...diffViewModel,
       validationSnapshot: snapshot,
       dryRunResult: wizardRuntime.dryRunResult,
-      wizardError: wizardRuntime.wizardError,
     };
     return {
       select: {
@@ -369,7 +365,7 @@ export function useBotStudioFlowStateModel(
       dryRun: { viewModel: validationViewModel },
       confirm: { viewModel: validationViewModel },
     };
-  }, [actions.scope.setSelectedBotId, preview.blueprint, props.bots, selectedBot, snapshot, wizardRuntime.dryRunResult, wizardRuntime.wizardError, wizardRuntime.wizard]);
+  }, [actions.scope.setSelectedBotId, preview.blueprint, props.bots, selectedBot, snapshot, wizardRuntime.dryRunResult, wizardRuntime.wizard]);
 
   const summary = useMemo(() => buildBotStudioSummaryViewModel({
     routeMode: props.routeMode,

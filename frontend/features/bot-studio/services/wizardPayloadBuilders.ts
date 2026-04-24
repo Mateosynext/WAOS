@@ -1,5 +1,5 @@
-import type { SessionOrganization } from "@/shared/contracts";
-import { safeText } from "@/shared/lib/ui";
+import type { SessionOrganization } from "@/app/lib/contracts";
+import { safeText } from "@/app/lib/ui";
 import type {
   WizardRecommendedIntegration,
   WizardRecommendedPlaybook,

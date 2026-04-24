@@ -1,7 +1,7 @@
 import { useReducer, type Dispatch, type SetStateAction } from "react";
-import { safeText } from "@/shared/lib/ui";
-import type { BotContract, ReleaseRequestContract } from "@/shared/contracts/bots";
-import type { VerticalProfileContract } from "@/shared/contracts/verticals";
+import { safeText } from "@/app/lib/ui";
+import type { BotContract, ReleaseRequestContract } from "@/app/lib/contracts/bots";
+import type { VerticalProfileContract } from "@/app/lib/contracts/verticals";
 import type {
   WizardApplyResult,
   WizardBlueprint,

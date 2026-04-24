@@ -1,6 +1,6 @@
-import type { SessionOrganization } from "@/shared/contracts/auth";
-import type { BotContract } from "@/shared/contracts/bots";
-import type { VerticalProfileContract } from "@/shared/contracts/verticals";
+import type { SessionOrganization } from "@/app/lib/contracts/auth";
+import type { BotContract } from "@/app/lib/contracts/bots";
+import type { VerticalProfileContract } from "@/app/lib/contracts/verticals";
 import type { RouteStep } from "@/features/bot-studio/domain/flowConfig";
 import type { WizardBlueprint, WizardInstance, WizardMode } from "@/features/bot-studio/domain/wizardTypes";
 

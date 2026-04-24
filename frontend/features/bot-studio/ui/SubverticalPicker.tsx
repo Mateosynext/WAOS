@@ -1,6 +1,6 @@
 "use client";
 
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 import type { WizardSubverticalProfile, WizardSubverticalTemplate } from "../domain/wizardTypes";
 
 type SubverticalPickerProps = {

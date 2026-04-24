@@ -1,4 +1,4 @@
-import { safeText } from "@/shared/lib/ui";
+import { safeText } from "@/app/lib/ui";
 import type { WizardMode } from "@/features/bot-studio/domain/wizardTypes";
 import { SummaryList } from "./reviewUtils";
 
