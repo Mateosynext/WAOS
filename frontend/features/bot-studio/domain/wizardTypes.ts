@@ -365,6 +365,7 @@ export type WizardDryRunResult = {
     tone?: "success" | "warning" | "danger";
   };
   summary?: {
+    status?: string;
     mode?: string;
     snapshot_required?: boolean;
     apply_ready?: boolean;
