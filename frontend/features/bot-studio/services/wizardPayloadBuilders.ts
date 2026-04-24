@@ -1,4 +1,4 @@
-import type { SessionOrganization } from "@/app/lib/contracts";
+import type { SessionOrganization } from "@/app/lib/contracts/auth";
 import { safeText } from "@/app/lib/ui";
 import type {
   WizardRecommendedIntegration,
