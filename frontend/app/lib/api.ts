@@ -45,27 +45,46 @@ function wait(ms: number) {
 }
 
 async function readError(response: Response): Promise<ApiRequestError> {
-  let message = `La API respondiÃ³ con ${response.status}.`;
-  let code = response.status >= 500 ? "server_error" : response.status === 401 ? "unauthorized" : "request_error";
+  let message = `La API respondió con ${response.status}.`;
+  let code =
+    response.status >= 500
+      ? "server_error"
+      : response.status === 401
+        ? "unauthorized"
+        : "request_error";
+
   let requestId = response.headers.get("x-request-id");
   let correlationId = response.headers.get("x-correlation-id");
   let details: unknown = null;
+
+  let rawBody = "";
   try {
-    const data = await response.json();
-    if (typeof data?.detail === "string") message = data.detail;
-    else if (typeof data?.message === "string") message = data.message;
-    else if (typeof data?.error === "string") message = data.error;
-    else if (typeof data?.error?.message === "string") message = data.error.message;
-    else if (data?.detail?.message) message = data.detail.message;
-    if (typeof data?.error?.code === "string") code = data.error.code;
-    else if (typeof data?.code === "string") code = data.code;
-    requestId = typeof data?.request_id === "string" ? data.request_id : requestId;
-    correlationId = typeof data?.correlation_id === "string" ? data.correlation_id : correlationId;
-    details = data?.error?.details ?? data?.details ?? null;
+    rawBody = await response.text();
   } catch {
-    const text = await response.text().catch(() => "");
-    if (text) message = text;
+    rawBody = "";
   }
+
+  if (rawBody) {
+    try {
+      const data = JSON.parse(rawBody);
+
+      if (typeof data?.detail === "string") message = data.detail;
+      else if (typeof data?.message === "string") message = data.message;
+      else if (typeof data?.error === "string") message = data.error;
+      else if (typeof data?.error?.message === "string") message = data.error.message;
+      else if (typeof data?.detail?.message === "string") message = data.detail.message;
+
+      if (typeof data?.error?.code === "string") code = data.error.code;
+      else if (typeof data?.code === "string") code = data.code;
+
+      requestId = typeof data?.request_id === "string" ? data.request_id : requestId;
+      correlationId = typeof data?.correlation_id === "string" ? data.correlation_id : correlationId;
+      details = data?.error?.details ?? data?.details ?? null;
+    } catch {
+      message = rawBody;
+    }
+  }
+
   return new ApiRequestError(message, {
     status: response.status,
     code,
@@ -182,4 +201,5 @@ export async function clientApiFetchResult<T>(path: string, init: ApiRequestInit
     return { ok: false, data: null, error: apiError };
   }
 }
+
 
