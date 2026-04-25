@@ -1,5 +1,5 @@
-import type { CRMPipelineSummaryContract, CRMLeadContract, CatalogProductContract, CatalogServiceContract, CommerceInsightsContract, MediaAssetContract, PaymentContract, PromotionContract } from "../contracts/commerce";
-import { normalizeCRMPipelineSummary, normalizeCRMLead, normalizeCatalogProduct, normalizeCatalogService, normalizeCommerceInsights, normalizeMediaAsset, normalizePayment, normalizePromotion } from "../contracts/commerce";
+import type { CommercialDocumentContract, CommercialDocumentsOverviewContract, CRMPipelineSummaryContract, CRMLeadContract, CatalogProductContract, CatalogServiceContract, CommerceInsightsContract, MediaAssetContract, OrganizationBrandingContract, PaymentContract, PromotionContract } from "../contracts/commerce";
+import { normalizeCommercialDocument, normalizeCommercialDocumentsOverview, normalizeCRMPipelineSummary, normalizeCRMLead, normalizeCatalogProduct, normalizeCatalogService, normalizeCommerceInsights, normalizeMediaAsset, normalizeOrganizationBranding, normalizePayment, normalizePromotion } from "../contracts/commerce";
 import { apiFetchOrDefault } from "../api";
 import { fetchArray, fetchRecord, orgQuery } from "./shared";
 
@@ -69,4 +69,21 @@ export async function getCommerceInsights(botId?: string): Promise<CommerceInsig
   const query = await orgQuery();
   const botSuffix = botId ? `&bot_id=${encodeURIComponent(botId)}` : "";
   return fetchRecord(`/api/v1/commerce/insights?${query}${botSuffix}`, { summary: {}, top_products: [], top_assets: [], top_promotions: [], recommendations: [], alerts: [] }, normalizeCommerceInsights);
+}
+
+export async function getCommercialDocuments(botId?: string): Promise<CommercialDocumentContract[]> {
+  const query = await orgQuery();
+  const botSuffix = botId ? `&bot_id=${encodeURIComponent(botId)}` : "";
+  return fetchArray(`/api/v1/commercial-documents?${query}${botSuffix}`, [], normalizeCommercialDocument);
+}
+
+export async function getCommercialDocumentsOverview(botId?: string): Promise<CommercialDocumentsOverviewContract> {
+  const query = await orgQuery();
+  const botSuffix = botId ? `&bot_id=${encodeURIComponent(botId)}` : "";
+  return fetchRecord(`/api/v1/commercial-documents/overview?${query}${botSuffix}`, { summary: {}, by_status: {}, by_type: {}, amount_by_type: {}, recent: [], recommendations: [] }, normalizeCommercialDocumentsOverview);
+}
+
+export async function getOrganizationBranding(): Promise<OrganizationBrandingContract> {
+  const query = await orgQuery();
+  return fetchRecord(`/api/v1/organization-branding?${query}`, { organization_id: "", business_name: "", primary_color: "#25D366", secondary_color: "#111827" }, normalizeOrganizationBranding);
 }

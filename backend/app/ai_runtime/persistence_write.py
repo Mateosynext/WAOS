@@ -95,6 +95,24 @@ def persist_decision_outcome(
         generator_output = {"self_state": self_state}
     elif action in {"respond", "respond_and_schedule_followup", "verify", "request_missing_data"}:
         response_text = (generated or {}).get("text") or ""
+        smart_docs_result: dict[str, Any] = {}
+        try:
+            from ..domains.commercial_documents_e2e import maybe_run_runtime
+
+            smart_docs_result = maybe_run_runtime(
+                conn,
+                incoming_message=incoming_message,
+                conversation=conversation,
+                bot=bot,
+                contact=contact,
+                classification=classification,
+                bot_config=bot_config,
+            )
+            addendum = str(smart_docs_result.get("reply_addendum") or "").strip()
+            if addendum:
+                response_text = f"{response_text.rstrip()}\n\n{addendum}".strip()
+        except Exception as exc:
+            smart_docs_result = {"triggered": False, "reason": "runtime_exception", "error": str(exc)}
         classification["_generator_source"] = (generated or {}).get("source")
         classification["_verifier_status"] = verification.get("status")
         generator_output = {
@@ -105,6 +123,7 @@ def persist_decision_outcome(
             "candidate_ranking": candidate_ranking,
             "verification": verification,
             "post_send_evaluation": post_send_evaluation,
+            "smart_docs": smart_docs_result,
         }
         response_message = create_message(
             conn,
@@ -125,6 +144,7 @@ def persist_decision_outcome(
                 "verification": verification,
                 "candidate_ranking": candidate_ranking.get("summary") or {},
                 "post_send_evaluation": post_send_evaluation,
+                "smart_docs": smart_docs_result,
             },
             correlation_id=correlation_id,
         )
@@ -140,6 +160,7 @@ def persist_decision_outcome(
                 "source": (generated or {}).get("source"),
                 "action": action,
                 "verification_status": verification.get("status"),
+                "smart_docs_triggered": bool(smart_docs_result.get("triggered")),
             },
         )
         execute(

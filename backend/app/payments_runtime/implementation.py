@@ -353,6 +353,21 @@ def _mark_payment_paid(conn, payment: dict[str, Any], *, provider_reference: str
     if account_id:
         from .vertical_transactions import sync_account_payment_status
         sync_account_payment_status(conn, account_id=account_id, payment_id=updated["id"])
+
+    # Smart Docs E2E bridge: when Stripe or reconciliation confirms a payment,
+    # close the linked commercial document flow as well. This makes provider
+    # webhooks, manual refreshes and scheduled reconciliation produce the same
+    # outcome as an internal payment confirmation: quote -> paid -> work order -> receipt PDF.
+    try:
+        commercial_document_id = metadata.get("commercial_document_id")
+        if commercial_document_id:
+            from ..domains.commercial_documents_e2e import mark_document_paid_from_payment
+
+            mark_document_paid_from_payment(conn, updated)
+    except Exception:
+        # Payment confirmation must remain durable even if a document side-effect fails.
+        # The event can be repaired by refreshing/reconciling the payment again.
+        pass
     return updated
 
 def refresh_payment_status(conn, payment_id: str) -> dict[str, Any]:

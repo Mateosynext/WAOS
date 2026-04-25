@@ -316,6 +316,12 @@ def confirm_payment(conn, payment_id: str, actor_user: dict | None = None, provi
 
     updated_payment = fetch_one(conn, "SELECT * FROM commerce_payments WHERE id = ?", (payment_id,))
     updated_payment = _reconcile_payment_with_appointments(conn, updated_payment)["payment"]
+    try:
+        from .commercial_documents_e2e import mark_document_paid_from_payment
+
+        mark_document_paid_from_payment(conn, updated_payment)
+    except Exception:
+        pass
     if actor_user:
         create_audit_log(conn, organization_id=payment["organization_id"], actor_user_id=actor_user.get("id"), actor_type="user", entity_type="commerce_payment", entity_id=payment_id, action="commerce.payment_confirmed", metadata={"provider_reference": provider_reference})
     return updated_payment

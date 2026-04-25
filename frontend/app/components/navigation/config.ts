@@ -25,6 +25,7 @@ export const superAdminNavigation = [
     group: "Comercial y cliente",
     items: [
       { label: "Comercial", href: "/business-hub", icon: "briefcase" as const },
+      { label: "Documentos", href: "/business-hub?tab=documentos", icon: "folder" as const },
       { label: "Portal cliente", href: "/client/resumen", icon: "client" as const },
       { label: "Búsqueda", href: "/search", icon: "target" as const },
       { label: "Seguridad", href: "/security", icon: "shield" as const },

@@ -4,11 +4,11 @@
   "version": "0.17.5",
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "node ./scripts/validate-env.mjs && node ./scripts/clean-stale-botstudio.mjs && npm run typecheck && next build",
+    "build": "node ./scripts/validate-env.mjs && node ./scripts/clean-stale-botstudio.mjs && npm run check:imports && npm run typecheck && next build",
     "vercel-build": "npm run build",
     "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
     "lint": "next lint",
-    "typecheck": "node ./scripts/clean-stale-botstudio.mjs && tsc --noEmit",
+    "typecheck": "node ./scripts/clean-stale-botstudio.mjs && npm run check:imports && tsc --noEmit",
     "smoke": "node --no-warnings --import tsx ./scripts/smoke-routes.mjs",
     "test": "npm run test:node",
     "test:critical": "npm run smoke && npm run test:node && npm run test:e2e:real:critical",
@@ -20,7 +20,8 @@
     "validate:delivery": "node ./scripts/validate-static-delivery.mjs",
     "clean": "rm -rf .next node_modules tsconfig.tsbuildinfo playwright-report test-results coverage",
     "clean:stale": "node ./scripts/clean-stale-botstudio.mjs",
-    "start:render": "next start -H 0.0.0.0 -p ${PORT:-3000}"
+    "start:render": "next start -H 0.0.0.0 -p ${PORT:-3000}",
+    "check:imports": "node ./scripts/check-local-imports.mjs"
   },
   "engines": {
     "node": ">=20 <23"

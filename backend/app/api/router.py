@@ -12,6 +12,7 @@ from .routers.ai_workflows import router as ai_workflows_router
 from .routers.bot_ops import router as bot_ops_router
 from .routers.bots import router as bots_router
 from .routers.commerce import router as commerce_router
+from .routers.commercial_documents import router as commercial_documents_router
 from .routers.conversations import router as conversations_router
 from .routers.crm_sales import router as crm_sales_router
 from .routers.engagement import router as engagement_router
@@ -69,6 +70,7 @@ api_router.include_router(analytics_router)
 api_router.include_router(reports_router)
 api_router.include_router(crm_sales_router)
 api_router.include_router(commerce_router)
+api_router.include_router(commercial_documents_router)
 api_router.include_router(engagement_router)
 api_router.include_router(operations_router)
 api_router.include_router(operational_control_router)

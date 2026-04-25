@@ -542,6 +542,10 @@ def _migration_phase29_catalog_domain_schema(conn) -> None:
     apply_migration_sql(conn, '015_catalog_v9.sql')
 
 
+def _migration_phase33_commercial_documents(conn) -> None:
+    apply_migration_sql(conn, '016_commercial_documents_v1.sql')
+
+
 
 def _migration_phase32_ai_workflow_engine(conn):
     from .ai_workflows.persistence import ensure_ai_workflow_schema
@@ -549,6 +553,7 @@ def _migration_phase32_ai_workflow_engine(conn):
 
 MIGRATIONS = [
     Migration(version="2026-04-24-phase32-ai-workflow-engine-v1", description="WAOS AI workflow engine, bot autopilot, simulation, readiness, cost ledger and AI Ops tables", apply=_migration_phase32_ai_workflow_engine),
+    Migration(version="2026-04-25-phase33-commercial-documents-v1", description="commercial smart docs: branded quotes, work orders, receipts, PDFs and approval workflow", apply=_migration_phase33_commercial_documents),
     Migration(
         version="2026-04-15-runtime-governance-v1",
         description="runtime governance foundations: migrations, inbox indexes, reasoning trail and inbound locks",

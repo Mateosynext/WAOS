@@ -206,3 +206,169 @@ export function normalizeCRMPipelineSummary(raw: unknown): CRMPipelineSummaryCon
     recent_stage_changes: asArray(record.recent_stage_changes).map((item) => asRecord(item)),
   };
 }
+
+export type CommercialDocumentItemContract = {
+  id?: string;
+  source_type?: string;
+  source_id?: string | null;
+  name: string;
+  description?: string | null;
+  quantity: number;
+  unit?: string;
+  unit_price: number;
+  discount?: number;
+  tax?: number;
+  total: number;
+  metadata?: JsonMap;
+};
+
+export type CommercialDocumentContract = {
+  id: string;
+  organization_id?: string;
+  bot_id?: string | null;
+  conversation_id?: string | null;
+  contact_id?: string | null;
+  document_type: string;
+  folio: string;
+  status: string;
+  title: string;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  customer_email?: string | null;
+  customer_address?: string | null;
+  summary?: string | null;
+  currency: string;
+  subtotal: number;
+  discount_total: number;
+  tax_total: number;
+  total: number;
+  deposit_required: number;
+  balance_due: number;
+  valid_until?: string | null;
+  pdf_filename?: string | null;
+  pdf_generated_at?: string | null;
+  public_url?: string | null;
+  payment_url?: string | null;
+  terms?: string | null;
+  missing_questions: string[];
+  approval_reasons: string[];
+  next_actions: string[];
+  metadata: JsonMap;
+  created_at?: string | null;
+  updated_at?: string | null;
+  items: CommercialDocumentItemContract[];
+};
+
+export type CommercialDocumentsOverviewContract = {
+  summary: JsonMap;
+  by_status: JsonMap;
+  by_type: JsonMap;
+  amount_by_type: JsonMap;
+  recent: CommercialDocumentContract[];
+  recommendations: string[];
+};
+
+export type OrganizationBrandingContract = {
+  organization_id: string;
+  business_name?: string;
+  legal_name?: string | null;
+  logo_url?: string | null;
+  primary_color?: string;
+  secondary_color?: string;
+  phone?: string | null;
+  whatsapp?: string | null;
+  email?: string | null;
+  website?: string | null;
+  address?: string | null;
+  footer_note?: string | null;
+  metadata?: JsonMap;
+};
+
+export function normalizeCommercialDocumentItem(raw: unknown): CommercialDocumentItemContract {
+  const record = asRecord(raw);
+  return {
+    id: stringOrNull(record.id) ?? undefined,
+    source_type: stringOrNull(record.source_type) ?? undefined,
+    source_id: stringOrNull(record.source_id),
+    name: pickString(record, ["name", "title"], "Concepto"),
+    description: stringOrNull(record.description),
+    quantity: numberValue(record.quantity, 1),
+    unit: stringOrNull(record.unit) ?? undefined,
+    unit_price: numberValue(record.unit_price),
+    discount: numberValue(record.discount),
+    tax: numberValue(record.tax),
+    total: numberValue(record.total),
+    metadata: asRecord(record.metadata ?? record.metadata_json),
+  };
+}
+
+export function normalizeCommercialDocument(raw: unknown): CommercialDocumentContract {
+  const record = asRecord(raw);
+  return {
+    id: stringValue(record.id),
+    organization_id: stringOrNull(record.organization_id) ?? undefined,
+    bot_id: stringOrNull(record.bot_id),
+    conversation_id: stringOrNull(record.conversation_id),
+    contact_id: stringOrNull(record.contact_id),
+    document_type: stringOrNull(record.document_type) ?? "quote",
+    folio: stringOrNull(record.folio) ?? "DOC",
+    status: stringOrNull(record.status) ?? "draft",
+    title: pickString(record, ["title", "name"], "Documento comercial"),
+    customer_name: stringOrNull(record.customer_name),
+    customer_phone: stringOrNull(record.customer_phone),
+    customer_email: stringOrNull(record.customer_email),
+    customer_address: stringOrNull(record.customer_address),
+    summary: stringOrNull(record.summary),
+    currency: stringOrNull(record.currency) ?? "MXN",
+    subtotal: numberValue(record.subtotal),
+    discount_total: numberValue(record.discount_total),
+    tax_total: numberValue(record.tax_total),
+    total: numberValue(record.total),
+    deposit_required: numberValue(record.deposit_required),
+    balance_due: numberValue(record.balance_due),
+    valid_until: pickTimestamp(record, "valid_until") ?? null,
+    pdf_filename: stringOrNull(record.pdf_filename),
+    pdf_generated_at: pickTimestamp(record, "pdf_generated_at") ?? null,
+    public_url: stringOrNull(record.public_url),
+    payment_url: stringOrNull(record.payment_url),
+    terms: stringOrNull(record.terms),
+    missing_questions: stringList(record.missing_questions ?? record.missing_questions_json),
+    approval_reasons: stringList(record.approval_reasons ?? record.approval_reasons_json),
+    next_actions: stringList(record.next_actions ?? record.next_actions_json),
+    metadata: asRecord(record.metadata ?? record.metadata_json),
+    created_at: pickTimestamp(record, "created_at") ?? null,
+    updated_at: pickTimestamp(record, "updated_at") ?? null,
+    items: asArray(record.items).map((item) => normalizeCommercialDocumentItem(item)),
+  };
+}
+
+export function normalizeCommercialDocumentsOverview(raw: unknown): CommercialDocumentsOverviewContract {
+  const record = asRecord(unwrapApiEnvelope(raw));
+  return {
+    summary: asRecord(record.summary),
+    by_status: asRecord(record.by_status),
+    by_type: asRecord(record.by_type),
+    amount_by_type: asRecord(record.amount_by_type),
+    recent: asArray(record.recent).map((item) => normalizeCommercialDocument(item)),
+    recommendations: stringList(record.recommendations),
+  };
+}
+
+export function normalizeOrganizationBranding(raw: unknown): OrganizationBrandingContract {
+  const record = asRecord(unwrapApiEnvelope(raw));
+  return {
+    organization_id: stringValue(record.organization_id),
+    business_name: stringOrNull(record.business_name) ?? undefined,
+    legal_name: stringOrNull(record.legal_name),
+    logo_url: stringOrNull(record.logo_url),
+    primary_color: stringOrNull(record.primary_color) ?? undefined,
+    secondary_color: stringOrNull(record.secondary_color) ?? undefined,
+    phone: stringOrNull(record.phone),
+    whatsapp: stringOrNull(record.whatsapp),
+    email: stringOrNull(record.email),
+    website: stringOrNull(record.website),
+    address: stringOrNull(record.address),
+    footer_note: stringOrNull(record.footer_note),
+    metadata: asRecord(record.metadata ?? record.metadata_json),
+  };
+}

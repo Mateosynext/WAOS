@@ -10,6 +10,7 @@ from .integrations import *
 from .releases import *
 from .crm import *
 from .commerce import *
+from .commercial_documents import *
 from .reports import *
 
 from .transactions import *
