@@ -37,6 +37,7 @@ from ...ai_workflows.events import to_sse
 from ...ai_workflows.simulation.simulator import run_simulation_suite
 from ...ai_workflows.go_live.readiness import evaluate_go_live_readiness
 from ...ai_workflows.go_live.release import prepare_release_plan
+from ...vertical_onboarding_runtime import apply_guided_onboarding_wizard
 
 router = APIRouter(tags=["ai-workflows"])
 
@@ -83,6 +84,26 @@ def _compute_readiness(conn, run: dict[str, Any]) -> dict[str, Any]:
     patch_run_result(conn, run_id, "go_live_readiness", report)
     return report
 
+
+
+
+@router.get("/api/v1/ai/bot-autopilot/health", response_model=ApiEnvelope[FlexibleSchema])
+def bot_autopilot_health(user: CurrentUser, uow: CurrentUoW) -> dict:
+    # Authenticated health check for frontend preflight/debugging. It also
+    # initializes the workflow tables so a first production run cannot fail
+    # simply because the AI workflow schema has not been touched yet.
+    from ...ai_workflows.persistence import ensure_ai_workflow_schema
+
+    ensure_ai_workflow_schema(uow.conn)
+    return {
+        "data": {
+            "status": "ready",
+            "router": "ai-workflows",
+            "start_endpoint": "/api/v1/ai/bot-autopilot",
+            "events_endpoint": "/api/v1/ai/workflows/{run_id}/events",
+            "apply_endpoint": "/api/v1/ai/workflows/{run_id}/apply",
+        }
+    }
 
 @router.post("/api/v1/ai/bot-autopilot", response_model=ApiEnvelope[FlexibleSchema])
 def bot_autopilot(payload: BotAutopilotRequest, background_tasks: BackgroundTasks, user: CurrentUser, uow: CurrentUoW, async_mode: bool = Query(True)) -> dict:
@@ -248,7 +269,22 @@ def apply(run_id: str, user: CurrentUser, uow: CurrentUoW, payload: dict | None 
         raise HTTPException(status_code=409, detail={"code": "readiness_blocked", "message": "No se puede aplicar con readiness bloqueado", "readiness": readiness_report})
     if not payload or payload.get("confirm") is not True:
         raise HTTPException(status_code=409, detail={"code": "explicit_confirmation_required", "message": "Apply requiere confirm=true"})
-    result = {"run_id": run_id, "status": "applied", "release_state": "release_candidate"}
+    wizard_id = str(run.get("wizard_id") or "").strip()
+    if not wizard_id:
+        raise HTTPException(status_code=409, detail={"code": "wizard_required", "message": "No hay wizard generado para aplicar"})
+    try:
+        applied = apply_guided_onboarding_wizard(uow.conn, wizard_id=wizard_id, actor_user=user)
+    except Exception as exc:
+        raise HTTPException(status_code=409, detail={"code": "wizard_apply_failed", "message": str(exc)}) from exc
+    applied_wizard = applied.get("wizard") if isinstance(applied, dict) else {}
+    bot_id = None
+    if isinstance(applied_wizard, dict):
+        bot_id = applied_wizard.get("bot_id")
+    bot_id = bot_id or (applied.get("bot_id") if isinstance(applied, dict) else None) or run.get("bot_id")
+    if bot_id:
+        update_run(uow.conn, run_id, bot_id=bot_id)
+        patch_run_result(uow.conn, run_id, "bot_id", bot_id)
+    result = {"run_id": run_id, "wizard_id": wizard_id, "bot_id": bot_id, "status": "applied", "release_state": "release_candidate", "wizard_apply_result": applied}
     record_event(uow.conn, run_id, "apply.completed", "Apply seguro completado", payload_json=result)
     patch_run_result(uow.conn, run_id, "apply_result", result)
     return {"data": result}

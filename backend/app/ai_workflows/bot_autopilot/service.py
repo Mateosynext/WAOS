@@ -36,6 +36,20 @@ from ..learning.service import generate_learning_recommendations
 TERMINAL_STATUSES = {"completed", "completed_partial", "failed", "cancelled", "paused_cost_limit"}
 
 
+def _commit_best_effort(conn: DBConnection) -> None:
+    """Persist workflow telemetry between steps so SSE/polling can recover mid-run.
+
+    The background worker owns its connection, so committing after each durable
+    step is safe and prevents a long transaction from hiding progress events
+    until the very end. If a request-scoped UoW passes a connection here, the
+    worst case is a harmless early commit of workflow telemetry.
+    """
+    try:
+        conn.commit()
+    except Exception:
+        pass
+
+
 class WorkflowCancelled(RuntimeError):
     pass
 
@@ -91,6 +105,7 @@ def _record_step(conn: DBConnection, run_id: str, key: str, label: str, progress
     record_event(conn, run_id, key if "." in key else f"{key}.completed", label, progress, payload_json=payload)
     patch_run_result(conn, run_id, key, payload)
     update_run(conn, run_id, current_step=key, progress=progress)
+    _commit_best_effort(conn)
 
 
 def start_bot_autopilot_run(conn: DBConnection, payload: BotAutopilotRequest, user: Any = None) -> dict:
@@ -112,6 +127,7 @@ def start_bot_autopilot_run(conn: DBConnection, payload: BotAutopilotRequest, us
         payload_json={"intensity": payload.intensity, "streaming": "real_sse"},
     )
     update_run(conn, run["id"], status="running", current_step="workflow.started", progress=1)
+    _commit_best_effort(conn)
     return {
         "run_id": run["id"],
         "wizard_id": run.get("wizard_id"),
@@ -137,6 +153,7 @@ def run_bot_autopilot_background(run_id: str, user: Any = None) -> None:
             try:
                 update_run(conn, run_id, status="failed", error_json={"message": str(exc), "background_guard": True})
                 record_event(conn, run_id, "workflow.failed", str(exc), payload_json={"error": str(exc), "background_guard": True})
+                _commit_best_effort(conn)
             except Exception:
                 pass
 
@@ -187,7 +204,7 @@ def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None)
                 intensity="savage" if payload.intensity in {"savage", "godmode"} else payload.intensity,
                 auto_apply=False,
                 max_autofix_rounds=min(profile.autofix_rounds, 2),
-                user=user,
+                actor_user=user,
             )
         except Exception as exc:
             legacy = {
@@ -245,6 +262,7 @@ def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None)
         patch_run_result(conn, run_id, "autofix", autofix)
         record_event(conn, run_id, "autofix.round_completed", "Autofix legacy/seguro completado", 76, payload_json=autofix)
         update_run(conn, run_id, current_step="autofix.round_completed", progress=76)
+        _commit_best_effort(conn)
 
         _check_cancelled(conn, run_id)
         simulation = run_simulation_suite(vertical_pack, wizard, profile.simulations) if payload.auto_run_simulations else {}
@@ -272,6 +290,7 @@ def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None)
         apply_plan = prepare_release_plan(readiness) if payload.auto_prepare_go_live else {}
         record_event(conn, run_id, "apply.prepared", "Apply/canary plan preparado", 94, payload_json=apply_plan)
         patch_run_result(conn, run_id, "apply_plan", apply_plan)
+        _commit_best_effort(conn)
         learning = generate_learning_recommendations([])
         confirmations = list_human_confirmations(conn, run_id)
         result = {
@@ -297,15 +316,19 @@ def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None)
         status = result["status"]
         update_run(conn, run_id, status=status, progress=100, current_step="workflow.completed", result_json=result, cost_estimate_usd=governor.spent)
         record_event(conn, run_id, "workflow.completed_partial" if status == "completed_partial" else "workflow.completed", "Workflow terminado", 100, payload_json=result)
+        _commit_best_effort(conn)
         return result
     except CostLimitExceeded as exc:
         update_run(conn, run_id, status="paused_cost_limit", error_json={"message": str(exc)})
         record_event(conn, run_id, "workflow.paused_cost_limit", str(exc), payload_json={"error": str(exc)})
+        _commit_best_effort(conn)
         return {"run_id": run_id, "status": "paused_cost_limit", "progress": 0, "next_action": {"type": "increase_cost_limit"}}
     except WorkflowCancelled:
         update_run(conn, run_id, status="cancelled", error_json={"message": "workflow cancelled"})
+        _commit_best_effort(conn)
         return {"run_id": run_id, "status": "cancelled", "progress": 0, "next_action": {"type": "cancelled"}}
     except Exception as exc:
         update_run(conn, run_id, status="failed", error_json={"message": str(exc)})
         record_event(conn, run_id, "workflow.failed", str(exc), payload_json={"error": str(exc)})
+        _commit_best_effort(conn)
         return {"run_id": run_id, "status": "failed", "progress": 0, "next_action": {"type": "inspect_failure"}, "error": {"message": str(exc)}}

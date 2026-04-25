@@ -1,96 +1,84 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
 
-export type AiWorkflowEvent = {
-  id?: string;
-  event_type: string;
-  message?: string;
-  progress?: number;
-  payload_json?: Record<string, unknown>;
-  created_at?: string;
+import { useEffect, useMemo, useState } from "react";
+import type { AiWorkflowEvent } from "./types";
+
+type StreamState = {
+  connected: boolean;
+  terminal: boolean;
+  error: string | null;
+  events: AiWorkflowEvent[];
+  lastEvent: AiWorkflowEvent | null;
 };
 
-const EVENT_NAMES = [
-  "workflow.started",
-  "intent.normalized",
-  "vertical.detected",
-  "business_profile.generated",
-  "wizard.created",
-  "wizard.failed_partial",
-  "wizard.step_saved",
-  "vertical_pack.generated",
-  "policy_pack.generated",
-  "specialist_agents_config.generated",
-  "knowledge_plan.generated",
-  "whatsapp_pack.generated",
-  "tool_plan.generated",
-  "dry_run.started",
-  "dry_run.completed",
-  "autofix.started",
-  "autofix.round_completed",
-  "simulation.started",
-  "simulation.scenario_completed",
-  "simulation.completed",
-  "go_live_readiness.completed",
-  "human_confirmation.required",
-  "human_confirmation.updated",
-  "apply.prepared",
-  "apply.completed",
-  "canary.prepared",
-  "workflow.paused_cost_limit",
-  "workflow.cancelled",
+const TERMINAL_EVENTS = new Set([
   "workflow.completed",
   "workflow.completed_partial",
   "workflow.failed",
-  "workflow.keepalive",
-];
+  "workflow.cancelled",
+  "workflow.paused_cost_limit",
+]);
 
-const TERMINAL = new Set(["workflow.completed", "workflow.completed_partial", "workflow.failed", "workflow.cancelled", "workflow.paused_cost_limit"]);
+function parseEvent(raw: string): AiWorkflowEvent {
+  try {
+    const parsed = JSON.parse(raw) as AiWorkflowEvent;
+    return parsed && typeof parsed === "object" ? parsed : { message: raw };
+  } catch {
+    return { message: raw };
+  }
+}
 
-export function useAiWorkflowStream(runId?: string | null) {
-  const [events, setEvents] = useState<AiWorkflowEvent[]>([]);
-  const [connected, setConnected] = useState(false);
-  const [error, setError] = useState("");
-  const sourceRef = useRef<EventSource | null>(null);
+function eventKey(event: AiWorkflowEvent, fallback: number) {
+  return String(event.id || `${event.event_type || "event"}:${event.created_at || fallback}:${event.message || ""}`);
+}
+
+export function useAiWorkflowStream(runId: string | null) {
+  const [state, setState] = useState<StreamState>({ connected: false, terminal: false, error: null, events: [], lastEvent: null });
 
   useEffect(() => {
-    if (!runId) return;
-    sourceRef.current?.close();
-    setEvents([]);
-    setError("");
-    let closedByTerminal = false;
+    if (!runId) {
+      setState({ connected: false, terminal: false, error: null, events: [], lastEvent: null });
+      return;
+    }
+    let closed = false;
     const source = new EventSource(`/api/ai/workflows/${encodeURIComponent(runId)}/events`);
-    sourceRef.current = source;
-    source.onopen = () => setConnected(true);
+    setState((current) => ({ ...current, connected: false, terminal: false, error: null }));
+
+    const append = (event: AiWorkflowEvent) => {
+      if (closed) return;
+      setState((current) => {
+        const key = eventKey(event, current.events.length);
+        const exists = current.events.some((item, index) => eventKey(item, index) === key);
+        const events = exists ? current.events : [...current.events, event];
+        const eventType = String(event.event_type || "");
+        return {
+          connected: true,
+          terminal: current.terminal || TERMINAL_EVENTS.has(eventType),
+          error: eventType === "workflow.failed" ? String(event.message || "Workflow falló") : current.error,
+          events,
+          lastEvent: event,
+        };
+      });
+    };
+
+    source.onopen = () => {
+      if (!closed) setState((current) => ({ ...current, connected: true, error: null }));
+    };
+    source.onmessage = (message) => append(parseEvent(message.data));
+    for (const type of TERMINAL_EVENTS) {
+      source.addEventListener(type, (message) => append(parseEvent((message as MessageEvent).data)));
+    }
+    source.addEventListener("workflow.keepalive", (message) => append(parseEvent((message as MessageEvent).data)));
     source.onerror = () => {
-      setConnected(false);
-      if (!closedByTerminal) setError("No se pudo mantener el stream SSE real; usa refresh para recuperar historial.");
+      if (!closed) setState((current) => ({ ...current, connected: false, error: current.terminal ? current.error : "Stream SSE desconectado; usa Actualizar estado para recuperar." }));
+      source.close();
     };
-    const push = (raw: MessageEvent) => {
-      try {
-        const event = JSON.parse(raw.data) as AiWorkflowEvent;
-        if (!event?.event_type || event.event_type === "workflow.keepalive") return;
-        setEvents((current) => {
-          if (event.id && current.some((item) => item.id === event.id)) return current;
-          return [...current, event];
-        });
-        if (TERMINAL.has(event.event_type)) {
-          closedByTerminal = true;
-          setConnected(false);
-          source.close();
-        }
-      } catch {
-        // Ignore malformed SSE frames. Backend should not emit them, but UI must not crash.
-      }
-    };
-    EVENT_NAMES.forEach((name) => source.addEventListener(name, push));
-    source.onmessage = push;
+
     return () => {
-      closedByTerminal = true;
+      closed = true;
       source.close();
     };
   }, [runId]);
 
-  const terminalEvent = useMemo(() => [...events].reverse().find((event) => TERMINAL.has(event.event_type)) || null, [events]);
-  return { events, connected, error, terminalEvent };
+  return useMemo(() => state, [state]);
 }

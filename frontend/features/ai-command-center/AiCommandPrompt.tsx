@@ -1,10 +1,84 @@
 "use client";
-import type { FormEvent } from "react";
-import type { AiCommandInput } from "./useBotAutopilotRun";
-type Option={id:string; name?:string; label?:string};
-const objectives=["agendar","vender","calificar","soporte","cobrar","recuperar","retener"];
-const intensities: AiCommandInput["intensity"][]=["conservative","balanced","aggressive","savage","godmode"];
-export function AiCommandPrompt({organizations,bots,disabled,loading,onSubmit}:{organizations:Option[]; bots:Option[]; disabled?:boolean; loading?:boolean; onSubmit:(input:AiCommandInput)=>void|Promise<void>}){
- async function submit(event: FormEvent<HTMLFormElement>){ event.preventDefault(); const formData=new FormData(event.currentTarget); await onSubmit({ organization_id:String(formData.get("organization_id")||organizations[0]?.id||""), bot_id:String(formData.get("bot_id")||"")||undefined, user_description:String(formData.get("user_description")||""), vertical_id:String(formData.get("vertical_id")||"")||undefined, subvertical:String(formData.get("subvertical")||"")||undefined, primary_objective:String(formData.get("primary_objective")||"agendar"), language:String(formData.get("language")||"es"), timezone:String(formData.get("timezone")||"America/Mexico_City"), intensity:String(formData.get("intensity")||"balanced") as AiCommandInput["intensity"], auto_generate_knowledge:formData.get("auto_generate_knowledge")==="on", auto_generate_templates:formData.get("auto_generate_templates")==="on", auto_generate_tools:formData.get("auto_generate_tools")==="on", auto_run_simulations:formData.get("auto_run_simulations")==="on", auto_autofix:formData.get("auto_autofix")==="on", auto_prepare_go_live:formData.get("auto_prepare_go_live")==="on", auto_apply:formData.get("auto_apply")==="on" }); }
- return <form onSubmit={submit} className="grid gap-4 rounded-[28px] border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-5"><div><div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-tertiary)]">AI Command</div><h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[color:var(--text-primary)]">Describe el negocio. WAOS construye, valida y prepara el agente de WhatsApp.</h2><p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">La IA detecta vertical, genera configuración operacional, crea policies, prepara knowledge, simula conversaciones, corrige errores y deja el agente listo para go-live con aprobación humana.</p></div><label className="grid gap-2"><span className="text-sm font-semibold">Describe el negocio, ciudad, servicios, objetivo, restricciones y qué debe lograr WhatsApp.</span><textarea name="user_description" required minLength={20} maxLength={8000} className="field-input min-h-[180px]" placeholder="Tengo una clínica dental en Monterrey. Quiero que WhatsApp agende valoraciones, filtre urgencias, responda precios con cuidado y pase casos sensibles a humano." /></label><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"><label className="grid gap-1 text-sm"><span className="font-semibold">Organización</span><select name="organization_id" className="field-input" required defaultValue={organizations[0]?.id||""}>{organizations.map((item)=><option key={item.id} value={item.id}>{item.name||item.label||item.id}</option>)}</select></label><label className="grid gap-1 text-sm"><span className="font-semibold">Bot existente o nuevo bot</span><select name="bot_id" className="field-input" defaultValue=""><option value="">Nuevo bot / wizard draft</option>{bots.map((item)=><option key={item.id} value={item.id}>{item.name||item.label||item.id}</option>)}</select></label><label className="grid gap-1 text-sm"><span className="font-semibold">Vertical override</span><input name="vertical_id" className="field-input" placeholder="auto / dental / fitness" /></label><label className="grid gap-1 text-sm"><span className="font-semibold">Subvertical</span><input name="subvertical" className="field-input" placeholder="auto" /></label><label className="grid gap-1 text-sm"><span className="font-semibold">Objetivo principal</span><select name="primary_objective" className="field-input" defaultValue="agendar">{objectives.map((item)=><option key={item} value={item}>{item}</option>)}</select></label><label className="grid gap-1 text-sm"><span className="font-semibold">Idioma</span><select name="language" className="field-input" defaultValue="es"><option value="es">Español</option><option value="en">English</option></select></label><label className="grid gap-1 text-sm"><span className="font-semibold">Zona horaria</span><input name="timezone" className="field-input" defaultValue="America/Mexico_City" /></label><label className="grid gap-1 text-sm"><span className="font-semibold">Intensidad</span><select name="intensity" className="field-input" defaultValue="balanced">{intensities.map((item)=><option key={item} value={item}>{item}</option>)}</select></label></div><div className="grid gap-2 rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)] p-4 text-sm md:grid-cols-2 xl:grid-cols-4">{[["auto_generate_knowledge","Generar knowledge plan"],["auto_generate_templates","Generar WhatsApp pack"],["auto_generate_tools","Generar tool plan"],["auto_run_simulations","Correr simulaciones"],["auto_autofix","Aplicar autofix"],["auto_prepare_go_live","Preparar go-live"],["auto_apply","Permitir apply final con confirmación humana"]].map(([name,label])=><label key={name} className="flex items-center gap-2"><input type="checkbox" name={name} defaultChecked={name!=="auto_apply"}/><span>{label}</span></label>)}</div><div className="flex flex-wrap gap-2"><button type="submit" disabled={disabled||loading} className="primary-btn">{loading?"Construyendo agente...":"Construir agente con IA"}</button><a href="/bot-studio/reconfigure/select" className="secondary-btn">Reconfigurar bot existente</a><a href="/ai-ops" className="secondary-btn">Ver AI Ops</a><a href="/launch-center" className="secondary-btn">Ver Launch Center</a></div></form>;
+
+import type { AiCommandBotOption, AiCommandOrganization, AiCommandPayload } from "./types";
+
+type Props = {
+  organizations: AiCommandOrganization[];
+  bots: AiCommandBotOption[];
+  payload: AiCommandPayload;
+  busy: boolean;
+  onChange: (patch: Partial<AiCommandPayload>) => void;
+  onSubmit: () => void;
+};
+
+const INTENSITIES: AiCommandPayload["intensity"][] = ["conservative", "balanced", "aggressive", "savage", "godmode"];
+const BOOLEAN_FIELDS: Array<keyof Pick<AiCommandPayload, "auto_generate_knowledge" | "auto_generate_templates" | "auto_generate_tools" | "auto_run_simulations" | "auto_autofix" | "auto_prepare_go_live" | "auto_apply">> = [
+  "auto_generate_knowledge",
+  "auto_generate_templates",
+  "auto_generate_tools",
+  "auto_run_simulations",
+  "auto_autofix",
+  "auto_prepare_go_live",
+  "auto_apply",
+];
+
+const FIELD_LABELS: Record<string, string> = {
+  auto_generate_knowledge: "Generar knowledge base",
+  auto_generate_templates: "Generar templates WhatsApp",
+  auto_generate_tools: "Planear tools/integraciones",
+  auto_run_simulations: "Correr simulaciones",
+  auto_autofix: "Autofix seguro",
+  auto_prepare_go_live: "Preparar readiness",
+  auto_apply: "Auto apply bloqueado por seguridad",
+};
+
+export function AiCommandPrompt({ organizations, bots, payload, busy, onChange, onSubmit }: Props) {
+  const canSubmit = Boolean(payload.organization_id && payload.user_description.trim().length >= 20 && !busy);
+  return (
+    <section className="glass-card p-5">
+      <p className="eyebrow">AI Production Autopilot</p>
+      <h1 className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">Construir agente con IA</h1>
+      <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">Describe el negocio, ciudad, servicios, objetivo, restricciones y qué debe lograr WhatsApp. WAOS crea el wizard, valida, simula y deja el apply bajo aprobación humana.</p>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <label className="field-label">Organización
+          <select className="input-field mt-2" value={payload.organization_id} onChange={(event) => onChange({ organization_id: event.target.value })}>
+            <option value="">Selecciona organización</option>
+            {organizations.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
+          </select>
+        </label>
+        <label className="field-label">Bot existente opcional
+          <select className="input-field mt-2" value={payload.bot_id || ""} onChange={(event) => onChange({ bot_id: event.target.value || null })}>
+            <option value="">Crear bot nuevo al aplicar</option>
+            {bots.map((bot) => <option key={bot.id} value={bot.id}>{bot.name}</option>)}
+          </select>
+        </label>
+      </div>
+
+      <label className="field-label mt-4">Descripción del negocio
+        <textarea className="input-field mt-2 min-h-40" value={payload.user_description} onChange={(event) => onChange({ user_description: event.target.value })} placeholder="Ej. Clínica dental en CDMX que agenda limpiezas y ortodoncia por WhatsApp, debe pedir nombre, servicio, horario y escalar urgencias a humano..." />
+      </label>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <label className="field-label">Industria opcional<input className="input-field mt-2" value={payload.vertical_id || ""} onChange={(event) => onChange({ vertical_id: event.target.value || null })} placeholder="dental, beauty, real-estate..." /></label>
+        <label className="field-label">Subvertical opcional<input className="input-field mt-2" value={payload.subvertical || ""} onChange={(event) => onChange({ subvertical: event.target.value || null })} placeholder="ortodoncia, uñas, rentas..." /></label>
+        <label className="field-label">Objetivo principal<input className="input-field mt-2" value={payload.primary_objective || ""} onChange={(event) => onChange({ primary_objective: event.target.value || null })} placeholder="agendar, vender, calificar" /></label>
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        {INTENSITIES.map((intensity) => <button key={intensity} type="button" className={payload.intensity === intensity ? "primary-btn" : "secondary-btn"} onClick={() => onChange({ intensity })}>{intensity}</button>)}
+      </div>
+
+      <div className="mt-5 grid gap-2 md:grid-cols-2">
+        {BOOLEAN_FIELDS.map((field) => (
+          <label key={field} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 p-3 text-sm text-[color:var(--text-secondary)]">
+            <span><span className="mono-pill">{field}</span> {FIELD_LABELS[field]}</span>
+            <input type="checkbox" checked={Boolean(payload[field])} disabled={field === "auto_apply"} onChange={(event) => onChange({ [field]: event.target.checked } as Partial<AiCommandPayload>)} />
+          </label>
+        ))}
+      </div>
+
+      <button type="button" className="primary-btn mt-5 w-full" disabled={!canSubmit} onClick={onSubmit}>{busy ? "Construyendo agente..." : "Construir agente con IA"}</button>
+    </section>
+  );
 }

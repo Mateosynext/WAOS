@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { safeText } from "@/app/lib/ui";
 import type { WizardAiIntensity, WizardAiPrefillResult } from "../services/wizardApi";
@@ -15,6 +15,14 @@ type AiSetupAssistantProps = {
   onAutopilot: (input: { userDescription: string; intensity: WizardAiIntensity }) => Promise<WizardAiPrefillResult>;
   onAccept: (result: WizardAiPrefillResult) => Promise<void>;
 };
+
+const AUTOPILOT_PROGRESS_MESSAGES = [
+  "Detectando industria...",
+  "Generando setup completo...",
+  "Validando...",
+  "Ejecutando dry run...",
+  "Aplicando autofix seguro...",
+];
 
 function cardItems(items: unknown[]) {
   return items.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 6);
@@ -37,10 +45,22 @@ export function AiSetupAssistant({ disabled, selectedVerticalLabel, selectedSubv
   const [error, setError] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [applying, setApplying] = useState<"edit" | "autopilot" | "">("");
+  const [progressIndex, setProgressIndex] = useState(0);
   const router = useRouter();
 
   const contextLabel = useMemo(() => [selectedVerticalLabel, selectedSubvertical, selectedPrimaryObjective].filter(Boolean).join(" · "), [selectedVerticalLabel, selectedSubvertical, selectedPrimaryObjective]);
-  const autopilotProgressMessage = applying === "autopilot" ? "Autopilot real en ejecución..." : "Listo";
+  const autopilotProgressMessage = applying === "autopilot" ? AUTOPILOT_PROGRESS_MESSAGES[progressIndex % AUTOPILOT_PROGRESS_MESSAGES.length] : "Listo";
+
+  useEffect(() => {
+    if (applying !== "autopilot") {
+      setProgressIndex(0);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setProgressIndex((current) => (current + 1) % AUTOPILOT_PROGRESS_MESSAGES.length);
+    }, 1800);
+    return () => window.clearInterval(timer);
+  }, [applying]);
 
   const generate = async (intensity: WizardAiIntensity) => {
     if (loading || applying) return;
@@ -63,7 +83,7 @@ export function AiSetupAssistant({ disabled, selectedVerticalLabel, selectedSubv
     setError("");
     setAccepted(false);
     try {
-      const wired = await onAutopilot({ userDescription: normalizeAiDescription(description), intensity: "savage" });
+      const wired = await onAutopilot({ userDescription: description, intensity: "savage" });
       setResult(wired);
       setAccepted(true);
       router.push(buildValidateHref(wired));
