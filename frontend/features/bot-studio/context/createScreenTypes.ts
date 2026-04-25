@@ -1,5 +1,6 @@
 import type { SessionOrganization } from "@/app/lib/contracts/auth";
 import type { VerticalProfileContract } from "@/app/lib/contracts/verticals";
+import type { WizardAiIntensity, WizardAiPrefillResult } from "../services/wizardApi";
 import type { WizardBlueprint, WizardDryRunResult, WizardInstance, WizardValidationSnapshot } from "@/features/bot-studio/domain/wizardTypes";
 
 export type WizardSetter<T> = (next: T | ((previous: T) => T)) => void;
@@ -63,9 +64,14 @@ export type CreateReviewViewModel = CreateContextViewModel & CreateOfferViewMode
 };
 
 export type CreateValidationViewModel = {
+  aiAutofixRunning?: boolean;
   validationSnapshot?: WizardValidationSnapshot | null;
   wizard?: WizardInstance | null;
   dryRunResult?: WizardDryRunResult | null;
+};
+
+export type CreateValidationActions = {
+  autofixWithAi: () => Promise<Record<string, unknown>>;
 };
 
 export type CreateApplyViewModel = CreateValidationViewModel & {
@@ -73,6 +79,9 @@ export type CreateApplyViewModel = CreateValidationViewModel & {
 };
 
 export type CreateContextActions = {
+  generateAiPrefill: (input: { userDescription: string; intensity: WizardAiIntensity }) => Promise<WizardAiPrefillResult>;
+  runAiAutopilot: (input: { userDescription: string; intensity: WizardAiIntensity }) => Promise<WizardAiPrefillResult>;
+  applyAiPrefill: (result: WizardAiPrefillResult) => Promise<void>;
   setSelectedOrganizationId: (value: string) => void;
   setSelectedPrimaryObjective: (value: string) => void;
   setCandidateVerticalId: (value: string) => void;

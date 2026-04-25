@@ -248,6 +248,8 @@ export function useBotStudioFlowStateModel(
 
   const createScreens: CreateWizardScreenModels = useMemo(() => buildCreateWizardScreenModels({
     props,
+    patchState: state.patchState,
+    payloads,
     actions,
     scope,
     basics,

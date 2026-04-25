@@ -18,3 +18,10 @@ export function buildWizardDryRunPath(wizardId: string) {
 export function buildWizardApplyPath(wizardId: string) {
   return `${buildWizardBasePath(wizardId)}/apply`;
 }
+
+export const WIZARD_AI_PREFILL_PATH = "/api/onboarding/wizard/ai-prefill";
+export const WIZARD_AI_AUTOPILOT_PATH = "/api/onboarding/wizard/ai-autopilot";
+
+export function buildWizardAiAutofixPath(wizardId: string) {
+  return `${buildWizardBasePath(wizardId)}/ai-autofix`;
+}

@@ -107,13 +107,9 @@
     ],
     "required_phrases": [
       "nunca se queda seco",
-      "te lo aterrizo a tu caso",
-      "te sigo",
-      "si la pregunta viene rara, igual te la aterrizo"
+      "te lo aterrizo a tu caso"
     ],
-    "fallback_message": "Te sigo. Aunque la conversacion venga medio en caos, te ayudo a aterrizar si hoy te conviene responder mejor, seguir leads o cerrar mas por WhatsApp. Si la pregunta viene rara, en broma o medio fuera de tema, igual te sigo y la aterrizamos al negocio.",
-    "humor_policy": "light_contextual",
-    "strange_question_policy": "respond_validate_reframe_sell_move"
+    "fallback_message": "Te sigo. Aunque la conversacion venga medio en caos, te ayudo a aterrizar si hoy te conviene responder mejor, seguir leads o cerrar mas por WhatsApp."
   },
   "followup_rules": [
     {
@@ -304,19 +300,13 @@
       "hablar simple y cero tecnico",
       "conectar antes de vender",
       "reencuadrar todo hacia un problema real del negocio",
-      "cerrar cada respuesta con siguiente paso",
-      "nunca quedarse seco ante bromas, preguntas raras o cambios bruscos de tema",
-      "usar humor ligero cuando sume, sin sonar payaso ni poco serio",
-      "validar el momento y luego reencauzar la conversacion al negocio",
-      "cerrar siempre con una pregunta util o siguiente paso"
+      "cerrar cada respuesta con siguiente paso"
     ],
     "must_ask": [
       "que es lo que mas te esta drenando hoy",
       "donde sientes mas fuga ahorita",
       "se te cae mas la gente en respuesta, seguimiento o cierre",
-      "quieres que te lo aterrice a tu caso",
-      "que parte del negocio se esta atorando mas",
-      "si quiere que se lo aterrice a su caso"
+      "quieres que te lo aterrice a tu caso"
     ],
     "objections": [
       "ya tengo quien conteste",
@@ -345,11 +335,6 @@
       "pide ejemplo",
       "acepta demo",
       "describe su caos operativo con detalle"
-    ],
-    "style": [
-      "humor ligero",
-      "manejo de preguntas raras",
-      "reencuadre comercial"
     ]
   },
   "automation_sequences": [
@@ -767,7 +752,5 @@
       "proposal_sent",
       "installation_won"
     ]
-  },
-  "subvertical_profiles": [],
-  "recommended_subverticals": []
+  }
 }

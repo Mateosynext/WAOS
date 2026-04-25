@@ -57,7 +57,7 @@ export function BotStudioFlowBody({ routeMode, routeStep, createScreens, reconfi
     if (routeStep === "knowledge") return <CreateKnowledgeScreen viewModel={createScreens.knowledge.viewModel} actions={createScreens.knowledge.actions} />;
     if (routeStep === "integrations") return <CreateIntegrationsScreen viewModel={createScreens.integrations.viewModel} actions={createScreens.integrations.actions} />;
     if (routeStep === "review") return <CreateReviewScreen viewModel={createScreens.review.viewModel} actions={createScreens.review.actions} />;
-    if (routeStep === "validate") return <CreateValidateScreen viewModel={createScreens.validate.viewModel} />;
+    if (routeStep === "validate") return <CreateValidateScreen viewModel={createScreens.validate.viewModel} actions={createScreens.validate.actions} />;
     if (routeStep === "apply") return <CreateApplyScreen viewModel={createScreens.apply.viewModel} />;
   }
 

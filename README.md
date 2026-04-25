@@ -89,7 +89,7 @@ bash scripts/validate_release_in_ci.sh
 ## WhatsApp anti-blocking hardening
 
 - `docs/WAOS_WHATSAPP_ANTI_BLOCKING_HARDENING.md`
-- `backend/db/migrations/005_whatsapp_anti_blocking_guardrails.sql`
+- `backend/db/migrations/005b_whatsapp_anti_blocking_guardrails.sql`
 
 
 ## Native external tool execution runtime

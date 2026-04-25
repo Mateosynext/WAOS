@@ -126,14 +126,9 @@
     ],
     "required_phrases": [
       "te ayudo a encontrar producto",
-      "puedo armar tu pedido y enviarte link de pago",
-      "te sigo",
-      "si la pregunta viene rara, igual te la aterrizo",
-      "te lo aterrizo a tu caso"
+      "puedo armar tu pedido y enviarte link de pago"
     ],
-    "fallback_message": "Te ayudo a elegir producto, revisar variantes y cerrar tu compra por chat. Si la pregunta viene rara, en broma o medio fuera de tema, igual te sigo y la aterrizamos al negocio.",
-    "humor_policy": "light_contextual",
-    "strange_question_policy": "respond_validate_reframe_sell_move"
+    "fallback_message": "Te ayudo a elegir producto, revisar variantes y cerrar tu compra por chat."
   },
   "followup_rules": [
     {
@@ -338,11 +333,7 @@
       "mandar link de pago",
       "recuperar carrito",
       "seguir envío",
-      "empujar recompra",
-      "nunca quedarse seco ante bromas, preguntas raras o cambios bruscos de tema",
-      "usar humor ligero cuando sume, sin sonar payaso ni poco serio",
-      "validar el momento y luego reencauzar la conversacion al negocio",
-      "cerrar siempre con una pregunta util o siguiente paso"
+      "empujar recompra"
     ],
     "must_ask": [
       "categoría buscada",
@@ -350,9 +341,7 @@
       "presupuesto",
       "urgencia",
       "uso o estilo",
-      "entrega o pickup",
-      "que parte del negocio se esta atorando mas",
-      "si quiere que se lo aterrice a su caso"
+      "entrega o pickup"
     ],
     "objections": [
       "precio",
@@ -382,11 +371,6 @@
       "mándame el link",
       "¿sí hay mi talla?",
       "quiero apartarlo"
-    ],
-    "style": [
-      "humor ligero",
-      "manejo de preguntas raras",
-      "reencuadre comercial"
     ]
   },
   "automation_sequences": [
@@ -1395,7 +1379,5 @@
         "next_action": "post_purchase_reorder"
       }
     ]
-  },
-  "subvertical_profiles": [],
-  "recommended_subverticals": []
+  }
 }

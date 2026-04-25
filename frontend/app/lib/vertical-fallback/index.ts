@@ -1,4 +1,9 @@
 import "server-only";
+
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import indexData from "./index.json";
 import { normalizeVerticalProfile, type VerticalProfileContract } from "../contracts/verticals";
 
@@ -15,20 +20,17 @@ type VerticalFallbackIndexEntry = {
 const FALLBACK_INDEX = indexData as VerticalFallbackIndexEntry[];
 const profileCache = new Map<string, VerticalProfileContract>();
 
-const profileLoaders: Record<string, () => Promise<unknown>> = {
-  fitness: () => import("./profiles/fitness.json").then((module) => module.default),
-  dental: () => import("./profiles/dental.json").then((module) => module.default),
-  aesthetic: () => import("./profiles/aesthetic.json").then((module) => module.default),
-  vet: () => import("./profiles/vet.json").then((module) => module.default),
-  "real-estate": () => import("./profiles/real-estate.json").then((module) => module.default),
-  "auto-service": () => import("./profiles/auto-service.json").then((module) => module.default),
-  education: () => import("./profiles/education.json").then((module) => module.default),
-  beauty: () => import("./profiles/beauty.json").then((module) => module.default),
-  "field-services": () => import("./profiles/field-services.json").then((module) => module.default),
-  "professional-intake": () => import("./profiles/professional-intake.json").then((module) => module.default),
-  commerce: () => import("./profiles/commerce.json").then((module) => module.default),
-  "waos-bot": () => import("./profiles/waos-bot.json").then((module) => module.default),
-};
+function fallbackBaseDir(): string {
+  const candidates = [
+    path.join(process.cwd(), "app", "lib", "vertical-fallback"),
+    path.join(process.cwd(), "frontend", "app", "lib", "vertical-fallback"),
+  ];
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (!found) {
+    throw new Error("Could not locate frontend vertical fallback directory");
+  }
+  return found;
+}
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -47,8 +49,8 @@ function validateIndex(): void {
     if (seen.has(entry.id)) {
       throw new Error(`Fallback vertical index contains duplicate id: ${entry.id}`);
     }
-    if (!profileLoaders[entry.id]) {
-      throw new Error(`Fallback vertical index points to a missing loader: ${entry.id}`);
+    if (!entry.file || !entry.file.startsWith("profiles/") || !entry.file.endsWith(".json")) {
+      throw new Error(`Fallback vertical index has invalid profile file for ${entry.id}`);
     }
     seen.add(entry.id);
   }
@@ -56,14 +58,19 @@ function validateIndex(): void {
 
 validateIndex();
 
+async function loadRawProfile(entry: VerticalFallbackIndexEntry): Promise<unknown> {
+  const raw = await readFile(path.join(fallbackBaseDir(), entry.file), "utf-8");
+  return JSON.parse(raw) as unknown;
+}
+
 async function loadProfileById(id: string): Promise<VerticalProfileContract> {
   const cached = profileCache.get(id);
   if (cached) return cached;
-  const loader = profileLoaders[id];
-  if (!loader) {
+  const entry = FALLBACK_INDEX.find((item) => item.id === id);
+  if (!entry) {
     throw new Error(`Unknown fallback vertical profile: ${id}`);
   }
-  const normalized = normalizeVerticalProfile(await loader());
+  const normalized = normalizeVerticalProfile(await loadRawProfile(entry));
   if (!normalized.id) {
     throw new Error(`Fallback vertical profile ${id} did not normalize into a valid profile`);
   }

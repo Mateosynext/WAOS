@@ -2,7 +2,7 @@ services:
   - type: web
     name: waos-api
     runtime: python
-    plan: starter
+    plan: standard
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: bash scripts/bootstrap.sh
@@ -29,7 +29,9 @@ services:
       - key: SECURE_COOKIES
         value: true
       - key: TRUST_PROXY_HEADERS
-        value: false
+        value: true
+      - key: TRUSTED_PROXY_IPS
+        value: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1/32,::1/128
       - key: APP_SECRET
         generateValue: true
       - key: SECRET_ENCRYPTION_KEY
@@ -45,9 +47,15 @@ services:
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL
-        value: gemini-3-flash-preview
+        value: gemini-2.0-flash
       - key: OPENAI_BASE_URL
         value: https://generativelanguage.googleapis.com/v1beta/openai/
+      - key: OPENAI_TIMEOUT_SECONDS
+        value: 30
+      - key: AUTOPILOT_MAX_AUTOFIX_ROUNDS
+        value: 2
+      - key: GUNICORN_TIMEOUT_SECONDS
+        value: 120
       - key: META_VERIFY_TOKEN
         sync: false
       - key: SENTRY_DSN
@@ -57,7 +65,7 @@ services:
       - key: RUNTIME_CACHE_TTL_SECONDS
         value: 10
       - key: WEB_CONCURRENCY
-        value: 1
+        value: 3
       - key: DB_POOL_TIMEOUT_SECONDS
         value: 8
       - key: DB_POOL_MAX_SIZE
@@ -141,6 +149,16 @@ services:
           name: waos-api
           type: web
           envVarKey: OPENAI_BASE_URL
+      - key: OPENAI_TIMEOUT_SECONDS
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: OPENAI_TIMEOUT_SECONDS
+      - key: AUTOPILOT_MAX_AUTOFIX_ROUNDS
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: AUTOPILOT_MAX_AUTOFIX_ROUNDS
       - key: META_GRAPH_API_BASE
         fromService:
           name: waos-api

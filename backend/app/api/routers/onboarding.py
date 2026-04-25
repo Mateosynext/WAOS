@@ -5,6 +5,9 @@ from fastapi import APIRouter, Query
 from ...application.onboarding_service import onboarding_service
 from ...schemas import (
     ApiEnvelope,
+    GuidedOnboardingAiAutofixRequest,
+    GuidedOnboardingAiAutopilotRequest,
+    GuidedOnboardingAiPrefillRequest,
     GuidedOnboardingWizardStartRequest,
     GuidedOnboardingWizardStepUpdateRequest,
     InboxSavedViewCreateRequest,
@@ -60,6 +63,16 @@ def get_guided_wizard_blueprint(
     )
 
 
+@onboarding_router.post("/wizard/ai-prefill", response_model=ApiEnvelope[OnboardingPayloadResponse])
+def generate_guided_wizard_ai_prefill(payload: GuidedOnboardingAiPrefillRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
+    return onboarding_service.ai_prefill_wizard(uow, payload=payload, user=user)
+
+
+@onboarding_router.post("/wizard/ai-autopilot", response_model=ApiEnvelope[OnboardingPayloadResponse])
+def run_guided_wizard_ai_autopilot(payload: GuidedOnboardingAiAutopilotRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
+    return onboarding_service.ai_autopilot_wizard(uow, payload=payload, user=user)
+
+
 @onboarding_router.post("/wizard/start", response_model=ApiEnvelope[OnboardingPayloadResponse])
 def start_guided_wizard(payload: GuidedOnboardingWizardStartRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return onboarding_service.start_wizard(uow, payload=payload, user=user)
@@ -78,6 +91,11 @@ def update_guided_wizard_step(wizard_id: str, step_key: str, payload: GuidedOnbo
 @onboarding_router.post("/wizard/{wizard_id}/dry-run", response_model=ApiEnvelope[OnboardingPayloadResponse])
 def dry_run_guided_wizard(wizard_id: str, user: CurrentUser, uow: CurrentUoW) -> dict:
     return onboarding_service.dry_run_wizard(uow, wizard_id=wizard_id, user=user)
+
+
+@onboarding_router.post("/wizard/{wizard_id}/ai-autofix", response_model=ApiEnvelope[OnboardingPayloadResponse])
+def autofix_guided_wizard_with_ai(wizard_id: str, payload: GuidedOnboardingAiAutofixRequest | None = None, user: CurrentUser = None, uow: CurrentUoW = None) -> dict:
+    return onboarding_service.ai_autofix_wizard(uow, wizard_id=wizard_id, payload=payload or GuidedOnboardingAiAutofixRequest(), user=user)
 
 
 @onboarding_router.post("/wizard/{wizard_id}/apply", response_model=ApiEnvelope[OnboardingPayloadResponse])

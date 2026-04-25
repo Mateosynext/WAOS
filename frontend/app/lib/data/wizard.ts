@@ -1,6 +1,6 @@
 import type { VerticalProfileContract } from "../contracts/verticals";
 import { apiFetch, apiFetchOrDefault } from "../api";
-import { buildWizardApplyBackendPath, buildWizardBackendBasePath, buildWizardBlueprintBackendPath, buildWizardDryRunBackendPath, buildWizardStepBackendPath, WIZARD_API_PREFIX } from "./wizardEndpoints";
+import { buildWizardAiAutofixBackendPath, buildWizardAiAutopilotBackendPath, buildWizardAiPrefillBackendPath, buildWizardApplyBackendPath, buildWizardBackendBasePath, buildWizardBlueprintBackendPath, buildWizardDryRunBackendPath, buildWizardStepBackendPath, WIZARD_API_PREFIX } from "./wizardEndpoints";
 import { getVerticalProfile } from "./verticals";
 import type {
   WizardApplyResult,
@@ -29,6 +29,7 @@ export type WizardVerticalProfileRequest = {
 const WIZARD_START_TIMEOUT_MS = 30000;
 const WIZARD_STEP_TIMEOUT_MS = 20000;
 const WIZARD_EXECUTION_TIMEOUT_MS = 45000;
+const WIZARD_AI_TIMEOUT_MS = 120000;
 
 export async function getWizardBlueprint(request: WizardBlueprintRequest): Promise<WizardBlueprint | null> {
   return apiFetchOrDefault<WizardBlueprint | null>(buildWizardBlueprintBackendPath(request), null);
@@ -69,5 +70,62 @@ export async function applyWizard(wizardId: string): Promise<WizardApplyResult> 
   return apiFetch<WizardApplyResult>(buildWizardApplyBackendPath(wizardId), {
     method: "POST",
     timeoutMs: WIZARD_EXECUTION_TIMEOUT_MS,
+  });
+}
+
+export type WizardAiPrefillRequest = {
+  organizationId: string;
+  botId?: string | null;
+  verticalId?: string | null;
+  subvertical?: string | null;
+  primaryObjective?: string | null;
+  userDescription: string;
+  intensity?: "balanced" | "aggressive" | "conservative" | "savage";
+  existingAnswers?: Record<string, unknown>;
+};
+
+function toBackendAiPrefillPayload(request: WizardAiPrefillRequest) {
+  return {
+    organization_id: request.organizationId,
+    bot_id: request.botId || null,
+    vertical_id: request.verticalId || null,
+    subvertical: request.subvertical || null,
+    primary_objective: request.primaryObjective || null,
+    user_description: request.userDescription || "",
+    intensity: request.intensity || "balanced",
+    existing_answers: request.existingAnswers || {},
+  };
+}
+
+export async function generateWizardAiPrefill(request: WizardAiPrefillRequest): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>(buildWizardAiPrefillBackendPath(), {
+    method: "POST",
+    body: JSON.stringify(toBackendAiPrefillPayload(request)),
+    timeoutMs: WIZARD_AI_TIMEOUT_MS,
+  });
+}
+
+export type WizardAiAutopilotRequest = WizardAiPrefillRequest & {
+  maxAutofixRounds?: number;
+  autoApply?: boolean;
+};
+
+export async function runWizardAiAutopilot(request: WizardAiAutopilotRequest): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>(buildWizardAiAutopilotBackendPath(), {
+    method: "POST",
+    body: JSON.stringify({
+      ...toBackendAiPrefillPayload(request),
+      max_autofix_rounds: request.maxAutofixRounds ?? 2,
+      auto_apply: Boolean(request.autoApply),
+    }),
+    timeoutMs: WIZARD_AI_TIMEOUT_MS,
+  });
+}
+
+export async function autofixWizardWithAi(wizardId: string, userDescription = ""): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>(buildWizardAiAutofixBackendPath(wizardId), {
+    method: "POST",
+    body: JSON.stringify({ user_description: userDescription }),
+    timeoutMs: WIZARD_AI_TIMEOUT_MS,
   });
 }

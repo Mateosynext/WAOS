@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
+from app.config import settings
+
 from ...contracts import ok
 from ...db import execute, table_exists
 from ...repositories import create_audit_log
 from ...security import ensure_org_access
 from ...utils import new_id, to_json, utcnow_iso
+from ...vertical_onboarding_ai_prefill import apply_ai_autofix_to_wizard, generate_ai_wizard_autopilot, generate_ai_wizard_prefill
 from ...vertical_onboarding_runtime import (
     apply_guided_onboarding_wizard,
     dry_run_guided_onboarding_wizard,
@@ -41,6 +44,73 @@ def start_wizard(service, uow: UnitOfWork, *, payload, user: dict) -> dict:
     uow.commit()
     return ok(wizard)
 
+
+def ai_prefill_wizard(service, uow: UnitOfWork, *, payload, user: dict) -> dict:
+    org, bot = service._resolve_scope(uow, user=user, organization_id=payload.organization_id, bot_id=payload.bot_id)
+    require_permission(user, org["id"], "activation.manage")
+    result = generate_ai_wizard_prefill(
+        uow.conn,
+        organization_id=org["id"],
+        bot_id=(bot or {}).get("id"),
+        vertical_id=payload.vertical_id or ((bot or {}).get("vertical")) or org.get("vertical"),
+        subvertical=payload.subvertical,
+        primary_objective=payload.primary_objective,
+        user_description=payload.user_description,
+        existing_answers=payload.existing_answers,
+        intensity=payload.intensity,
+    )
+    return ok(result)
+
+
+def ai_autofix_wizard(service, uow: UnitOfWork, *, wizard_id: str, payload, user: dict) -> dict:
+    service._get_accessible_wizard(uow.conn, wizard_id=wizard_id, user=user, permission="activation.manage")
+    try:
+        result = apply_ai_autofix_to_wizard(
+            uow.conn,
+            wizard_id=wizard_id,
+            user_description=getattr(payload, "user_description", ""),
+            max_rounds=int(getattr(payload, "max_rounds", 3) or 3),
+        )
+    except ValueError as exc:
+        detail = str(exc)
+        if detail == "wizard_not_found":
+            raise HTTPException(status_code=404, detail="Wizard not found")
+        if detail == "wizard_revision_conflict":
+            raise HTTPException(status_code=409, detail="wizard_revision_conflict")
+        raise HTTPException(status_code=400, detail=detail)
+    uow.commit()
+    return ok(result)
+
+
+def ai_autopilot_wizard(service, uow: UnitOfWork, *, payload, user: dict) -> dict:
+    org, bot = service._resolve_scope(uow, user=user, organization_id=payload.organization_id, bot_id=payload.bot_id)
+    require_permission(user, org["id"], "activation.manage")
+    try:
+        result = generate_ai_wizard_autopilot(
+            uow.conn,
+            organization_id=org["id"],
+            bot_id=(bot or {}).get("id"),
+            vertical_id=payload.vertical_id or ((bot or {}).get("vertical")) or org.get("vertical"),
+            subvertical=payload.subvertical,
+            primary_objective=payload.primary_objective,
+            user_description=payload.user_description,
+            existing_answers=payload.existing_answers,
+            intensity=payload.intensity,
+            max_autofix_rounds=min(int(payload.max_autofix_rounds or settings.autopilot_max_autofix_rounds), settings.autopilot_max_autofix_rounds),
+            auto_apply=bool(payload.auto_apply),
+            actor_user=user,
+        )
+    except ValueError as exc:
+        detail = str(exc)
+        if detail == "wizard_not_found":
+            raise HTTPException(status_code=404, detail="Wizard not found")
+        if detail == "wizard_revision_conflict":
+            raise HTTPException(status_code=409, detail="wizard_revision_conflict")
+        if detail in {"dry_run_required", "dry_run_blocked", "wizard_requires_bot", "bot_not_found"}:
+            raise HTTPException(status_code=400, detail=detail)
+        raise HTTPException(status_code=400, detail=detail)
+    uow.commit()
+    return ok(result)
 
 def update_wizard_step(service, uow: UnitOfWork, *, wizard_id: str, step_key: str, payload, user: dict) -> dict:
     wizard = service._get_accessible_wizard(uow.conn, wizard_id=wizard_id, user=user, permission="activation.manage")

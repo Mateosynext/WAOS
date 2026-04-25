@@ -129,11 +129,22 @@ def require_permission(user: dict, organization_id: str | None, permission: str)
         raise HTTPException(status_code=403, detail=f"Missing permission: {permission}")
 
 
+def _is_trusted_proxy_ip(value: str) -> bool:
+    try:
+        ip_obj = ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    for network in settings.trusted_proxy_networks:
+        if ip_obj in network:
+            return True
+    return False
+
+
 def client_ip(request: Request) -> str | None:
     direct_ip = request.client.host if request.client else None
     if not settings.trust_proxy_headers or not direct_ip:
         return direct_ip
-    if direct_ip not in settings.trusted_proxy_ips:
+    if not _is_trusted_proxy_ip(direct_ip):
         return direct_ip
     forwarded = request.headers.get("x-forwarded-for")
     if not forwarded:

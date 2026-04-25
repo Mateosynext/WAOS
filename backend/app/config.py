@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import ipaddress
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -12,6 +13,8 @@ DEFAULT_CORS_ALLOWED_ORIGINS = DEFAULT_PUBLIC_APP_URL
 DEFAULT_ALLOWED_HOSTS = "app.example.com,api.example.com"
 DEFAULT_SECRET_SENTINELS = {"", "waos-dev-secret-key", "changeme", "change_me", "replace_me", "example", "default"}
 DEFAULT_META_VERIFY_SENTINELS = {"", "changeme", "change_me", "replace_me", "example", "default"}
+GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+OPENAI_API_BASE_URL = "https://api.openai.com/v1"
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -31,7 +34,9 @@ class Settings:
     database_url: str = os.getenv("DATABASE_URL", "")
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5")
-    openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    openai_base_url: str = os.getenv("OPENAI_BASE_URL", OPENAI_API_BASE_URL)
+    openai_timeout_seconds: int = int(os.getenv("OPENAI_TIMEOUT_SECONDS", "30"))
+    autopilot_max_autofix_rounds: int = int(os.getenv("AUTOPILOT_MAX_AUTOFIX_ROUNDS", "2"))
     meta_graph_api_base: str = os.getenv("META_GRAPH_API_BASE", "https://graph.facebook.com/v23.0")
     meta_verify_token: str = os.getenv("META_VERIFY_TOKEN", "")
     default_timezone: str = os.getenv("DEFAULT_TIMEZONE", "America/Mexico_City")
@@ -60,7 +65,7 @@ class Settings:
     default_page_size: int = int(os.getenv("DEFAULT_PAGE_SIZE", "30"))
     runtime_cache_ttl_seconds: int = int(os.getenv("RUNTIME_CACHE_TTL_SECONDS", "10"))
     gzip_minimum_size: int = int(os.getenv("GZIP_MINIMUM_SIZE", "1024"))
-    web_concurrency: int = int(os.getenv("WEB_CONCURRENCY", "2"))
+    web_concurrency: int = int(os.getenv("WEB_CONCURRENCY", "3" if os.getenv("APP_ENV", "development").strip().lower() == "production" else "2"))
     worker_batch_size: int = int(os.getenv("WORKER_BATCH_SIZE", "50"))
     access_token_ttl_minutes: int = int(os.getenv("ACCESS_TOKEN_TTL_MINUTES", "60"))
     refresh_token_ttl_minutes: int = int(os.getenv("REFRESH_TOKEN_TTL_MINUTES", "720"))
@@ -150,6 +155,13 @@ class Settings:
         return values
 
     @property
+    def trusted_proxy_networks(self) -> list[ipaddress._BaseNetwork]:
+        networks: list[ipaddress._BaseNetwork] = []
+        for value in self.trusted_proxy_ips:
+            networks.append(ipaddress.ip_network(value, strict=False))
+        return networks
+
+    @property
     def is_production(self) -> bool:
         return self.app_env.strip().lower() == "production"
 
@@ -194,6 +206,26 @@ class Settings:
             allowed = "http/https" if allow_http else "https"
             raise ValueError(f"{name} must be a valid {allowed} URL")
 
+
+    def validate_ai_provider_alignment(self, *, require_explicit: bool | None = None) -> None:
+        require_explicit = self.is_production if require_explicit is None else require_explicit
+        explicit_model = os.getenv("OPENAI_MODEL", "").strip()
+        explicit_base_url = os.getenv("OPENAI_BASE_URL", "").strip()
+        base_url = self.openai_base_url.strip().lower().rstrip("/") + "/"
+        model = self.openai_model.strip().lower()
+        if require_explicit and not explicit_model:
+            raise ValueError("OPENAI_MODEL must be explicitly set in production to avoid silent fallback")
+        if require_explicit and not explicit_base_url:
+            raise ValueError("OPENAI_BASE_URL must be explicitly set in production to avoid silent fallback")
+        if "generativelanguage.googleapis.com" in base_url and not model.startswith("gemini-"):
+            raise ValueError("OPENAI_BASE_URL points to Gemini, but OPENAI_MODEL is not a Gemini model")
+        if "api.openai.com" in base_url and model.startswith("gemini-"):
+            raise ValueError("OPENAI_BASE_URL points to OpenAI, but OPENAI_MODEL is Gemini")
+        if self.openai_timeout_seconds < 5 or self.openai_timeout_seconds > 60:
+            raise ValueError("OPENAI_TIMEOUT_SECONDS must be between 5 and 60")
+        if self.autopilot_max_autofix_rounds < 1 or self.autopilot_max_autofix_rounds > 2:
+            raise ValueError("AUTOPILOT_MAX_AUTOFIX_ROUNDS must be between 1 and 2 in this hardened release")
+
     def validate_runtime(self) -> None:
         if self.db_pool_min_size < 1:
             raise ValueError("DB_POOL_MIN_SIZE must be >= 1")
@@ -237,12 +269,18 @@ class Settings:
         self._validate_url(self.api_base_url, name="API_BASE_URL", allow_http=not self.is_production)
         self._validate_url(self.api_internal_url, name="API_INTERNAL_URL", allow_http=True)
         self._validate_url(self.openai_base_url, name="OPENAI_BASE_URL", allow_http=False)
+        self.validate_ai_provider_alignment()
         self._validate_url(self.meta_graph_api_base, name="META_GRAPH_API_BASE", allow_http=False)
         if self.is_production:
             if not self.secure_cookies:
                 raise ValueError("SECURE_COOKIES must be enabled in production")
             if self.trust_proxy_headers and not self.trusted_proxy_ips:
                 raise ValueError("TRUSTED_PROXY_IPS must be configured when TRUST_PROXY_HEADERS is enabled in production")
+            if self.trust_proxy_headers:
+                try:
+                    self.trusted_proxy_networks
+                except ValueError as exc:
+                    raise ValueError("TRUSTED_PROXY_IPS contains invalid IP/CIDR entry") from exc
             if any(host == "*" for host in self.allowed_hosts):
                 raise ValueError("ALLOWED_HOSTS cannot contain '*' in production")
 

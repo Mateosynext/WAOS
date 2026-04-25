@@ -1,6 +1,7 @@
 "use client";
 
 import { safeText } from "@/app/lib/ui";
+import { AiSetupAssistant } from "../../create/AiSetupAssistant";
 import SubverticalPicker from "@/features/bot-studio/ui/SubverticalPicker";
 import VerticalPicker from "@/features/bot-studio/ui/VerticalPicker";
 import { FieldGroup, SelectField, SummaryCard } from "@/features/bot-studio/ui/flowUi";
@@ -64,6 +65,16 @@ export function CreateContextScreen({ viewModel: state, actions: handlers }: { v
         />
         {state.previewError ? <SummaryCard title="Señal de contexto" tone="warning">{state.previewError}</SummaryCard> : null}
       </FieldGroup>
+
+      <AiSetupAssistant
+        disabled={!state.selectedOrganizationId || !state.selectedVerticalId}
+        selectedVerticalLabel={safeText(state.verticals.find((item) => item.id === state.selectedVerticalId)?.name, "Industria pendiente")}
+        selectedSubvertical={state.selectedSubvertical}
+        selectedPrimaryObjective={state.selectedPrimaryObjective}
+        onGenerate={handlers.generateAiPrefill}
+        onAutopilot={handlers.runAiAutopilot}
+        onAccept={handlers.applyAiPrefill}
+      />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <SummaryCard title="Contexto confirmado" tone="accent">

@@ -39,3 +39,15 @@ export function buildWizardBlueprintBackendPath(request: WizardBlueprintPathRequ
   const query = params.toString();
   return `${WIZARD_API_PREFIX}/blueprint${query ? `?${query}` : ""}`;
 }
+
+export function buildWizardAiAutofixBackendPath(wizardId: string) {
+  return `${buildWizardBackendBasePath(wizardId)}/ai-autofix`;
+}
+
+export function buildWizardAiPrefillBackendPath() {
+  return `${WIZARD_API_PREFIX}/ai-prefill`;
+}
+
+export function buildWizardAiAutopilotBackendPath() {
+  return `${WIZARD_API_PREFIX}/ai-autopilot`;
+}

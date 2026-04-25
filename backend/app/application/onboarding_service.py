@@ -17,6 +17,18 @@ class OnboardingService(OnboardingSupport):
         from .onboarding_handlers.commands import start_wizard as _handle
         return _handle(self, uow, payload=payload, user=user)
 
+    def ai_prefill_wizard(self, uow: UnitOfWork, *, payload, user: dict) -> dict:
+        from .onboarding_handlers.commands import ai_prefill_wizard as _handle
+        return _handle(self, uow, payload=payload, user=user)
+
+    def ai_autofix_wizard(self, uow: UnitOfWork, *, wizard_id: str, payload, user: dict) -> dict:
+        from .onboarding_handlers.commands import ai_autofix_wizard as _handle
+        return _handle(self, uow, wizard_id=wizard_id, payload=payload, user=user)
+
+    def ai_autopilot_wizard(self, uow: UnitOfWork, *, payload, user: dict) -> dict:
+        from .onboarding_handlers.commands import ai_autopilot_wizard as _handle
+        return _handle(self, uow, payload=payload, user=user)
+
     def get_wizard(self, uow: UnitOfWork, *, wizard_id: str, user: dict) -> dict:
         from .onboarding_handlers.queries import get_wizard as _handle
         return _handle(self, uow, wizard_id=wizard_id, user=user)
