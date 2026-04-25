@@ -6,7 +6,7 @@
     "dev": "next dev -p 3000",
     "build": "node ./scripts/validate-env.mjs && node ./scripts/clean-stale-botstudio.mjs && npm run typecheck && next build",
     "vercel-build": "npm run build",
-    "start": "next start -p 3000",
+    "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
     "lint": "next lint",
     "typecheck": "node ./scripts/clean-stale-botstudio.mjs && tsc --noEmit",
     "smoke": "node --no-warnings --import tsx ./scripts/smoke-routes.mjs",
@@ -19,7 +19,8 @@
     "test:e2e:real:critical": "playwright test --config=playwright.real.config.ts --grep @critical",
     "validate:delivery": "node ./scripts/validate-static-delivery.mjs",
     "clean": "rm -rf .next node_modules tsconfig.tsbuildinfo playwright-report test-results coverage",
-    "clean:stale": "node ./scripts/clean-stale-botstudio.mjs"
+    "clean:stale": "node ./scripts/clean-stale-botstudio.mjs",
+    "start:render": "next start -H 0.0.0.0 -p ${PORT:-3000}"
   },
   "engines": {
     "node": ">=20 <23"

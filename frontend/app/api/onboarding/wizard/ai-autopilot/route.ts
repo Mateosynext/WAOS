@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { wizardRouteResponse } from "../route-helpers";
+import { wizardPostOnlyResponse, wizardPostOptionsResponse, wizardRouteResponse } from "../route-helpers";
 import { runWizardAiAutopilot } from "../../../../lib/data/wizard";
 
 export async function POST(request: NextRequest) {
@@ -16,4 +16,13 @@ export async function POST(request: NextRequest) {
     maxAutofixRounds: Number(body?.max_autofix_rounds || body?.maxAutofixRounds || 2),
     autoApply: Boolean(body?.auto_apply || body?.autoApply || false),
   }), "No se pudo correr AI Autopilot end-to-end.");
+}
+
+
+export async function GET() {
+  return wizardPostOnlyResponse("/api/onboarding/wizard/ai-autopilot");
+}
+
+export async function OPTIONS() {
+  return wizardPostOptionsResponse();
 }

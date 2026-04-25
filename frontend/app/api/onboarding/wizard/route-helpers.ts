@@ -2,6 +2,46 @@ import { NextResponse } from "next/server";
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
+const POST_ONLY_HEADERS = {
+  ...NO_STORE_HEADERS,
+  Allow: "POST, OPTIONS",
+};
+
+export function wizardPostOnlyResponse(route: string) {
+  const requestId = `web-${crypto.randomUUID()}`;
+  return NextResponse.json(
+    {
+      detail: `La ruta ${route} solo acepta POST. No la abras directo en el navegador; usa el botón del wizard o una llamada POST con JSON.`,
+      code: "method_not_allowed",
+      status: 405,
+      allowed_methods: ["POST", "OPTIONS"],
+      request_id: requestId,
+      correlation_id: requestId,
+    },
+    {
+      status: 405,
+      headers: {
+        ...POST_ONLY_HEADERS,
+        "X-Request-Id": requestId,
+        "X-Correlation-Id": requestId,
+        "X-Error-Code": "method_not_allowed",
+        "X-Error-Type": "MethodNotAllowed",
+      },
+    },
+  );
+}
+
+export function wizardPostOptionsResponse() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      ...POST_ONLY_HEADERS,
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-Id, X-Correlation-Id",
+    },
+  });
+}
+
 const WIZARD_ERROR_MESSAGES: Record<string, string> = {
   dry_run_required: "Debes correr un dry run vigente antes de aplicar la reconfiguración.",
   dry_run_blocked: "El dry run actual sigue bloqueando el apply. Resuelve conflictos o vuelve a validar antes de aplicar.",

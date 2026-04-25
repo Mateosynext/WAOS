@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { wizardRouteResponse } from "../route-helpers";
+import { wizardPostOnlyResponse, wizardPostOptionsResponse, wizardRouteResponse } from "../route-helpers";
 import { generateWizardAiPrefill } from "../../../../lib/data/wizard";
 
 export async function POST(request: NextRequest) {
@@ -14,4 +14,13 @@ export async function POST(request: NextRequest) {
     intensity: body?.intensity || "balanced",
     existingAnswers: body?.existing_answers || body?.existingAnswers || {},
   }), "No se pudo generar el setup con IA.");
+}
+
+
+export async function GET() {
+  return wizardPostOnlyResponse("/api/onboarding/wizard/ai-prefill");
+}
+
+export async function OPTIONS() {
+  return wizardPostOptionsResponse();
 }

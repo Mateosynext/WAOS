@@ -198,6 +198,39 @@ services:
       paths:
         - backend/**
 
+  - type: web
+    name: waos-frontend
+    runtime: node
+    plan: starter
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start:render
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.1
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false
+      - key: API_INTERNAL_URL
+        sync: false
+      - key: API_BASE_URL
+        sync: false
+      - key: API_TIMEOUT_MS
+        value: 30000
+      - key: API_RETRIES
+        value: 2
+      - key: SECURE_COOKIES
+        value: true
+      - key: WAOS_ALLOW_ENV_FALLBACK
+        value: false
+    buildFilter:
+      paths:
+        - frontend/**
+
 databases:
   - name: waos-postgres
     databaseName: waos

@@ -82,8 +82,17 @@ def check_render_yaml(errors: list[str]) -> None:
     _require(root_render == backend_render, errors, "render.yaml and backend/render.yaml drifted; keep both in lockstep or Render may deploy different config.")
     web_block = _service_block(root_render, "waos-api")
     worker_block = _service_block(root_render, "waos-worker")
+    frontend_block = _service_block(root_render, "waos-frontend")
     _require(bool(web_block), errors, "render.yaml is missing waos-api web service.")
     _require(bool(worker_block), errors, "render.yaml is missing waos-worker service.")
+    _require(bool(frontend_block), errors, "render.yaml is missing waos-frontend Next.js web service; do not deploy frontend as Static Site.")
+    if frontend_block:
+        _require(re.search(r"(?m)^  - type:\s*web\s*$", frontend_block) is not None, errors, "waos-frontend must be Render type: web, not static.")
+        _require(re.search(r"(?m)^    runtime:\s*node\s*$", frontend_block) is not None, errors, "waos-frontend must use Render node runtime.")
+        _require(re.search(r"(?m)^    rootDir:\s*frontend\s*$", frontend_block) is not None, errors, "waos-frontend rootDir must be frontend.")
+        _require(re.search(r"(?m)^    startCommand:\s*npm run start:render\s*$", frontend_block) is not None, errors, "waos-frontend must start with npm run start:render so it binds Render PORT.")
+        for key in ["NEXT_PUBLIC_APP_URL", "NEXT_PUBLIC_API_BASE_URL", "API_INTERNAL_URL", "API_BASE_URL"]:
+            _require(_env_has_sync_false(frontend_block, key), errors, f"waos-frontend {key} must be configured explicitly with sync: false.")
     if not web_block or not worker_block:
         return
     _require(re.search(r"(?m)^    plan:\s*standard\s*$", web_block) is not None, errors, "waos-api must stay on Render plan: standard.")
@@ -176,6 +185,11 @@ def check_frontend_contracts(errors: list[str]) -> None:
 
 def check_frontend_env_examples(errors: list[str]) -> None:
     frontend_dir = ROOT_DIR / "frontend"
+    package_json = _read(frontend_dir / "package.json", errors)
+    _require('"start": "next start -H 0.0.0.0 -p ${PORT:-3000}"' in package_json, errors, "frontend start script must bind 0.0.0.0 and Render PORT.")
+    _require('"start:render": "next start -H 0.0.0.0 -p ${PORT:-3000}"' in package_json, errors, "frontend start:render script is required for Render Web Service deploys.")
+    route_helpers = _read(frontend_dir / "app" / "api" / "onboarding" / "wizard" / "route-helpers.ts", errors)
+    _require("wizardPostOnlyResponse" in route_helpers and "wizardPostOptionsResponse" in route_helpers, errors, "wizard API route helpers must expose explicit POST-only diagnostics.")
     canonical = frontend_dir / ".env.production.example"
     content = _read(canonical, errors)
     for deprecated in [frontend_dir / ".env.example", frontend_dir / ".env.vercel.example"]:
