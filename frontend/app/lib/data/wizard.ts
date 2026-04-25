@@ -2,6 +2,7 @@ import type { VerticalProfileContract } from "../contracts/verticals";
 import { apiFetch, apiFetchOrDefault } from "../api";
 import { buildWizardAiAutofixBackendPath, buildWizardAiAutopilotBackendPath, buildWizardAiPrefillBackendPath, buildWizardApplyBackendPath, buildWizardBackendBasePath, buildWizardBlueprintBackendPath, buildWizardDryRunBackendPath, buildWizardStepBackendPath, WIZARD_API_PREFIX } from "./wizardEndpoints";
 import { getVerticalProfile } from "./verticals";
+import { clampAutofixRounds, normalizeAiDescription, normalizeWizardAiIntensity } from "@/features/bot-studio/services/wizardAutopilotContract";
 import type {
   WizardApplyResult,
   WizardBlueprint,
@@ -30,6 +31,7 @@ const WIZARD_START_TIMEOUT_MS = 30000;
 const WIZARD_STEP_TIMEOUT_MS = 20000;
 const WIZARD_EXECUTION_TIMEOUT_MS = 45000;
 const WIZARD_AI_TIMEOUT_MS = 120000;
+
 
 export async function getWizardBlueprint(request: WizardBlueprintRequest): Promise<WizardBlueprint | null> {
   return apiFetchOrDefault<WizardBlueprint | null>(buildWizardBlueprintBackendPath(request), null);
@@ -91,8 +93,8 @@ function toBackendAiPrefillPayload(request: WizardAiPrefillRequest) {
     vertical_id: request.verticalId || null,
     subvertical: request.subvertical || null,
     primary_objective: request.primaryObjective || null,
-    user_description: request.userDescription || "",
-    intensity: request.intensity || "balanced",
+    user_description: normalizeAiDescription(request.userDescription),
+    intensity: normalizeWizardAiIntensity(request.intensity, "balanced"),
     existing_answers: request.existingAnswers || {},
   };
 }
@@ -115,8 +117,8 @@ export async function runWizardAiAutopilot(request: WizardAiAutopilotRequest): P
     method: "POST",
     body: JSON.stringify({
       ...toBackendAiPrefillPayload(request),
-      max_autofix_rounds: request.maxAutofixRounds ?? 2,
-      auto_apply: Boolean(request.autoApply),
+      max_autofix_rounds: clampAutofixRounds(request.maxAutofixRounds),
+      auto_apply: request.autoApply === true,
     }),
     timeoutMs: WIZARD_AI_TIMEOUT_MS,
   });

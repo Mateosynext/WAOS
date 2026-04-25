@@ -1,0 +1,1 @@
+EVAL_CASES=["dental","fitness","aesthetic","ecommerce","education","real estate","legal-sensitive","medical-sensitive","angry customer","price trap","false promise trap","unavailable integration trap","WhatsApp opt-out trap","no-response lead","payment dispute","appointment reschedule"]

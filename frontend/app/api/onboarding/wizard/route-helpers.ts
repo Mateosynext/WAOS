@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
-const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+  Pragma: "no-cache",
+  "X-Content-Type-Options": "nosniff",
+};
 
 const POST_ONLY_HEADERS = {
   ...NO_STORE_HEADERS,
@@ -48,6 +52,45 @@ const WIZARD_ERROR_MESSAGES: Record<string, string> = {
   wizard_revision_conflict: "Este wizard cambió mientras estabas guardando. Recarga el estado y vuelve a intentar.",
 };
 
+
+export type WizardValidationIssue = {
+  loc: Array<string | number>;
+  msg: string;
+  type?: string;
+};
+
+export function makeWizardValidationError(detail: string, errors: WizardValidationIssue[]) {
+  const error = new Error(detail) as Error & WizardRouteErrorShape;
+  error.status = 422;
+  error.code = "validation_error";
+  error.error_type = "WizardRouteValidationError";
+  error.details = { errors };
+  return error;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+export async function readWizardJsonBody(request: Request) {
+  let parsed: unknown;
+  try {
+    parsed = await request.json();
+  } catch {
+    throw makeWizardValidationError("JSON invalido en el cuerpo de la solicitud.", [
+      { loc: ["body"], msg: "El cuerpo debe ser JSON valido.", type: "json_invalid" },
+    ]);
+  }
+
+  if (!isPlainRecord(parsed)) {
+    throw makeWizardValidationError("El cuerpo de la solicitud debe ser un objeto JSON.", [
+      { loc: ["body"], msg: "Se esperaba un objeto JSON.", type: "object_required" },
+    ]);
+  }
+
+  return parsed;
+}
+
 type WizardRouteErrorShape = {
   code?: unknown;
   status?: unknown;
@@ -59,7 +102,14 @@ type WizardRouteErrorShape = {
   type?: unknown;
   detail?: unknown;
   message?: unknown;
+  details?: unknown;
+  error?: { details?: unknown };
 };
+
+function resolveWizardDetails(error: unknown) {
+  const value = error as WizardRouteErrorShape | null;
+  return value?.details ?? value?.error?.details ?? null;
+}
 
 function resolveWizardErrorCode(error: unknown, message: string) {
   const explicit = typeof (error as WizardRouteErrorShape | null)?.code === "string" ? String((error as WizardRouteErrorShape).code) : "";
@@ -96,6 +146,7 @@ export async function wizardRouteResponse<T>(load: () => Promise<T>, fallbackMes
     const code = resolveWizardErrorCode(error, tentativeMessage);
     const detail = resolveWizardDetail(error, fallbackMessage, code);
     const status = resolveWizardStatus(error);
+    const details = resolveWizardDetails(error);
     const { requestId, correlationId, errorType } = resolveWizardRequestMeta(error);
     return NextResponse.json(
       {
@@ -105,6 +156,7 @@ export async function wizardRouteResponse<T>(load: () => Promise<T>, fallbackMes
         error_type: errorType,
         request_id: requestId,
         correlation_id: correlationId,
+        details: details || undefined,
       },
       {
         status,

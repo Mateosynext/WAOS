@@ -44,12 +44,12 @@ export default async function OnboardingPage() {
       cta: "Ir a organizaciones",
     },
     {
-      title: activationBot ? "Reconfigurar asistente operativo existente" : "Crear asistente operativo",
+      title: activationBot ? "Reconfigurar asistente operativo existente" : "Crear asistente con IA",
       description: activationBot
         ? `${safeText(activationBot.name)} ya existe. El setup real, diff y apply viven en Bot Studio con wizard_id persistido.`
         : "Si todavía no hay bot, Bot Studio ahora es el único lugar que crea y aplica el setup real del asistente operativo.",
-      href: activationBot ? `/bot-studio?mode=reconfigure&bot=${encodeURIComponent(activationBot.id)}` : "/bot-studio?mode=create",
-      cta: activationBot ? "Abrir Bot Studio en reconfiguración" : "Abrir Bot Studio en creación",
+      href: activationBot ? `/bot-studio?mode=reconfigure&bot=${encodeURIComponent(activationBot.id)}` : "/bot-studio",
+      cta: activationBot ? "Abrir Bot Studio en reconfiguración" : "Construir agente con IA",
     },
     {
       title: "Conectar canal principal",
@@ -103,7 +103,7 @@ export default async function OnboardingPage() {
     <Shell
       title="Onboarding"
       subtitle="Onboarding ya no crea asistentes operativos ni compite con setup. Aquí solo ves readiness, checklist, bloqueadores y el siguiente paso real dentro del producto."
-      action={<Link href={safeText(String(activation.next_step?.href || "/bot-studio?mode=create"), "/bot-studio?mode=create")} className="primary-btn">{safeText(String(activation.next_step?.label || "Ir al siguiente paso"))}</Link>}
+      action={<Link href={safeText(String(activation.next_step?.href || "/bot-studio"), "/bot-studio")} className="primary-btn">{safeText(String(activation.next_step?.label || "Ir al siguiente paso"))}</Link>}
     >
       <ContextTip title="Qué hace cada módulo">
         Onboarding = readiness, checklist y estado. Bot Studio = crear o reconfigurar. Integraciones = conectar o probar. Releases = publicar. Inbox = operar. Esta vista solo orquesta bloqueadores y te empuja al módulo correcto.
@@ -124,8 +124,8 @@ export default async function OnboardingPage() {
             <div className="mt-2 text-2xl font-semibold text-white">{safeText(String(activation.next_step?.label || "Continuar setup"))}</div>
             <p className="mt-3 text-sm leading-7 text-slate-300">{safeText(String(activation.next_step?.reason || "Cierra los bloqueadores principales antes de publicar."))}</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Link href={safeText(String(activation.next_step?.href || "/bot-studio?mode=create"), "/bot-studio?mode=create")} className="primary-btn">Ejecutar siguiente paso</Link>
-              <Link href="/bot-studio?mode=create" className="secondary-btn">Abrir Bot Studio</Link>
+              <Link href={safeText(String(activation.next_step?.href || "/bot-studio"), "/bot-studio")} className="primary-btn">Ejecutar siguiente paso</Link>
+              <Link href="/bot-studio" className="secondary-btn">Abrir Bot Studio</Link>
             </div>
             <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {Object.entries(activation.progress || {}).map(([key, value]) => (
@@ -195,7 +195,7 @@ export default async function OnboardingPage() {
               <div className="surface-row"><span>Status wizard</span><strong>{safeText(guidedWizard?.status, "draft")}</strong></div>
             </div>
             <div className="mt-5 flex flex-wrap gap-2">
-              <Link href={activationBot ? `/bot-studio?mode=reconfigure&bot=${encodeURIComponent(activationBot.id)}` : "/bot-studio?mode=create"} className="primary-btn">Ir a Bot Studio</Link>
+              <Link href={activationBot ? `/bot-studio?mode=reconfigure&bot=${encodeURIComponent(activationBot.id)}` : "/bot-studio"} className="primary-btn">Ir a Bot Studio</Link>
               {guidedWizard?.id ? <Link href={`/bot-studio?mode=${activationBot ? "reconfigure" : "create"}&wizard_id=${encodeURIComponent(String(guidedWizard.id))}${activationBot ? `&bot=${encodeURIComponent(activationBot.id)}` : ""}`} className="secondary-btn">Retomar wizard</Link> : null}
             </div>
           </div>
@@ -225,7 +225,7 @@ export default async function OnboardingPage() {
             description="Onboarding no vuelve a pedir vertical ni vuelve a crear bot. Solo muestra readiness, checklist, bloqueadores y el CTA correcto hacia Bot Studio u otras estaciones operativas."
             icon="check"
             tone="green"
-            footer={<Link href="/bot-studio?mode=create" className="primary-btn">Abrir setup real</Link>}
+            footer={<Link href="/bot-studio" className="primary-btn">Abrir setup real</Link>}
           />
         </div>
       </Section>

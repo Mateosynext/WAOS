@@ -1,0 +1,4 @@
+from __future__ import annotations
+def generate_tool_execution_plan(vertical_pack: dict, intensity: str="balanced") -> dict:
+    actions=["book_appointment","reschedule","create_payment_link","update_contact_stage","send_receipt","create_followup_task","handoff_to_human","tag_contact","create_crm_note"]
+    return {"recommended_tools":actions,"required_integrations":["calendar","crm","payments","human_inbox"],"action_map":{a:{"preview_only_during_setup":True} for a in actions},"preview_required_actions":actions,"confirmation_required_actions":["book_appointment","reschedule","create_payment_link","send_receipt"],"idempotency_rules":{"required":True,"key_fields":["organization_id","bot_id","contact_id","action","external_id"]},"rollback_notes":["do not execute tools in setup","payments always require confirmation"],"missing_integrations":["calendar","payments","human_destination"],"safe_fallbacks":["handoff_to_human","ask_to_confirm"]}

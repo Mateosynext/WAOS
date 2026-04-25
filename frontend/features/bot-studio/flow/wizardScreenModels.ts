@@ -139,7 +139,7 @@ export function buildCreateWizardScreenModels(args: BuildCreateArgs): CreateWiza
               primaryObjective: scope.selectedPrimaryObjective,
               userDescription: input.userDescription,
               intensity: input.intensity || "savage",
-              maxAutofixRounds: 3,
+              maxAutofixRounds: 2,
               autoApply: false,
               existingAnswers: {
                 vertical_fit: payloads.scope,
@@ -151,12 +151,17 @@ export function buildCreateWizardScreenModels(args: BuildCreateArgs): CreateWiza
               },
             });
             patchState(buildStatePatchFromAiPrefill(result));
-            const nextWizard = asRecord(result.wizard);
+            const dryRunResult = asRecord(result.dry_run_result);
+            const nextWizard = asRecord(dryRunResult.wizard || result.wizard);
             if (Object.keys(nextWizard).length) {
               actions.wizardRuntime.setWizard(nextWizard as ScreenSlices["wizardRuntime"]["wizard"]);
               actions.wizardRuntime.setWizardId(String(nextWizard.id || result.wizard_id || ""));
+              const validation = asRecord(asRecord(nextWizard.answers).dry_run_validation);
+              const validatedRevision = Number(validation.wizard_revision || nextWizard.wizard_revision || 0);
+              if (Number.isFinite(validatedRevision) && validatedRevision > 0) {
+                actions.wizardRuntime.setValidatedWizardRevision(validatedRevision);
+              }
             }
-            const dryRunResult = asRecord(result.dry_run_result);
             if (Object.keys(dryRunResult).length) {
               actions.wizardRuntime.setDryRunResult(dryRunResult as ScreenSlices["wizardRuntime"]["dryRunResult"]);
             }

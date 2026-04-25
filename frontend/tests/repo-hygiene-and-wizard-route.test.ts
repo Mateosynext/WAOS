@@ -118,18 +118,18 @@ test("Bot Studio canonical href strips placeholder query values", () => {
   assert.match(flowConfig, /const rendered = cleanRouteSearchValue\(value\);/);
 });
 
-test("Bot Studio legacy entry routes sanitize placeholder query params", () => {
+test("Bot Studio AI-first entry hides manual create and preserves sanitized run resume", () => {
   const rootPage = read("app/bot-studio/page.tsx");
   const dynamicPage = read("app/bot-studio/[mode]/[[...slug]]/page.tsx");
 
-  assert.match(rootPage, /function cleanParam\(value: string \| string\[\] \| undefined\)/);
-  assert.match(rootPage, /const routeBotId = cleanParam\(resolvedParams\?\.bot\);/);
-  assert.match(rootPage, /const mode = routeMode === "reconfigure" \|\| \(!routeMode && routeBotId\) \? "reconfigure" : "create";/);
-  assert.doesNotMatch(rootPage, /routeMode === "reconfigure" \|\| routeBotId \? "reconfigure"/);
+  assert.match(rootPage, /WAOS AI Command Center/);
+  assert.match(rootPage, /const runId = cleanParam\(resolvedParams\.run_id\);/);
+  assert.doesNotMatch(rootPage, /Crear desde cero/);
+  assert.doesNotMatch(rootPage, /Rutas canónicas/);
 
-  assert.match(dynamicPage, /function cleanParam\(value: string \| string\[\] \| undefined\)/);
-  assert.match(dynamicPage, /bot: cleanParam\(resolvedParams\?\.bot\)/);
-  assert.match(dynamicPage, /botId: cleanParam\(resolvedParams\?\.bot\)/);
+  assert.match(dynamicPage, /NEXT_PUBLIC_ENABLE_MANUAL_BOT_CREATE === "true"/);
+  assert.match(dynamicPage, /if \(!MANUAL_ENABLED\)/);
+  assert.match(dynamicPage, /redirect\(`\/bot-studio\$\{query\}`\)/);
 });
 
 test("Bot Studio create prefill is available on editable direct-entry steps", () => {

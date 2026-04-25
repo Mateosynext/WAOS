@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.config import settings
 
@@ -41,11 +41,13 @@ class GuidedOnboardingWizardStepUpdateRequest(BaseModel):
 
 
 class GuidedOnboardingAiPrefillRequest(BaseModel):
-    organization_id: str
-    bot_id: str | None = None
-    vertical_id: str | None = None
-    subvertical: str | None = None
-    primary_objective: str | None = None
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    organization_id: str = Field(min_length=1, max_length=120)
+    bot_id: str | None = Field(default=None, max_length=120)
+    vertical_id: str | None = Field(default=None, max_length=120)
+    subvertical: str | None = Field(default=None, max_length=120)
+    primary_objective: str | None = Field(default=None, max_length=120)
     user_description: str = Field(default="", max_length=4000)
     intensity: Literal["balanced", "aggressive", "conservative", "savage"] = "balanced"
     existing_answers: dict[str, Any] = Field(default_factory=dict)
@@ -57,11 +59,13 @@ class GuidedOnboardingAiAutofixRequest(BaseModel):
 
 
 class GuidedOnboardingAiAutopilotRequest(BaseModel):
-    organization_id: str
-    bot_id: str | None = None
-    vertical_id: str | None = None
-    subvertical: str | None = None
-    primary_objective: str | None = None
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    organization_id: str = Field(min_length=1, max_length=120)
+    bot_id: str | None = Field(default=None, max_length=120)
+    vertical_id: str | None = Field(default=None, max_length=120)
+    subvertical: str | None = Field(default=None, max_length=120)
+    primary_objective: str | None = Field(default=None, max_length=120)
     user_description: str = Field(default="", max_length=4000)
     intensity: Literal["balanced", "aggressive", "conservative", "savage"] = "aggressive"
     existing_answers: dict[str, Any] = Field(default_factory=dict)

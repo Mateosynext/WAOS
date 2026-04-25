@@ -96,7 +96,7 @@ def ai_autopilot_wizard(service, uow: UnitOfWork, *, payload, user: dict) -> dic
             user_description=payload.user_description,
             existing_answers=payload.existing_answers,
             intensity=payload.intensity,
-            max_autofix_rounds=min(int(payload.max_autofix_rounds or settings.autopilot_max_autofix_rounds), settings.autopilot_max_autofix_rounds),
+            max_autofix_rounds=max(1, min(int(payload.max_autofix_rounds or settings.autopilot_max_autofix_rounds), settings.autopilot_max_autofix_rounds)),
             auto_apply=bool(payload.auto_apply),
             actor_user=user,
         )
@@ -106,7 +106,7 @@ def ai_autopilot_wizard(service, uow: UnitOfWork, *, payload, user: dict) -> dic
             raise HTTPException(status_code=404, detail="Wizard not found")
         if detail == "wizard_revision_conflict":
             raise HTTPException(status_code=409, detail="wizard_revision_conflict")
-        if detail in {"dry_run_required", "dry_run_blocked", "wizard_requires_bot", "bot_not_found"}:
+        if detail in {"dry_run_required", "dry_run_blocked", "wizard_requires_bot", "bot_not_found", "organization_required"}:
             raise HTTPException(status_code=400, detail=detail)
         raise HTTPException(status_code=400, detail=detail)
     uow.commit()

@@ -4,6 +4,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
 python backend/scripts/deploy_guard.py
+python scripts/autopilot_hardening_guard.py
 python scripts/release_gate.py --profile source
 python -m py_compile \
   backend/app/config.py \
@@ -15,7 +16,8 @@ python -m py_compile \
   backend/scripts/validate_render_env.py \
   backend/scripts/run_migrations.py \
   backend/scripts/export_vertical_profiles.py \
-  scripts/release_gate.py
+  scripts/release_gate.py \
+  scripts/autopilot_hardening_guard.py
 python -m unittest backend.tests.test_deploy_hardening_guardrails -v
 
 (

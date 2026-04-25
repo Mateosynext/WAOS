@@ -864,6 +864,14 @@ def _build_ai_wizard_start_payload(*, organization_id: str, bot_id: str | None, 
     }
 
 
+
+def _bounded_autopilot_autofix_rounds(value: Any) -> int:
+    try:
+        parsed = int(settings.autopilot_max_autofix_rounds if value is None or value == "" else value)
+    except (TypeError, ValueError):
+        parsed = settings.autopilot_max_autofix_rounds
+    return max(1, min(parsed, settings.autopilot_max_autofix_rounds))
+
 def generate_ai_wizard_autopilot(
     conn: Any,
     *,
@@ -879,7 +887,10 @@ def generate_ai_wizard_autopilot(
     auto_apply: bool = False,
     actor_user: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    max_autofix_rounds = min(int(max_autofix_rounds or settings.autopilot_max_autofix_rounds), settings.autopilot_max_autofix_rounds)
+    organization_id = _safe_text(organization_id)
+    if not organization_id:
+        raise ValueError("organization_required")
+    max_autofix_rounds = _bounded_autopilot_autofix_rounds(max_autofix_rounds)
     normalized_intensity = _safe_text(intensity, "aggressive").lower()
     if normalized_intensity == "balanced":
         # El endpoint end-to-end debe sentirse más decidido que el prefill suelto.
@@ -926,6 +937,7 @@ def generate_ai_wizard_autopilot(
     )
     wizard, saved_steps = _apply_answers_patch_to_wizard(conn, wizard=wizard, answers_patch=answers_patch)
     dry_run = dry_run_guided_onboarding_wizard(conn, wizard_id=str(wizard.get("id") or ""))
+    wizard = _as_record(dry_run.get("wizard")) or wizard
     autofix_result: dict[str, Any] | None = None
     if not _dry_run_apply_ready(dry_run):
         autofix_result = apply_ai_autofix_to_wizard(

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { safeText } from "@/app/lib/ui";
 import type { WizardAiIntensity, WizardAiPrefillResult } from "../services/wizardApi";
+import { AI_DESCRIPTION_MAX_LENGTH, normalizeAiDescription } from "../services/wizardAutopilotContract";
 
 type AiSetupAssistantProps = {
   disabled?: boolean;
@@ -19,13 +20,16 @@ function cardItems(items: unknown[]) {
   return items.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 6);
 }
 
-const AUTOPILOT_PROGRESS_MESSAGES = [
-  "Detectando industria...",
-  "Generando setup completo...",
-  "Validando...",
-  "Listo",
-] as const;
+function getAutopilotWizardId(result: WizardAiPrefillResult) {
+  const dryRunWizard = result.dry_run_result?.wizard;
+  const candidate = result.wizard_id || (typeof dryRunWizard === "object" && dryRunWizard ? String((dryRunWizard as Record<string, unknown>).id || "") : "") || (result.wizard ? String(result.wizard.id || "") : "");
+  return String(candidate || "").trim();
+}
 
+function buildValidateHref(result: WizardAiPrefillResult) {
+  const wizardId = getAutopilotWizardId(result);
+  return `/bot-studio/create/validate${wizardId ? `?wizard_id=${encodeURIComponent(wizardId)}` : ""}`;
+}
 export function AiSetupAssistant({ disabled, selectedVerticalLabel, selectedSubvertical, selectedPrimaryObjective, onGenerate, onAutopilot, onAccept }: AiSetupAssistantProps) {
   const [description, setDescription] = useState("");
   const [result, setResult] = useState<WizardAiPrefillResult | null>(null);
@@ -33,30 +37,18 @@ export function AiSetupAssistant({ disabled, selectedVerticalLabel, selectedSubv
   const [error, setError] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [applying, setApplying] = useState<"edit" | "autopilot" | "">("");
-  const [autopilotProgressIndex, setAutopilotProgressIndex] = useState(0);
   const router = useRouter();
 
   const contextLabel = useMemo(() => [selectedVerticalLabel, selectedSubvertical, selectedPrimaryObjective].filter(Boolean).join(" · "), [selectedVerticalLabel, selectedSubvertical, selectedPrimaryObjective]);
-  const autopilotProgressMessage = AUTOPILOT_PROGRESS_MESSAGES[autopilotProgressIndex] || AUTOPILOT_PROGRESS_MESSAGES[0];
-
-  useEffect(() => {
-    if (applying !== "autopilot") {
-      setAutopilotProgressIndex(0);
-      return;
-    }
-    const timers = [
-      window.setTimeout(() => setAutopilotProgressIndex(1), 10000),
-      window.setTimeout(() => setAutopilotProgressIndex(2), 20000),
-    ];
-    return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [applying]);
+  const autopilotProgressMessage = applying === "autopilot" ? "Autopilot real en ejecución..." : "Listo";
 
   const generate = async (intensity: WizardAiIntensity) => {
+    if (loading || applying) return;
     setLoading(intensity);
     setError("");
     setAccepted(false);
     try {
-      const next = await onGenerate({ userDescription: description, intensity });
+      const next = await onGenerate({ userDescription: normalizeAiDescription(description), intensity });
       setResult(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo generar el setup con IA.");
@@ -66,16 +58,15 @@ export function AiSetupAssistant({ disabled, selectedVerticalLabel, selectedSubv
   };
 
   const accept = async () => {
+    if (loading || applying) return;
     setApplying("autopilot");
-    setAutopilotProgressIndex(0);
     setError("");
     setAccepted(false);
     try {
-      const wired = await onAutopilot({ userDescription: description, intensity: "savage" });
-      setAutopilotProgressIndex(3);
+      const wired = await onAutopilot({ userDescription: normalizeAiDescription(description), intensity: "savage" });
       setResult(wired);
       setAccepted(true);
-      router.push("/bot-studio/create/validate");
+      router.push(buildValidateHref(wired));
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo correr AI Autopilot end-to-end.");
     } finally {
@@ -119,14 +110,16 @@ export function AiSetupAssistant({ disabled, selectedVerticalLabel, selectedSubv
         <textarea
           className="field-input min-h-[120px]"
           value={description}
-          onChange={(event) => setDescription(event.currentTarget.value)}
+          onChange={(event) => setDescription(normalizeAiDescription(event.currentTarget.value))}
+          maxLength={AI_DESCRIPTION_MAX_LENGTH}
           placeholder="Describe servicios, ciudad, objetivo, horarios, canal y restricciones importantes..."
         />
+        <span className="text-right text-[11px] text-[color:var(--text-tertiary)]">{description.length}/{AI_DESCRIPTION_MAX_LENGTH}</span>
       </label>
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" className="primary-btn" disabled={Boolean(disabled || loading || applying)} onClick={accept}>
-          {applying === "autopilot" ? autopilotProgressMessage : "Aceptar todo con Autopilot"}
+          {applying === "autopilot" ? autopilotProgressMessage : "Preparar y validar con Autopilot"}
         </button>
         <button type="button" className="secondary-btn" disabled={Boolean(disabled || loading || applying)} onClick={() => generate("aggressive")}>
           {loading === "aggressive" ? "Regenerando..." : "Regenerar más agresivo"}
@@ -144,7 +137,7 @@ export function AiSetupAssistant({ disabled, selectedVerticalLabel, selectedSubv
             <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-current" aria-hidden="true" />
             <span className="font-semibold text-[color:var(--text-primary)]">{autopilotProgressMessage}</span>
           </div>
-          <p className="mt-2 text-xs leading-5">El backend está corriendo prefill, batch save, dry run, autofix y validación final sin pedirte otro clic.</p>
+          <p className="mt-2 text-xs leading-5">El backend está corriendo el flujo real. El progreso visible de producción se consume desde SSE en el AI Command Center; este wrapper legacy no simula etapas.</p>
         </div>
       ) : null}
       {disabled ? <p className="mt-3 text-sm text-[color:var(--warning-text)]">Selecciona organización e industria antes de pedirle a la IA que arme el setup.</p> : null}
@@ -155,7 +148,7 @@ export function AiSetupAssistant({ disabled, selectedVerticalLabel, selectedSubv
           <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-4">
             <div className="text-sm font-semibold text-[color:var(--text-primary)]">{safeText(result.summary, "Setup generado por IA")}</div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" className="primary-btn" disabled={Boolean(applying)} onClick={accept}>{applying === "autopilot" ? autopilotProgressMessage : "Aceptar todo y correr Autopilot"}</button>
+              <button type="button" className="primary-btn" disabled={Boolean(applying)} onClick={accept}>{applying === "autopilot" ? autopilotProgressMessage : "Preparar y validar con Autopilot"}</button>
               <button type="button" className="secondary-btn" disabled={Boolean(applying)} onClick={edit}>{applying === "edit" ? "Aplicando..." : "Editar detalles importantes"}</button>
               {accepted ? <span className="rounded-full border border-[color:var(--success-border)] bg-[color:var(--success-soft)] px-3 py-2 text-xs font-semibold text-[color:var(--success-text)]">Setup guardado, validado y autofixeado</span> : null}
             </div>

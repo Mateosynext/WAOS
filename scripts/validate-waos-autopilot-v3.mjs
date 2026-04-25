@@ -1,0 +1,32 @@
+import { readFileSync, existsSync } from 'node:fs';
+const read = (p) => readFileSync(p, 'utf8');
+const checks = [];
+function check(name, ok) { checks.push([name, !!ok]); if (!ok) console.error('FAIL', name); }
+const api = read('backend/app/api/routers/ai_workflows.py');
+const service = read('backend/app/ai_workflows/bot_autopilot/service.py');
+const persistence = read('backend/app/ai_workflows/persistence.py');
+const schemas = read('backend/app/ai_workflows/bot_autopilot/schemas.py');
+const stream = read('frontend/features/ai-command-center/useAiWorkflowStream.ts');
+const center = read('frontend/features/ai-command-center/AiCommandCenter.tsx');
+const launch = read('frontend/features/ai-command-center/LaunchActionsPanel.tsx');
+const confirm = read('frontend/features/ai-command-center/HumanConfirmationPanel.tsx');
+const helper = read('frontend/app/api/ai/route-helpers.ts');
+check('tenant isolation enforced by run id', api.includes('require_authorized_run') && api.includes('accessible_org_ids') && api.includes('tenant_access_denied'));
+check('background failures are committed not rolled back', service.includes('background_guard') && service.includes('return {"run_id": run_id, "status": "failed"'));
+check('workflow cancellation is honored between steps', service.includes('WorkflowCancelled') && service.includes('_check_cancelled(conn, run_id)'));
+check('legacy wizard failure creates safe fallback', service.includes('fallback_draft') && service.includes('wizard.failed_partial'));
+check('apply recomputes readiness and requires confirm=true', api.includes('_compute_readiness') && api.includes('payload.get("confirm") is not True') && api.includes('readiness_blocked'));
+check('canary requires prior safe apply', api.includes('apply_required') && api.includes('Canary requires safe apply first'));
+check('persistence redacts and bounds json', persistence.includes('JSON_MAX_BYTES') && persistence.includes('[redacted]') && persistence.includes('RUN_UPDATE_FIELDS'));
+check('schemas forbid auto_apply and gate godmode', schemas.includes('AI_ENABLE_GODMODE') && schemas.includes('auto_apply is disabled'));
+check('SSE includes terminal/failure/cost/cancel events', ['workflow.paused_cost_limit','workflow.cancelled','workflow.failed','workflow.completed_partial'].every((s)=>stream.includes(s)));
+check('frontend refreshes on terminal payload', center.includes('terminalEvent') && center.includes('workflow.refresh'));
+check('launch and confirmation panels surface typed errors', launch.includes('readJsonSafely') && confirm.includes('Este campo requiere valor confirmado'));
+check('proxy helper handles backend unreachable', helper.includes('backend_unreachable') && helper.includes('url.search'));
+check('manual create copy hidden', !/Crear desde cero|Rutas canónicas|Create y reconfigure|flujo de creación modular/.test(read('frontend/app/bot-studio/page.tsx')));
+check('v3 static test exists', existsSync('backend/tests/test_ai_production_autopilot_v3_blindado_static.py'));
+const failed = checks.filter(([, ok]) => !ok);
+console.log(`${checks.length - failed.length}/${checks.length} checks passed`);
+if (failed.length) process.exit(1);
+
+process.exit(0);

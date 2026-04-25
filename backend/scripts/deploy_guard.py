@@ -211,12 +211,10 @@ def main(argv: list[str] | None = None) -> int:
     check_bootstrap(errors)
     check_migrations(errors)
     check_code_contracts(errors)
-    # Runtime deploys run from the backend service on Render.
-    # Do not block backend startup on frontend documentation/example-file hygiene.
+    check_frontend_contracts(errors)
+    check_frontend_env_examples(errors)
+    check_vertical_profile_sync(errors)
     if not args.runtime:
-        check_frontend_contracts(errors)
-        check_frontend_env_examples(errors)
-        check_vertical_profile_sync(errors)
         check_render_yaml(errors)
     if errors:
         for error in errors:

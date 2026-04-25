@@ -1,21 +1,19 @@
 import { NextRequest } from "next/server";
-import { wizardPostOnlyResponse, wizardPostOptionsResponse, wizardRouteResponse } from "../route-helpers";
+import { makeWizardValidationError, readWizardJsonBody, wizardPostOnlyResponse, wizardPostOptionsResponse, wizardRouteResponse } from "../route-helpers";
 import { generateWizardAiPrefill } from "../../../../lib/data/wizard";
+import { hasRequiredAutopilotScope, normalizeWizardAiProxyPayload } from "@/features/bot-studio/services/wizardAutopilotContract";
 
 export async function POST(request: NextRequest) {
-  const body = await request.json().catch(() => ({}));
-  return wizardRouteResponse(() => generateWizardAiPrefill({
-    organizationId: String(body?.organization_id || body?.organizationId || ""),
-    botId: body?.bot_id || body?.botId || null,
-    verticalId: body?.vertical_id || body?.verticalId || null,
-    subvertical: body?.subvertical || null,
-    primaryObjective: body?.primary_objective || body?.primaryObjective || null,
-    userDescription: String(body?.user_description || body?.userDescription || ""),
-    intensity: body?.intensity || "balanced",
-    existingAnswers: body?.existing_answers || body?.existingAnswers || {},
-  }), "No se pudo generar el setup con IA.");
+  return wizardRouteResponse(async () => {
+    const payload = normalizeWizardAiProxyPayload(await readWizardJsonBody(request), "balanced");
+    if (!hasRequiredAutopilotScope(payload)) {
+      throw makeWizardValidationError("organization_id es obligatorio para generar setup con IA.", [
+        { loc: ["body", "organization_id"], msg: "organization_id es obligatorio.", type: "missing" },
+      ]);
+    }
+    return generateWizardAiPrefill(payload);
+  }, "No se pudo generar el setup con IA.");
 }
-
 
 export async function GET() {
   return wizardPostOnlyResponse("/api/onboarding/wizard/ai-prefill");

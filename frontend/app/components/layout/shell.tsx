@@ -217,7 +217,7 @@ export async function Shell({
                   title={contextTitle}
                   description={contextDescription}
                   primaryAction={<AppNavLink href={contextChangeHref} className="primary-btn">Cambiar contexto</AppNavLink>}
-                  secondaryAction={missingBot && !availableBots.length ? <AppNavLink href="/bot-studio" className="secondary-btn">Crear asistente operativo</AppNavLink> : <AppNavLink href="/client/resumen" className="secondary-btn">Abrir vista cliente</AppNavLink>}
+                  secondaryAction={missingBot && !availableBots.length ? <AppNavLink href="/bot-studio" className="secondary-btn">Crear asistente con IA</AppNavLink> : <AppNavLink href="/client/resumen" className="secondary-btn">Abrir vista cliente</AppNavLink>}
                 />
               ) : children}
             </div>

@@ -32,7 +32,7 @@ export default async function BotsPage({ searchParams }: { searchParams?: Promis
   const selectedBot = bots.find((item) => String(item.id) === String(selectedBotId || ""));
 
   return (
-    <Shell title="Bots" subtitle="Inventario real de bots: salud, riesgo y salida a detalle sin mezclar veinte acciones en la misma pantalla." action={<Link href="/bot-studio" className="primary-btn">Crear</Link>}>
+    <Shell title="Bots" subtitle="Inventario real de bots: salud, riesgo y salida a detalle sin mezclar veinte acciones en la misma pantalla." action={<Link href="/bot-studio" className="primary-btn">Crear con IA</Link>}>
       <SecondaryNav items={[
         { href: "/bots?filter=todos", label: `Todos (${formatNumber(bots.length)})`, active: filter === "todos" },
         { href: "/bots?filter=activos", label: `Activos (${formatNumber(active)})`, active: filter === "activos" },
@@ -41,7 +41,7 @@ export default async function BotsPage({ searchParams }: { searchParams?: Promis
       ]} />
       <ContextTip>Usa esta pantalla para elegir el bot de trabajo y luego baja al detalle solo cuando de verdad necesites intervenir.</ContextTip>
       <Section title="Bot de trabajo" subtitle="Selecciona un bot explícito para que releases y otras vistas no adivinen contexto." icon="target" aside={<BotScopeSwitcher bots={bots} selectedBotId={selectedBotId} redirectTo={`/bots?filter=${encodeURIComponent(filter)}`} />}>
-        {selectedBot ? <SuccessState title={`Bot seleccionado: ${safeText(selectedBot.name)}`} description="Las pantallas que dependen de un bot ya pueden usar este contexto explícito sin asumir el primer bot disponible." actions={<Link href={`/bots/${selectedBot.id}`} className="primary-btn">Ver detalle</Link>} /> : <EmptyActionState title="Todavía no seleccionas un bot" description="Elige uno para trabajar con contexto claro en releases y otras pantallas relacionadas." primaryAction={<Link href="/bot-studio" className="primary-btn">Crear</Link>} />}
+        {selectedBot ? <SuccessState title={`Bot seleccionado: ${safeText(selectedBot.name)}`} description="Las pantallas que dependen de un bot ya pueden usar este contexto explícito sin asumir el primer bot disponible." actions={<Link href={`/bots/${selectedBot.id}`} className="primary-btn">Ver detalle</Link>} /> : <EmptyActionState title="Todavía no seleccionas un bot" description="Elige uno para trabajar con contexto claro en releases y otras pantallas relacionadas." primaryAction={<Link href="/bot-studio" className="primary-btn">Crear con IA</Link>} />}
       </Section>
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard label="Bots totales" value={formatNumber(bots.length)} hint="Inventario visible" icon="bot" tone="blue" />
@@ -59,7 +59,7 @@ export default async function BotsPage({ searchParams }: { searchParams?: Promis
             safeText(item.updated_at || item.last_release_at || item.created_at),
             <Link key={`${item.id}-go`} href={`/bots/${item.id}`} className="font-medium text-emerald-300 hover:text-emerald-200">Ver detalle</Link>,
           ];
-        })} /> : <EmptyActionState title="No hay bots para este filtro" description="La tabla queda limpia y útil. Cambia el filtro o crea el primer bot antes de seguir con integraciones o releases." primaryAction={<Link href="/bot-studio" className="primary-btn">Crear</Link>} secondaryAction={<Link href="/bots?filter=todos" className="secondary-btn">Ver todos</Link>} />}
+        })} /> : <EmptyActionState title="No hay bots para este filtro" description="La tabla queda limpia y útil. Cambia el filtro o crea el primer bot antes de seguir con integraciones o releases." primaryAction={<Link href="/bot-studio" className="primary-btn">Crear con IA</Link>} secondaryAction={<Link href="/bots?filter=todos" className="secondary-btn">Ver todos</Link>} />}
       </Section>
     </Shell>
   );

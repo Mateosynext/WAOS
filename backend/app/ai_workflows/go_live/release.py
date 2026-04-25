@@ -1,0 +1,3 @@
+from __future__ import annotations
+def prepare_release_plan(readiness: dict) -> dict:
+    return {"status":"ready_for_apply" if readiness.get("can_apply") else "draft","steps":["validate readiness","require human confirmation","apply wizard config","create release candidate","post-apply dry run","prepare WhatsApp templates","create canary plan","monitor early turns","rollback if critical"],"canary_plan":{"traffic_percent":10,"monitor_turns":25,"rollback_on":["policy_violation","handoff_failure","delivery_failure"]},"rollback_plan":{"available":True,"strategy":"restore previous bot configuration"}}

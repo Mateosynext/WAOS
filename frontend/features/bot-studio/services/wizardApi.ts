@@ -1,4 +1,5 @@
 import type { WizardApplyResult, WizardDryRunResult, WizardInstance } from "../domain/wizardTypes";
+import { clampAutofixRounds, normalizeAiDescription, normalizeWizardAiIntensity } from "./wizardAutopilotContract";
 import { buildWizardAiAutofixPath, buildWizardApplyPath, buildWizardBasePath, buildWizardDryRunPath, buildWizardStepPath, WIZARD_AI_AUTOPILOT_PATH, WIZARD_AI_PREFILL_PATH, WIZARD_START_PATH } from "@/features/bot-studio/api/wizardEndpoints";
 
 type WizardRequestOptions = {
@@ -6,11 +7,29 @@ type WizardRequestOptions = {
   expectedRevision?: number | null;
 };
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function extractWizardErrorMessage(payload: unknown, status: number) {
+  const record = asRecord(payload);
+  const details = asRecord(record.details || asRecord(record.error).details);
+  const errors = Array.isArray(details.errors) ? details.errors : [];
+  const first = asRecord(errors[0]);
+  const loc = Array.isArray(first.loc) ? first.loc.map((item) => String(item)).join(".") : "";
+  const msg = typeof first.msg === "string" ? first.msg : "";
+  if (loc && msg) return `${loc}: ${msg}`;
+  if (typeof record.detail === "string") return record.detail;
+  if (typeof record.message === "string") return record.message;
+  return `La solicitud falló (${status}).`;
+}
+
+
 async function requestWizardJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: "no-store", credentials: "same-origin", ...init });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(typeof payload?.detail === "string" ? payload.detail : `La solicitud falló (${response.status}).`);
+    throw new Error(extractWizardErrorMessage(payload, response.status));
   }
   return payload as T;
 }
@@ -97,8 +116,8 @@ function buildWizardAiRequestBody(request: WizardAiPrefillRequest) {
     vertical_id: request.verticalId || null,
     subvertical: request.subvertical || null,
     primary_objective: request.primaryObjective || null,
-    user_description: request.userDescription || "",
-    intensity: request.intensity || "balanced",
+    user_description: normalizeAiDescription(request.userDescription),
+    intensity: normalizeWizardAiIntensity(request.intensity, "balanced"),
     existing_answers: request.existingAnswers || {},
   };
 }
@@ -118,8 +137,8 @@ export function runWizardAiAutopilotRequest(request: WizardAiPrefillRequest & { 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       ...buildWizardAiRequestBody(request),
-      max_autofix_rounds: request.maxAutofixRounds ?? 2,
-      auto_apply: Boolean(request.autoApply),
+      max_autofix_rounds: clampAutofixRounds(request.maxAutofixRounds),
+      auto_apply: request.autoApply === true,
     }),
     signal: options.signal,
   });

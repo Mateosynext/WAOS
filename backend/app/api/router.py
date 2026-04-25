@@ -8,6 +8,7 @@ from .routers.automations import router as automations_router
 from .routers.analytics import router as analytics_router
 from .routers.agent_orchestration import router as agent_orchestration_router
 from .routers.agent_policy import router as agent_policy_router
+from .routers.ai_workflows import router as ai_workflows_router
 from .routers.bot_ops import router as bot_ops_router
 from .routers.bots import router as bots_router
 from .routers.commerce import router as commerce_router
@@ -42,6 +43,7 @@ api_router = APIRouter()
 api_router.include_router(public_router)
 api_router.include_router(agent_orchestration_router)
 api_router.include_router(agent_policy_router)
+api_router.include_router(ai_workflows_router)
 api_router.include_router(webhooks_router)
 api_router.include_router(telephony_router)
 api_router.include_router(voice_channel_router)

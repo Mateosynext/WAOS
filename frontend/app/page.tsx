@@ -48,7 +48,7 @@ export default async function HomePage() {
   const upcoming = agenda.upcoming || [];
 
   const launchChecklist = [
-    { title: bots.length ? "Asistente operativo listo" : "Crear asistente operativo", detail: bots.length ? `${formatNumber(bots.length)} asistente(s) operativos visibles en esta organización.` : "Primero crea un asistente operativo con una industria clara.", tone: bots.length ? "green" as const : "red" as const },
+    { title: bots.length ? "Asistente operativo listo" : "Crear asistente con IA", detail: bots.length ? `${formatNumber(bots.length)} asistente(s) operativos visibles en esta organización.` : "Primero crea un asistente operativo con una industria clara.", tone: bots.length ? "green" as const : "red" as const },
     { title: connectedIntegrations ? "Canales conectados" : "Conectar canal", detail: connectedIntegrations ? `${formatNumber(connectedIntegrations)} canales listos para operar.` : "Sin canal conectado, el sistema sigue en simulación.", tone: connectedIntegrations ? "green" as const : "gold" as const },
     { title: totalCatalog ? "Oferta visible" : "Cargar catálogo", detail: totalCatalog ? `${formatNumber(totalCatalog)} items visibles entre productos, servicios y promociones.` : "Sin contenido comercial el asistente operativo no puede vender ni orientar bien.", tone: totalCatalog ? "green" as const : "gold" as const },
   ];
