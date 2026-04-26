@@ -4,11 +4,12 @@ import { useCallback, useMemo, useState } from "react";
 import { AiCommandPrompt } from "./AiCommandPrompt";
 import { AiRunTimeline } from "./AiRunTimeline";
 import { useAiWorkflowStream } from "./useAiWorkflowStream";
-import type { AiCommandBotOption, AiCommandOrganization, AiCommandPayload, AiWorkflowRunEnvelope, BotAutopilotStartResponse } from "./types";
+import type { AiCommandBotOption, AiCommandOrganization, AiCommandPayload, AiCommandVerticalOption, AiWorkflowRunEnvelope, BotAutopilotStartResponse } from "./types";
 
 type Props = {
   organizations: AiCommandOrganization[];
   bots: AiCommandBotOption[];
+  verticals: AiCommandVerticalOption[];
   initialRunId: string | null;
 };
 
@@ -33,15 +34,16 @@ async function readJson<T>(response: Response): Promise<T> {
 }
 
 function initialPayload(organizations: AiCommandOrganization[]): AiCommandPayload {
+  const firstOrg = organizations[0];
   return {
-    organization_id: organizations[0]?.id || "",
+    organization_id: firstOrg?.id || "",
     bot_id: null,
     user_description: "",
-    vertical_id: null,
-    subvertical: null,
+    vertical_id: firstOrg?.vertical || null,
+    subvertical: firstOrg?.subvertical || null,
     primary_objective: "agendar",
     language: "es",
-    timezone: "America/Mexico_City",
+    timezone: firstOrg?.timezone || "America/Mexico_City",
     intensity: "savage",
     auto_generate_knowledge: true,
     auto_generate_templates: true,
@@ -54,7 +56,24 @@ function initialPayload(organizations: AiCommandOrganization[]): AiCommandPayloa
   };
 }
 
-export function AiCommandCenter({ organizations, bots, initialRunId }: Props) {
+function normalizePayload(current: AiCommandPayload, patch: Partial<AiCommandPayload>, organizations: AiCommandOrganization[]): AiCommandPayload {
+  const next: AiCommandPayload = { ...current, ...patch, auto_apply: false };
+  if ("organization_id" in patch) {
+    const org = organizations.find((item) => item.id === patch.organization_id);
+    next.vertical_id = org?.vertical || next.vertical_id || null;
+    next.subvertical = org?.subvertical || null;
+    next.timezone = org?.timezone || next.timezone || "America/Mexico_City";
+  }
+  if ("vertical_id" in patch) {
+    next.subvertical = patch.subvertical ?? null;
+  }
+  if (next.intensity === "godmode" && !GODMODE_ENABLED) {
+    next.intensity = "savage";
+  }
+  return next;
+}
+
+export function AiCommandCenter({ organizations, bots, verticals, initialRunId }: Props) {
   const [payload, setPayload] = useState<AiCommandPayload>(() => initialPayload(organizations));
   const [runId, setRunId] = useState<string | null>(initialRunId);
   const [run, setRun] = useState<AiWorkflowRunEnvelope | null>(null);
@@ -62,7 +81,7 @@ export function AiCommandCenter({ organizations, bots, initialRunId }: Props) {
   const [message, setMessage] = useState<UiMessage>(null);
   const stream = useAiWorkflowStream(runId);
 
-  const mergedRun = useMemo(() => run, [run]);
+  const mergedRun = useMemo(() => stream.snapshot || run, [run, stream.snapshot]);
 
   const refreshRun = useCallback(async (targetRunId = runId) => {
     if (!targetRunId) return;
@@ -80,7 +99,7 @@ export function AiCommandCenter({ organizations, bots, initialRunId }: Props) {
 
   const start = useCallback(async () => {
     if (!payload.organization_id || payload.user_description.trim().length < 20) {
-      setMessage({ tone: "warning", title: "Falta información", detail: "Selecciona organización y escribe mínimo 20 caracteres del negocio." });
+      setMessage({ tone: "warning", title: "Falta informacion", detail: "Selecciona organizacion y escribe minimo 20 caracteres del negocio." });
       return;
     }
     setBusy("start");
@@ -96,7 +115,7 @@ export function AiCommandCenter({ organizations, bots, initialRunId }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(safePayload),
       }));
-      if (!started.run_id) throw new Error("El backend no devolvió run_id.");
+      if (!started.run_id) throw new Error("El backend no devolvio run_id.");
       setRunId(started.run_id);
       setRun({ run: started as Record<string, unknown>, events: [{ event_type: "workflow.started", message: "Run creado; esperando eventos SSE reales", progress: started.progress || 1 }] });
       const safetyDetail = started.safety_warnings?.length ? ` · Ajustes seguros: ${started.safety_warnings.join(", ")}` : "";
@@ -119,10 +138,10 @@ export function AiCommandCenter({ organizations, bots, initialRunId }: Props) {
         headers: body ? { "Content-Type": "application/json" } : undefined,
         body,
       }));
-      setMessage({ tone: "success", title: action === "apply" ? "Bot aplicado" : "Acción completada", detail: "Actualizando estado del workflow." });
+      setMessage({ tone: "success", title: action === "apply" ? "Bot aplicado" : "Accion completada", detail: "Actualizando estado del workflow." });
       await refreshRun(runId);
     } catch (error) {
-      setMessage({ tone: "danger", title: "Acción bloqueada", detail: error instanceof Error ? error.message : "Error desconocido" });
+      setMessage({ tone: "danger", title: "Accion bloqueada", detail: error instanceof Error ? error.message : "Error desconocido" });
     } finally {
       setBusy("");
     }
@@ -131,10 +150,7 @@ export function AiCommandCenter({ organizations, bots, initialRunId }: Props) {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
       <div className="grid gap-4">
-        <AiCommandPrompt organizations={organizations} bots={bots} payload={payload} busy={Boolean(busy)} onChange={(patch) => setPayload((current) => {
-          const next = { ...current, ...patch, auto_apply: false };
-          return { ...next, intensity: next.intensity === "godmode" && !GODMODE_ENABLED ? "savage" : next.intensity };
-        })} onSubmit={start} />
+        <AiCommandPrompt organizations={organizations} bots={bots} verticals={verticals} payload={payload} busy={Boolean(busy)} onChange={(patch) => setPayload((current) => normalizePayload(current, patch, organizations))} onSubmit={start} />
         {message ? <div className={`rounded-2xl border p-4 text-sm ${message.tone === "danger" ? "border-red-400/30 bg-red-500/10" : message.tone === "warning" ? "border-amber-400/30 bg-amber-500/10" : "border-emerald-400/30 bg-emerald-500/10"}`}><strong>{message.title}</strong>{message.detail ? <p className="mt-1 opacity-80">{message.detail}</p> : null}</div> : null}
       </div>
       <div className="grid gap-4">

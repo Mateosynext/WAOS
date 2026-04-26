@@ -131,7 +131,8 @@ def workflow_events(run_id: str, request: Request, user: CurrentUser):
 
     def gen():
         seen: set[str] = set()
-        catchup_mode = bool(last_event_id)
+        resume_after_id = str(last_event_id or "")
+        resume_ready = not resume_after_id
         idle_ticks = 0
         while True:
             with get_connection() as conn:
@@ -140,11 +141,19 @@ def workflow_events(run_id: str, request: Request, user: CurrentUser):
                     yield "event: workflow.failed\ndata: {\"event_type\":\"workflow.failed\",\"message\":\"workflow not found\"}\n\n"
                     return
                 events = list_events(conn, run_id)
+                # If the browser/proxy gives us a stale Last-Event-ID that is no
+                # longer present in storage, replay the snapshot instead of
+                # leaving the client in permanent catch-up mode. The frontend
+                # dedupes events by id.
+                if resume_after_id and not resume_ready:
+                    known_ids = {str(ev.get("id") or "") for ev in events}
+                    if resume_after_id not in known_ids:
+                        resume_ready = True
                 for ev in events:
                     ev_id = str(ev.get("id") or "")
-                    if catchup_mode:
-                        if ev_id == last_event_id:
-                            catchup_mode = False
+                    if not resume_ready:
+                        if ev_id == resume_after_id:
+                            resume_ready = True
                         continue
                     if ev_id and ev_id in seen:
                         continue
@@ -159,7 +168,6 @@ def workflow_events(run_id: str, request: Request, user: CurrentUser):
                 yield 'data: {"event_type":"workflow.keepalive","message":"keepalive"}\n\n'
                 idle_ticks = 0
             time.sleep(0.25)
-
     return StreamingResponse(
         gen(),
         media_type="text/event-stream",

@@ -1,10 +1,12 @@
 "use client";
 
-import type { AiCommandBotOption, AiCommandOrganization, AiCommandPayload } from "./types";
+import { useMemo } from "react";
+import type { AiCommandBotOption, AiCommandOrganization, AiCommandPayload, AiCommandVerticalOption } from "./types";
 
 type Props = {
   organizations: AiCommandOrganization[];
   bots: AiCommandBotOption[];
+  verticals: AiCommandVerticalOption[];
   payload: AiCommandPayload;
   busy: boolean;
   onChange: (patch: Partial<AiCommandPayload>) => void;
@@ -35,18 +37,43 @@ const FIELD_LABELS: Record<string, string> = {
   auto_apply: "Auto apply bloqueado por seguridad",
 };
 
-export function AiCommandPrompt({ organizations, bots, payload, busy, onChange, onSubmit }: Props) {
+function unique(values: Array<string | null | undefined>) {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const cleaned = String(value || "").trim();
+    const key = cleaned.toLocaleLowerCase();
+    if (!cleaned || seen.has(key)) continue;
+    seen.add(key);
+    out.push(cleaned);
+  }
+  return out;
+}
+
+function displayVerticalName(vertical: AiCommandVerticalOption) {
+  return vertical.short_name || vertical.name || vertical.id;
+}
+
+export function AiCommandPrompt({ organizations, bots, verticals, payload, busy, onChange, onSubmit }: Props) {
+  const selectedVertical = useMemo(() => verticals.find((vertical) => vertical.id === payload.vertical_id) || null, [payload.vertical_id, verticals]);
+  const subverticalOptions = useMemo(() => unique([
+    ...(selectedVertical?.recommended_subverticals || []),
+    ...(selectedVertical?.subverticals || []),
+    ...((selectedVertical?.subvertical_profiles || []).map((item) => item.name || item.id || "")),
+  ]), [selectedVertical]);
   const canSubmit = Boolean(payload.organization_id && payload.user_description.trim().length >= 20 && !busy);
+  const hasVerticalCatalog = verticals.length > 0;
+
   return (
     <section className="glass-card p-5">
       <p className="eyebrow">AI Production Autopilot</p>
       <h1 className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">Construir agente con IA</h1>
-      <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">Describe el negocio, ciudad, servicios, objetivo, restricciones y qué debe lograr WhatsApp. WAOS crea el wizard, valida, simula y deja el apply bajo aprobación humana.</p>
+      <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">Describe el negocio, ciudad, servicios, objetivo, restricciones y que debe lograr WhatsApp. WAOS crea el wizard, valida, simula y deja el apply bajo aprobacion humana.</p>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <label className="field-label">Organización
+        <label className="field-label">Organizacion
           <select className="input-field mt-2" value={payload.organization_id} onChange={(event) => onChange({ organization_id: event.target.value })}>
-            <option value="">Selecciona organización</option>
+            <option value="">Selecciona organizacion</option>
             {organizations.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
           </select>
         </label>
@@ -58,13 +85,25 @@ export function AiCommandPrompt({ organizations, bots, payload, busy, onChange, 
         </label>
       </div>
 
-      <label className="field-label mt-4">Descripción del negocio
-        <textarea className="input-field mt-2 min-h-40" value={payload.user_description} onChange={(event) => onChange({ user_description: event.target.value })} placeholder="Ej. Clínica dental en CDMX que agenda limpiezas y ortodoncia por WhatsApp, debe pedir nombre, servicio, horario y escalar urgencias a humano..." />
+      <label className="field-label mt-4">Descripcion del negocio
+        <textarea className="input-field mt-2 min-h-40" value={payload.user_description} onChange={(event) => onChange({ user_description: event.target.value })} placeholder="Ej. Clinica dental en CDMX que agenda limpiezas y ortodoncia por WhatsApp, debe pedir nombre, servicio, horario y escalar urgencias a humano..." />
       </label>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <label className="field-label">Industria opcional<input className="input-field mt-2" value={payload.vertical_id || ""} onChange={(event) => onChange({ vertical_id: event.target.value || null })} placeholder="dental, beauty, real-estate..." /></label>
-        <label className="field-label">Subvertical opcional<input className="input-field mt-2" value={payload.subvertical || ""} onChange={(event) => onChange({ subvertical: event.target.value || null })} placeholder="ortodoncia, uñas, rentas..." /></label>
+        <label className="field-label">Industria
+          <select className="input-field mt-2" value={payload.vertical_id || ""} onChange={(event) => onChange({ vertical_id: event.target.value || null, subvertical: null })}>
+            <option value="">Detectar con IA</option>
+            {verticals.map((vertical) => <option key={vertical.id} value={vertical.id}>{displayVerticalName(vertical)}</option>)}
+          </select>
+          {!hasVerticalCatalog ? <span className="mt-1 block text-xs text-amber-200">Catalogo no disponible; WAOS detectara la industria desde la descripcion.</span> : null}
+        </label>
+        <label className="field-label">Subvertical / tipo de operacion
+          <select className="input-field mt-2" value={payload.subvertical || ""} disabled={!payload.vertical_id || !subverticalOptions.length} onChange={(event) => onChange({ subvertical: event.target.value || null })}>
+            <option value="">Detectar automaticamente</option>
+            {subverticalOptions.map((subvertical) => <option key={subvertical} value={subvertical}>{subvertical}</option>)}
+          </select>
+          {payload.vertical_id && !subverticalOptions.length ? <span className="mt-1 block text-xs text-[color:var(--text-secondary)]">Esta industria no publico subverticales; WAOS la inferira.</span> : null}
+        </label>
         <label className="field-label">Objetivo principal<input className="input-field mt-2" value={payload.primary_objective || ""} onChange={(event) => onChange({ primary_objective: event.target.value || null })} placeholder="agendar, vender, calificar" /></label>
       </div>
 

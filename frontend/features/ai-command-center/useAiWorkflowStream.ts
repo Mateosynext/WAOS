@@ -9,6 +9,7 @@ type StreamState = {
   error: string | null;
   events: AiWorkflowEvent[];
   lastEvent: AiWorkflowEvent | null;
+  snapshot: AiWorkflowRunEnvelope | null;
 };
 
 const TERMINAL_EVENTS = new Set([
@@ -52,7 +53,7 @@ function runStatusIsTerminal(envelope: AiWorkflowRunEnvelope) {
 }
 
 export function useAiWorkflowStream(runId: string | null) {
-  const [state, setState] = useState<StreamState>({ connected: false, terminal: false, error: null, events: [], lastEvent: null });
+  const [state, setState] = useState<StreamState>({ connected: false, terminal: false, error: null, events: [], lastEvent: null, snapshot: null });
   const lastEventIdRef = useRef<string | null>(null);
   const connectedRef = useRef(false);
   const terminalRef = useRef(false);
@@ -62,7 +63,7 @@ export function useAiWorkflowStream(runId: string | null) {
       lastEventIdRef.current = null;
       connectedRef.current = false;
       terminalRef.current = false;
-      setState({ connected: false, terminal: false, error: null, events: [], lastEvent: null });
+      setState({ connected: false, terminal: false, error: null, events: [], lastEvent: null, snapshot: null });
       return;
     }
 
@@ -76,7 +77,7 @@ export function useAiWorkflowStream(runId: string | null) {
 
     connectedRef.current = false;
     terminalRef.current = false;
-    setState({ connected: false, terminal: false, error: null, events: [], lastEvent: null });
+    setState({ connected: false, terminal: false, error: null, events: [], lastEvent: null, snapshot: null });
 
     const append = (event: AiWorkflowEvent, options?: { fromPolling?: boolean }) => {
       if (closed) return;
@@ -91,9 +92,10 @@ export function useAiWorkflowStream(runId: string | null) {
         const events = exists ? current.events : [...current.events, event];
         const nextTerminal = current.terminal || isTerminalEvent;
         return {
+          ...current,
           connected: options?.fromPolling ? current.connected : true,
           terminal: nextTerminal,
-          error: eventType === "workflow.failed" ? String(event.message || "Workflow falló") : nextTerminal ? null : current.error,
+          error: eventType === "workflow.failed" ? String(event.message || "Workflow fallo") : nextTerminal ? null : current.error,
           events,
           lastEvent: event,
         };
@@ -107,19 +109,18 @@ export function useAiWorkflowStream(runId: string | null) {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const snapshot = unwrap<AiWorkflowRunEnvelope>(await response.json());
         for (const event of snapshot.events || []) append(event, { fromPolling: true });
-        if (runStatusIsTerminal(snapshot)) {
-          terminalRef.current = true;
-          setState((current) => ({ ...current, terminal: true, error: null }));
-        } else {
-          setState((current) => ({
-            ...current,
-            error: current.connected ? null : "SSE reconectando automáticamente; estado recuperado por polling.",
-          }));
-        }
+        const snapshotTerminal = runStatusIsTerminal(snapshot);
+        if (snapshotTerminal) terminalRef.current = true;
+        setState((current) => ({
+          ...current,
+          snapshot,
+          terminal: current.terminal || snapshotTerminal,
+          error: snapshotTerminal ? null : current.connected ? null : "SSE reconectando automaticamente; estado recuperado por polling.",
+        }));
       } catch (error) {
         if (closed || controller.signal.aborted) return;
         const detail = error instanceof Error ? error.message : "polling failed";
-        setState((current) => ({ ...current, error: current.terminal ? current.error : `SSE reconectando automáticamente; polling pendiente (${detail}).` }));
+        setState((current) => ({ ...current, error: current.terminal ? current.error : `SSE reconectando automaticamente; polling pendiente (${detail}).` }));
       }
     };
 
@@ -139,7 +140,7 @@ export function useAiWorkflowStream(runId: string | null) {
       setState((current) => ({
         ...current,
         connected: false,
-        error: current.terminal ? current.error : "SSE reconectando automáticamente; recuperando estado por polling.",
+        error: current.terminal ? current.error : "SSE reconectando automaticamente; recuperando estado por polling.",
       }));
       void recoverFromSnapshot();
       // Do not close here. Browser EventSource performs native retry using retry:/Last-Event-ID.

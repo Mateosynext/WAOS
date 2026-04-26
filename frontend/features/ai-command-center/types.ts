@@ -1,5 +1,20 @@
-export type AiCommandOrganization = { id: string; name: string };
+export type AiCommandOrganization = {
+  id: string;
+  name: string;
+  vertical?: string | null;
+  subvertical?: string | null;
+  timezone?: string | null;
+};
 export type AiCommandBotOption = { id: string; name: string };
+
+export type AiCommandVerticalOption = {
+  id: string;
+  name: string;
+  short_name?: string | null;
+  subverticals?: string[];
+  recommended_subverticals?: string[];
+  subvertical_profiles?: Array<{ name?: string | null; id?: string | null }>;
+};
 
 export type AiWorkflowEvent = {
   id?: string;
