@@ -12,7 +12,7 @@ def _now() -> str: return datetime.now(timezone.utc).isoformat()
 
 def _clean_json_value(v: Any, depth: int = 0) -> Any:
     if depth > 8: return "[truncated_depth]"
-    if v is None: return None
+    if v is None: return {}
     if isinstance(v, dict):
         out = {}
         for key, value in v.items():

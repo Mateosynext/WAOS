@@ -28,7 +28,7 @@ export function AiRunTimeline({ run, events, connected, error }: Props) {
         <div>
           <p className="eyebrow">Timeline real</p>
           <h2 className="text-xl font-semibold text-[color:var(--text-primary)]">Run del agente</h2>
-          <p className="mt-1 text-sm text-[color:var(--text-secondary)]">Estado: <span className="mono-pill">{currentStatus}</span> · SSE {connected ? "conectado" : "en recuperación"}</p>
+          <p className="mt-1 text-sm text-[color:var(--text-secondary)]">Estado: <span className="mono-pill">{currentStatus}</span> · SSE {connected ? "conectado" : "recuperación automática"}</p>
         </div>
       </div>
       {error ? <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-100">{error}</div> : null}

@@ -154,12 +154,21 @@ def workflow_events(run_id: str, request: Request, user: CurrentUser):
                 if run.get("status") in TERMINAL_STATUSES:
                     return
             idle_ticks += 1
-            if idle_ticks > 120:
-                yield "event: workflow.keepalive\ndata: {\"event_type\":\"workflow.keepalive\"}\n\n"
+            if idle_ticks > 40:
+                # Keep intermediaries from treating an idle but healthy workflow stream as dead.
+                yield 'data: {"event_type":"workflow.keepalive","message":"keepalive"}\n\n'
                 idle_ticks = 0
             time.sleep(0.25)
 
-    return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"})
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/api/v1/ai/workflows/{run_id}/cancel", response_model=ApiEnvelope[FlexibleSchema])

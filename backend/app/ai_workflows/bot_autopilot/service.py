@@ -81,101 +81,6 @@ def _artifact_meta(task: str) -> dict[str, Any]:
     }
 
 
-_OPTIONAL_STRING_FIELDS = {"bot_id", "vertical_id", "subvertical", "primary_objective", "requested_intensity", "language", "timezone"}
-_BOOL_FIELDS = {
-    "auto_generate_knowledge",
-    "auto_generate_templates",
-    "auto_generate_tools",
-    "auto_run_simulations",
-    "auto_autofix",
-    "auto_prepare_go_live",
-    "auto_apply",
-}
-
-
-def _empty_object(value: Any) -> bool:
-    return isinstance(value, dict) and not value
-
-
-def _optional_string(value: Any) -> str | None:
-    if value is None or _empty_object(value) or value == []:
-        return None
-    if isinstance(value, str):
-        cleaned = value.strip()
-        return cleaned or None
-    return str(value).strip() or None
-
-
-def _truthy_config(value: Any, default: bool) -> bool:
-    if value is None or _empty_object(value) or value == []:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    if isinstance(value, str):
-        cleaned = value.strip().lower()
-        if not cleaned:
-            return default
-        if cleaned in {"1", "true", "yes", "y", "on", "si", "sí"}:
-            return True
-        if cleaned in {"0", "false", "no", "n", "off"}:
-            return False
-    return default
-
-
-def _repair_persisted_autopilot_config(config: Any, run: dict[str, Any]) -> dict[str, Any]:
-    """Normalize legacy persisted configs before Pydantic validation.
-
-    Production bug class: JSON persistence used to turn null into {}, so the
-    background worker could accept the HTTP request, then fail when it later
-    rehydrated BotAutopilotRequest from ai_workflow_runs.config_json. Keep this
-    repair narrow, deterministic and safe: only known request fields survive;
-    required fields are recovered from the run row when possible.
-    """
-    raw = dict(config) if isinstance(config, dict) else {}
-    fields = set(BotAutopilotRequest.model_fields)
-    repaired = {key: value for key, value in raw.items() if key in fields}
-
-    organization_id = _optional_string(repaired.get("organization_id")) or _optional_string(run.get("organization_id"))
-    if organization_id:
-        repaired["organization_id"] = organization_id
-
-    description = _optional_string(repaired.get("user_description")) or _optional_string(run.get("prompt"))
-    if description and len(description) < 20:
-        description = f"{description} - descripcion recuperada del workflow."
-    if description:
-        repaired["user_description"] = description
-
-    for key in _OPTIONAL_STRING_FIELDS:
-        fallback = run.get(key) if key == "bot_id" else None
-        repaired[key] = _optional_string(repaired.get(key)) or _optional_string(fallback)
-
-    repaired["primary_objective"] = repaired.get("primary_objective") or "agendar"
-    repaired["language"] = repaired.get("language") or "es"
-    repaired["timezone"] = repaired.get("timezone") or "America/Mexico_City"
-
-    defaults = {
-        "auto_generate_knowledge": True,
-        "auto_generate_templates": True,
-        "auto_generate_tools": True,
-        "auto_run_simulations": True,
-        "auto_autofix": True,
-        "auto_prepare_go_live": True,
-        "auto_apply": False,
-    }
-    for key in _BOOL_FIELDS:
-        repaired[key] = False if key == "auto_apply" else _truthy_config(repaired.get(key), defaults[key])
-
-    if _empty_object(repaired.get("max_cost_usd")) or repaired.get("max_cost_usd") == [] or repaired.get("max_cost_usd") == "":
-        repaired["max_cost_usd"] = None
-
-    if not _optional_string(repaired.get("intensity")):
-        repaired["intensity"] = run.get("intensity") or "balanced"
-
-    return repaired
-
-
 def _charge(conn: DBConnection, governor: CostGovernor, run: dict, operation: str, amount: float) -> None:
     governor.charge(operation, amount)
     meta = _artifact_meta(operation)
@@ -258,12 +163,7 @@ def run_bot_autopilot_background(run_id: str, user: Any = None) -> None:
 
 def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None) -> dict:
     run = require_run(conn, run_id)
-    raw_config = run.get("config_json") or {}
-    repaired_config = _repair_persisted_autopilot_config(raw_config, run)
-    payload = BotAutopilotRequest.model_validate(repaired_config)
-    if repaired_config != raw_config:
-        update_run(conn, run_id, config_json=payload.model_dump())
-        run = require_run(conn, run_id)
+    payload = BotAutopilotRequest.model_validate(run.get("config_json") or {})
     effective_intensity = payload.effective_intensity
     profile = get_intensity_profile(effective_intensity)
     governor = CostGovernor(effective_intensity, payload.max_cost_usd)

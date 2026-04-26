@@ -1,11 +1,10 @@
 "use client";
 
-import type { AiCommandBotOption, AiCommandOrganization, AiCommandPayload, AiCommandVerticalOption } from "./types";
+import type { AiCommandBotOption, AiCommandOrganization, AiCommandPayload } from "./types";
 
 type Props = {
   organizations: AiCommandOrganization[];
   bots: AiCommandBotOption[];
-  verticals: AiCommandVerticalOption[];
   payload: AiCommandPayload;
   busy: boolean;
   onChange: (patch: Partial<AiCommandPayload>) => void;
@@ -36,29 +35,8 @@ const FIELD_LABELS: Record<string, string> = {
   auto_apply: "Auto apply bloqueado por seguridad",
 };
 
-function uniqueStrings(items: Array<string | null | undefined>): string[] {
-  return Array.from(new Set(items.map((item) => (item || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "es"));
-}
-
-function subverticalOptions(vertical?: AiCommandVerticalOption): string[] {
-  if (!vertical) return [];
-  return uniqueStrings([
-    ...(vertical.subvertical_profiles || []).map((item) => item.name || undefined),
-    ...(vertical.recommended_subverticals || []),
-    ...(vertical.subverticals || []),
-  ]);
-}
-
-function compactText(value?: string | null, fallback = "") {
-  return (value || "").trim() || fallback;
-}
-
-export function AiCommandPrompt({ organizations, bots, verticals, payload, busy, onChange, onSubmit }: Props) {
-  const activeVertical = verticals.find((vertical) => vertical.id === payload.vertical_id);
-  const activeSubverticals = subverticalOptions(activeVertical);
+export function AiCommandPrompt({ organizations, bots, payload, busy, onChange, onSubmit }: Props) {
   const canSubmit = Boolean(payload.organization_id && payload.user_description.trim().length >= 20 && !busy);
-  const hasVerticalCatalog = verticals.length > 0;
-
   return (
     <section className="glass-card p-5">
       <p className="eyebrow">AI Production Autopilot</p>
@@ -85,49 +63,10 @@ export function AiCommandPrompt({ organizations, bots, verticals, payload, busy,
       </label>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        {hasVerticalCatalog ? (
-          <label className="field-label">Vertical
-            <select
-              className="input-field mt-2"
-              value={payload.vertical_id || ""}
-              onChange={(event) => onChange({ vertical_id: event.target.value || null, subvertical: null })}
-            >
-              <option value="">Detectar automáticamente</option>
-              {verticals.map((vertical) => <option key={vertical.id} value={vertical.id}>{compactText(vertical.short_name, vertical.name)} · {vertical.id}</option>)}
-            </select>
-            <span className="mt-1 block text-xs font-normal text-[color:var(--text-secondary)]">Selecciona una vertical o deja que WAOS la detecte con IA.</span>
-          </label>
-        ) : (
-          <label className="field-label">Vertical
-            <input className="input-field mt-2" value={payload.vertical_id || ""} onChange={(event) => onChange({ vertical_id: event.target.value || null, subvertical: null })} placeholder="dental, beauty, real-estate..." />
-          </label>
-        )}
-
-        {hasVerticalCatalog ? (
-          <label className="field-label">Subvertical
-            <select
-              className="input-field mt-2"
-              value={payload.subvertical || ""}
-              disabled={!payload.vertical_id || activeSubverticals.length === 0}
-              onChange={(event) => onChange({ subvertical: event.target.value || null })}
-            >
-              <option value="">{payload.vertical_id ? "Detectar automáticamente" : "Selecciona primero una vertical"}</option>
-              {activeSubverticals.map((subvertical) => <option key={subvertical} value={subvertical}>{subvertical}</option>)}
-            </select>
-            <span className="mt-1 block text-xs font-normal text-[color:var(--text-secondary)]">Las opciones cambian según la vertical seleccionada.</span>
-          </label>
-        ) : (
-          <label className="field-label">Subvertical
-            <input className="input-field mt-2" value={payload.subvertical || ""} onChange={(event) => onChange({ subvertical: event.target.value || null })} placeholder="ortodoncia, uñas, rentas..." />
-          </label>
-        )}
-
-        <label className="field-label">Objetivo principal
-          <input className="input-field mt-2" value={payload.primary_objective || ""} onChange={(event) => onChange({ primary_objective: event.target.value || null })} placeholder="agendar, vender, calificar" />
-        </label>
+        <label className="field-label">Industria opcional<input className="input-field mt-2" value={payload.vertical_id || ""} onChange={(event) => onChange({ vertical_id: event.target.value || null })} placeholder="dental, beauty, real-estate..." /></label>
+        <label className="field-label">Subvertical opcional<input className="input-field mt-2" value={payload.subvertical || ""} onChange={(event) => onChange({ subvertical: event.target.value || null })} placeholder="ortodoncia, uñas, rentas..." /></label>
+        <label className="field-label">Objetivo principal<input className="input-field mt-2" value={payload.primary_objective || ""} onChange={(event) => onChange({ primary_objective: event.target.value || null })} placeholder="agendar, vender, calificar" /></label>
       </div>
-
-      {activeVertical?.description ? <p className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-xs leading-5 text-[color:var(--text-secondary)]">Vertical seleccionada: {activeVertical.description}</p> : null}
 
       <div className="mt-5 flex flex-wrap gap-2">
         {INTENSITIES.map((intensity) => <button key={intensity} type="button" className={payload.intensity === intensity ? "primary-btn" : "secondary-btn"} onClick={() => onChange({ intensity })}>{intensity}</button>)}

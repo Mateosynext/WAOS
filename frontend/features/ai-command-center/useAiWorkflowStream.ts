@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { AiWorkflowEvent } from "./types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { AiWorkflowEvent, AiWorkflowRunEnvelope } from "./types";
 
 type StreamState = {
   connected: boolean;
@@ -19,6 +19,19 @@ const TERMINAL_EVENTS = new Set([
   "workflow.paused_cost_limit",
 ]);
 
+const TERMINAL_RUN_STATUSES = new Set([
+  "completed",
+  "completed_partial",
+  "failed",
+  "cancelled",
+  "paused_cost_limit",
+]);
+
+function unwrap<T>(payload: unknown): T {
+  const value = payload as { data?: T } | T;
+  return value && typeof value === "object" && "data" in value ? (value as { data: T }).data : (value as T);
+}
+
 function parseEvent(raw: string): AiWorkflowEvent {
   try {
     const parsed = JSON.parse(raw) as AiWorkflowEvent;
@@ -32,37 +45,88 @@ function eventKey(event: AiWorkflowEvent, fallback: number) {
   return String(event.id || `${event.event_type || "event"}:${event.created_at || fallback}:${event.message || ""}`);
 }
 
+function runStatusIsTerminal(envelope: AiWorkflowRunEnvelope) {
+  const run = envelope.run || {};
+  const status = String(run.status || "");
+  return TERMINAL_RUN_STATUSES.has(status);
+}
+
 export function useAiWorkflowStream(runId: string | null) {
   const [state, setState] = useState<StreamState>({ connected: false, terminal: false, error: null, events: [], lastEvent: null });
+  const lastEventIdRef = useRef<string | null>(null);
+  const connectedRef = useRef(false);
+  const terminalRef = useRef(false);
 
   useEffect(() => {
     if (!runId) {
+      lastEventIdRef.current = null;
+      connectedRef.current = false;
+      terminalRef.current = false;
       setState({ connected: false, terminal: false, error: null, events: [], lastEvent: null });
       return;
     }
-    let closed = false;
-    const source = new EventSource(`/api/ai/workflows/${encodeURIComponent(runId)}/events`);
-    setState((current) => ({ ...current, connected: false, terminal: false, error: null }));
 
-    const append = (event: AiWorkflowEvent) => {
+    let closed = false;
+    const controller = new AbortController();
+    const eventUrl = () => {
+      const query = lastEventIdRef.current ? `?last_event_id=${encodeURIComponent(lastEventIdRef.current)}` : "";
+      return `/api/ai/workflows/${encodeURIComponent(runId)}/events${query}`;
+    };
+    const source = new EventSource(eventUrl());
+
+    connectedRef.current = false;
+    terminalRef.current = false;
+    setState({ connected: false, terminal: false, error: null, events: [], lastEvent: null });
+
+    const append = (event: AiWorkflowEvent, options?: { fromPolling?: boolean }) => {
       if (closed) return;
+      if (event.id) lastEventIdRef.current = String(event.id);
+      const eventType = String(event.event_type || "");
+      const isTerminalEvent = TERMINAL_EVENTS.has(eventType);
+      terminalRef.current = terminalRef.current || isTerminalEvent;
+      connectedRef.current = options?.fromPolling ? connectedRef.current : true;
       setState((current) => {
         const key = eventKey(event, current.events.length);
         const exists = current.events.some((item, index) => eventKey(item, index) === key);
         const events = exists ? current.events : [...current.events, event];
-        const eventType = String(event.event_type || "");
+        const nextTerminal = current.terminal || isTerminalEvent;
         return {
-          connected: true,
-          terminal: current.terminal || TERMINAL_EVENTS.has(eventType),
-          error: eventType === "workflow.failed" ? String(event.message || "Workflow falló") : current.error,
+          connected: options?.fromPolling ? current.connected : true,
+          terminal: nextTerminal,
+          error: eventType === "workflow.failed" ? String(event.message || "Workflow falló") : nextTerminal ? null : current.error,
           events,
           lastEvent: event,
         };
       });
     };
 
+    const recoverFromSnapshot = async () => {
+      if (closed || connectedRef.current || terminalRef.current) return;
+      try {
+        const response = await fetch(`/api/ai/workflows/${encodeURIComponent(runId)}`, { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const snapshot = unwrap<AiWorkflowRunEnvelope>(await response.json());
+        for (const event of snapshot.events || []) append(event, { fromPolling: true });
+        if (runStatusIsTerminal(snapshot)) {
+          terminalRef.current = true;
+          setState((current) => ({ ...current, terminal: true, error: null }));
+        } else {
+          setState((current) => ({
+            ...current,
+            error: current.connected ? null : "SSE reconectando automáticamente; estado recuperado por polling.",
+          }));
+        }
+      } catch (error) {
+        if (closed || controller.signal.aborted) return;
+        const detail = error instanceof Error ? error.message : "polling failed";
+        setState((current) => ({ ...current, error: current.terminal ? current.error : `SSE reconectando automáticamente; polling pendiente (${detail}).` }));
+      }
+    };
+
     source.onopen = () => {
-      if (!closed) setState((current) => ({ ...current, connected: true, error: null }));
+      if (closed) return;
+      connectedRef.current = true;
+      setState((current) => ({ ...current, connected: true, error: null }));
     };
     source.onmessage = (message) => append(parseEvent(message.data));
     for (const type of TERMINAL_EVENTS) {
@@ -70,12 +134,25 @@ export function useAiWorkflowStream(runId: string | null) {
     }
     source.addEventListener("workflow.keepalive", (message) => append(parseEvent((message as MessageEvent).data)));
     source.onerror = () => {
-      if (!closed) setState((current) => ({ ...current, connected: false, error: current.terminal ? current.error : "Stream SSE desconectado; usa Actualizar estado para recuperar." }));
-      source.close();
+      if (closed) return;
+      connectedRef.current = false;
+      setState((current) => ({
+        ...current,
+        connected: false,
+        error: current.terminal ? current.error : "SSE reconectando automáticamente; recuperando estado por polling.",
+      }));
+      void recoverFromSnapshot();
+      // Do not close here. Browser EventSource performs native retry using retry:/Last-Event-ID.
     };
+
+    const pollInterval = window.setInterval(() => {
+      void recoverFromSnapshot();
+    }, 2500);
 
     return () => {
       closed = true;
+      controller.abort();
+      window.clearInterval(pollInterval);
       source.close();
     };
   }, [runId]);
