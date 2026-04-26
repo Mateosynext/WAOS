@@ -2554,6 +2554,23 @@ def _knowledge_seed_documents(*, wizard: dict[str, Any], setup: dict[str, Any]) 
     return docs
 
 
+
+def _require_fresh_guided_onboarding_apply_validation(wizard: dict[str, Any]) -> dict[str, Any]:
+    recompute_state = _as_record(wizard.get("recompute_state"))
+    answers = _as_record(wizard.get("answers"))
+    validation = _as_record(answers.get("dry_run_validation"))
+    validated_revision = int(validation.get("wizard_revision") or 0)
+    current_revision = int(wizard.get("wizard_revision") or 0)
+    if recompute_state.get("validation_snapshot_pending") or recompute_state.get("dry_run_pending"):
+        raise ValueError("dry_run_required")
+    if not validation or not validated_revision or validated_revision != current_revision:
+        raise ValueError("dry_run_required")
+    if validation.get("validation_hash") != _build_dry_run_signature(wizard):
+        raise ValueError("dry_run_required")
+    if not bool(validation.get("apply_ready")):
+        raise ValueError("dry_run_blocked")
+    return validation
+
 def apply_guided_onboarding_wizard(conn: Any, *, wizard_id: str, actor_user: dict[str, Any] | None = None) -> dict[str, Any]:
     ensure_guided_vertical_onboarding_schema(conn)
     wizard = get_guided_onboarding_wizard(conn, wizard_id)
@@ -2562,19 +2579,7 @@ def apply_guided_onboarding_wizard(conn: Any, *, wizard_id: str, actor_user: dic
     if not _as_record(wizard.get("validation_snapshot")):
         preflight = dry_run_guided_onboarding_wizard(conn, wizard_id=wizard_id)
         wizard = preflight.get("wizard") or get_guided_onboarding_wizard(conn, wizard_id) or wizard
-    if wizard.get("bot_id"):
-        recompute_state = _as_record(wizard.get("recompute_state"))
-        validation = _as_record(_as_record(wizard.get("answers")).get("dry_run_validation"))
-        validated_revision = int(validation.get("wizard_revision") or 0)
-        current_revision = int(wizard.get("wizard_revision") or 0)
-        if recompute_state.get("validation_snapshot_pending") or recompute_state.get("dry_run_pending"):
-            raise ValueError("dry_run_required")
-        if not validated_revision or validated_revision != current_revision:
-            raise ValueError("dry_run_required")
-        if validation.get("validation_hash") != _build_dry_run_signature(wizard):
-            raise ValueError("dry_run_required")
-        if not bool(validation.get("apply_ready")):
-            raise ValueError("dry_run_blocked")
+    _require_fresh_guided_onboarding_apply_validation(wizard)
     profile = get_vertical_profile(wizard.get("vertical_id"))
     setup = wizard.get("setup") or _build_setup_payload(
         profile=profile,

@@ -25,6 +25,9 @@ export type BotAutopilotStartResponse = {
   bot_id?: string | null;
   status?: string;
   progress?: number;
+  requested_intensity?: string;
+  effective_intensity?: string;
+  safety_warnings?: string[];
   next_action?: Record<string, unknown>;
 };
 

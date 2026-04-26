@@ -54,6 +54,21 @@ class BotService:
         )
         return fetch_all(conn, query, params + [clamp_limit(limit), clamp_offset(offset)])
 
+    def _assert_created_bot_contract(self, conn, *, bot: dict | None, organization_id: str, publish_now: bool) -> dict:
+        if not bot or not bot.get("id"):
+            raise HTTPException(status_code=500, detail={"code": "bot_create_failed", "message": "Bot creation did not return a persisted bot"})
+        if bot.get("organization_id") != organization_id:
+            raise HTTPException(status_code=500, detail={"code": "bot_scope_mismatch", "message": "Created bot organization mismatch"})
+        config = from_json(bot.get("config_draft_json"), {})
+        if not isinstance(config, dict) or not config:
+            raise HTTPException(status_code=500, detail={"code": "bot_config_invalid", "message": "Created bot has invalid config draft"})
+        if publish_now:
+            version_id = bot.get("published_version_id")
+            version = fetch_one(conn, "SELECT * FROM bot_versions WHERE id = ? AND bot_id = ?", (version_id, bot["id"])) if version_id else None
+            if not version:
+                raise HTTPException(status_code=500, detail={"code": "bot_initial_publish_missing", "message": "Initial published version was not created"})
+        return config
+
     def create(self, uow: UnitOfWork, *, user: dict, payload) -> dict:
         conn = uow.conn
         ensure_org_access(user, payload.organization_id)
@@ -75,7 +90,7 @@ class BotService:
             publish_now=payload.publish_now,
             created_by=user,
         )
-        config = from_json(bot["config_draft_json"], {})
+        config = self._assert_created_bot_contract(conn, bot=bot, organization_id=payload.organization_id, publish_now=payload.publish_now)
         create_or_update_knowledge_items(conn, organization_id=payload.organization_id, bot_id=bot["id"], config=config)
         vertical_service.apply(conn, user=user, organization_id=payload.organization_id, bot_id=bot["id"], vertical=payload.vertical, business_name=payload.business_name, bot_name=payload.bot_name, tone=payload.tone, language=payload.language, timezone=payload.timezone, primary_objective=payload.primary_objective, services=payload.services, faqs=[item.model_dump() for item in payload.faqs], hours=payload.hours, whatsapp_number=payload.whatsapp_number)
         upsert_language_config(conn, organization_id=payload.organization_id, bot_id=bot["id"], default_language=payload.language, supported_languages=[payload.language, "en" if payload.language != "en" else "es"], handoff_respect_language=True)

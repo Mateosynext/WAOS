@@ -11,7 +11,10 @@ type Props = {
   onSubmit: () => void;
 };
 
-const INTENSITIES: AiCommandPayload["intensity"][] = ["conservative", "balanced", "aggressive", "savage", "godmode"];
+const GODMODE_ENABLED = process.env.NEXT_PUBLIC_AI_ENABLE_GODMODE === "true";
+const INTENSITIES: AiCommandPayload["intensity"][] = GODMODE_ENABLED
+  ? ["conservative", "balanced", "aggressive", "savage", "godmode"]
+  : ["conservative", "balanced", "aggressive", "savage"];
 const BOOLEAN_FIELDS: Array<keyof Pick<AiCommandPayload, "auto_generate_knowledge" | "auto_generate_templates" | "auto_generate_tools" | "auto_run_simulations" | "auto_autofix" | "auto_prepare_go_live" | "auto_apply">> = [
   "auto_generate_knowledge",
   "auto_generate_templates",

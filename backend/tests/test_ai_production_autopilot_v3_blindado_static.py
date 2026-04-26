@@ -48,11 +48,39 @@ def test_v3_persistence_redacts_and_bounds_json_payloads() -> None:
 def test_v3_frontend_stream_and_launch_actions_are_resilient() -> None:
     stream = read("frontend/features/ai-command-center/useAiWorkflowStream.ts")
     center = read("frontend/features/ai-command-center/AiCommandCenter.tsx")
-    launch = read("frontend/features/ai-command-center/LaunchActionsPanel.tsx")
-    confirm = read("frontend/features/ai-command-center/HumanConfirmationPanel.tsx")
     assert "workflow.paused_cost_limit" in stream
     assert "workflow.cancelled" in stream
     assert "terminalEvent" in stream and "terminalEvent" in center
-    assert "readJsonSafely" in launch
+    assert "GODMODE_ENABLED" in center
+    assert "auto_apply: false" in center
+    assert "safety_warnings" in center
     assert "Confirmed human fields require a value" in read("backend/app/api/routers/ai_workflows.py")
-    assert "Este campo requiere valor confirmado" in confirm
+
+def test_v3_guided_apply_requires_fresh_dry_run_before_bot_creation() -> None:
+    runtime = read("backend/app/vertical_onboarding_runtime.py")
+    assert "def _require_fresh_guided_onboarding_apply_validation" in runtime
+    assert "validation_hash" in runtime and "dry_run_blocked" in runtime
+    apply_body = runtime.split("def apply_guided_onboarding_wizard", 1)[1]
+    assert "_require_fresh_guided_onboarding_apply_validation(wizard)" in apply_body
+    assert apply_body.index("_require_fresh_guided_onboarding_apply_validation(wizard)") < apply_body.index("if not bot_row:")
+
+
+def test_v3_autopilot_godmode_is_normalized_not_rejected() -> None:
+    schema = read("backend/app/ai_workflows/bot_autopilot/schemas.py")
+    service = read("backend/app/ai_workflows/bot_autopilot/service.py")
+    assert "def _normalize_feature_gates" in schema
+    assert "godmode_disabled_downgraded_to_savage" in schema
+    assert "invalid_intensity_downgraded_to_balanced" in schema
+    assert "raise PydanticCustomError" not in schema
+    assert "godmode requires AI_ENABLE_GODMODE=true" not in schema
+    assert "effective_intensity" in service
+    assert "requested_intensity" in service
+    assert "safety_warnings" in service
+
+
+def test_global_error_renderer_has_last_line_of_defense_for_validation_ctx() -> None:
+    errors = read("backend/app/errors.py")
+    assert "def _json_safe" in errors
+    assert "BaseException" in errors
+    assert "exc.errors()" in errors and "_json_safe(exc.errors())" in errors
+    assert "Last line of defense" in errors

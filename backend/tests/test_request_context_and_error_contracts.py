@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import json
+
+from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 
+from backend.app.errors import AppError, app_error_from_validation, error_body, error_response
 from backend.app.http_runtime import extract_org_id
 from backend.app.main import app
 from backend.app.platform.security import create_auth_session, refresh_auth_session
@@ -47,6 +51,33 @@ def test_validation_errors_use_envelope_contract() -> None:
     assert payload["error"]["code"] == "validation_error"
     assert payload.get("request_id")
 
+
+
+def test_validation_error_details_with_value_error_ctx_are_json_serializable() -> None:
+    exc = RequestValidationError([
+        {
+            "type": "value_error",
+            "loc": ("body",),
+            "msg": "Value error, godmode requires AI_ENABLE_GODMODE=true",
+            "input": {"intensity": "godmode"},
+            "ctx": {"error": ValueError("godmode requires AI_ENABLE_GODMODE=true")},
+        }
+    ])
+    payload = error_body(app_error_from_validation(exc))
+    json.dumps(payload)
+    assert payload["error"]["details"]["errors"][0]["ctx"]["error"] == "godmode requires AI_ENABLE_GODMODE=true"
+
+
+def test_error_response_sanitizes_nested_non_json_objects() -> None:
+    class Weird:
+        def __str__(self) -> str:
+            return "weird-object"
+
+    response = error_response(AppError("bad", details={"error": RuntimeError("boom"), "nested": [{"value": Weird()}]}))
+    assert response.status_code == 400
+    payload = json.loads(response.body.decode("utf-8"))
+    assert payload["error"]["details"]["error"] == "boom"
+    assert payload["error"]["details"]["nested"][0]["value"] == "weird-object"
 
 
 def test_session_idle_timeout_is_persisted_on_refresh_cycle() -> None:

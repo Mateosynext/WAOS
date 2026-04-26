@@ -1,0 +1,14 @@
+WAOS Autopilot Surgical Final Validation - 2026-04-26
+Result: 11/11 PASS
+
+PASS  static: tenant isolation on workflow endpoints
+PASS  static: background failures keep telemetry
+PASS  static: apply recomputed and canary requires apply
+PASS  static: persistence redacts/bounds json payloads
+PASS  static: frontend stream and launch resilience
+PASS  static: guided apply requires fresh dry run before bot creation
+PASS  static: autopilot godmode normalized not rejected
+PASS  static: global error renderer has last line defense
+PASS  runtime: exact Render payload godmode/auto_apply/invalid normalizes safely
+PASS  runtime: RequestValidationError ctx.error is JSON-safe
+PASS  syntax: all backend Python files parse

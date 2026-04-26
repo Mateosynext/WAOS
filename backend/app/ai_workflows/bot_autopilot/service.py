@@ -115,7 +115,7 @@ def start_bot_autopilot_run(conn: DBConnection, payload: BotAutopilotRequest, us
         bot_id=payload.bot_id,
         user_id=_user_id(user),
         prompt=payload.user_description,
-        intensity=payload.intensity,
+        intensity=payload.effective_intensity,
         config=payload.model_dump(),
     )
     record_event(
@@ -124,7 +124,7 @@ def start_bot_autopilot_run(conn: DBConnection, payload: BotAutopilotRequest, us
         "workflow.started",
         "WAOS AI Production Autopilot v3 blindado iniciado",
         1,
-        payload_json={"intensity": payload.intensity, "streaming": "real_sse"},
+        payload_json={"requested_intensity": payload.requested_intensity or payload.effective_intensity, "effective_intensity": payload.effective_intensity, "safety_warnings": payload.safety_warnings, "streaming": "real_sse"},
     )
     update_run(conn, run["id"], status="running", current_step="workflow.started", progress=1)
     _commit_best_effort(conn)
@@ -134,6 +134,9 @@ def start_bot_autopilot_run(conn: DBConnection, payload: BotAutopilotRequest, us
         "bot_id": run.get("bot_id"),
         "status": "running",
         "progress": 1,
+        "requested_intensity": payload.requested_intensity or payload.effective_intensity,
+        "effective_intensity": payload.effective_intensity,
+        "safety_warnings": payload.safety_warnings,
         "next_action": {"type": "stream_events", "events_url": f"/api/v1/ai/workflows/{run['id']}/events"},
     }
 
@@ -161,8 +164,9 @@ def run_bot_autopilot_background(run_id: str, user: Any = None) -> None:
 def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None) -> dict:
     run = require_run(conn, run_id)
     payload = BotAutopilotRequest.model_validate(run.get("config_json") or {})
-    profile = get_intensity_profile(payload.intensity)
-    governor = CostGovernor(payload.intensity, payload.max_cost_usd)
+    effective_intensity = payload.effective_intensity
+    profile = get_intensity_profile(effective_intensity)
+    governor = CostGovernor(effective_intensity, payload.max_cost_usd)
     update_run(conn, run_id, status="running")
     try:
         _check_cancelled(conn, run_id)
@@ -201,7 +205,7 @@ def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None)
                 vertical_id=vertical["vertical_id"],
                 subvertical=vertical.get("subvertical"),
                 primary_objective=vertical.get("primary_objective"),
-                intensity="savage" if payload.intensity in {"savage", "godmode"} else payload.intensity,
+                intensity="savage" if effective_intensity in {"savage", "godmode"} else effective_intensity,
                 auto_apply=False,
                 max_autofix_rounds=min(profile.autofix_rounds, 2),
                 actor_user=user,
@@ -223,11 +227,11 @@ def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None)
         _record_step(conn, run_id, "wizard.created", "Wizard generado y guardado", 25, {"wizard_id": wizard_id, "wizard": wizard}, task="wizard_generation")
 
         _check_cancelled(conn, run_id)
-        vertical_pack = build_vertical_intelligence_pack({**business, **vertical}, payload.intensity)
+        vertical_pack = build_vertical_intelligence_pack({**business, **vertical}, effective_intensity)
         _record_step(conn, run_id, "vertical_pack.generated", "Vertical Intelligence Pack generado", 32, vertical_pack, task="vertical_intelligence_pack")
 
         _check_cancelled(conn, run_id)
-        policy_pack = generate_agent_policy_pack(vertical_pack, payload.intensity)
+        policy_pack = generate_agent_policy_pack(vertical_pack, effective_intensity)
         save_json_artifact(conn, table="agent_policy_packs", json_column="pack_json", run_id=run_id, bot_id=bot_id, payload=policy_pack)
         _record_step(conn, run_id, "policy_pack.generated", "Agent Policy Pack generado", 40, policy_pack, task="policy_generation")
 
@@ -247,7 +251,7 @@ def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None)
         _record_step(conn, run_id, "whatsapp_pack.generated", "WhatsApp Production Pack generado", 58, whatsapp, task="whatsapp_template_generation")
 
         _check_cancelled(conn, run_id)
-        tool_plan = generate_tool_execution_plan(vertical_pack, payload.intensity) if payload.auto_generate_tools else {}
+        tool_plan = generate_tool_execution_plan(vertical_pack, effective_intensity) if payload.auto_generate_tools else {}
         if tool_plan:
             save_json_artifact(conn, table="tool_execution_plans", json_column="plan_json", run_id=run_id, bot_id=bot_id, payload=tool_plan)
         _record_step(conn, run_id, "tool_plan.generated", "Tool execution plan generado", 64, tool_plan, task="tool_execution_plan")
@@ -299,6 +303,9 @@ def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None)
             "bot_id": bot_id,
             "status": "completed_partial" if readiness.get("status") == "blocked" else "completed",
             "progress": 100,
+            "requested_intensity": payload.requested_intensity or effective_intensity,
+            "effective_intensity": effective_intensity,
+            "safety_warnings": payload.safety_warnings,
             "vertical_profile": vertical,
             "business_profile": business,
             "wizard": wizard,

@@ -14,6 +14,8 @@ type Props = {
 
 type UiMessage = { tone: "success" | "warning" | "danger"; title: string; detail?: string } | null;
 
+const GODMODE_ENABLED = process.env.NEXT_PUBLIC_AI_ENABLE_GODMODE === "true";
+
 function unwrap<T>(payload: unknown): T {
   const value = payload as { data?: T } | T;
   return value && typeof value === "object" && "data" in value ? (value as { data: T }).data : (value as T);
@@ -84,15 +86,21 @@ export function AiCommandCenter({ organizations, bots, initialRunId }: Props) {
     setBusy("start");
     setMessage(null);
     try {
+      const safePayload: AiCommandPayload = {
+        ...payload,
+        intensity: payload.intensity === "godmode" && !GODMODE_ENABLED ? "savage" : payload.intensity,
+        auto_apply: false,
+      };
       const started = await readJson<BotAutopilotStartResponse>(await fetch("/api/ai/bot-autopilot?async_mode=true", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, auto_apply: false }),
+        body: JSON.stringify(safePayload),
       }));
       if (!started.run_id) throw new Error("El backend no devolvió run_id.");
       setRunId(started.run_id);
       setRun({ run: started as Record<string, unknown>, events: [{ event_type: "workflow.started", message: "Run creado; esperando eventos SSE reales", progress: started.progress || 1 }] });
-      setMessage({ tone: "success", title: "Autopilot iniciado", detail: `Run ${started.run_id}` });
+      const safetyDetail = started.safety_warnings?.length ? ` · Ajustes seguros: ${started.safety_warnings.join(", ")}` : "";
+      setMessage({ tone: "success", title: "Autopilot iniciado", detail: `Run ${started.run_id}${safetyDetail}` });
     } catch (error) {
       setMessage({ tone: "danger", title: "No se pudo iniciar el Autopilot", detail: error instanceof Error ? error.message : "Error desconocido" });
     } finally {
@@ -123,7 +131,10 @@ export function AiCommandCenter({ organizations, bots, initialRunId }: Props) {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
       <div className="grid gap-4">
-        <AiCommandPrompt organizations={organizations} bots={bots} payload={payload} busy={Boolean(busy)} onChange={(patch) => setPayload((current) => ({ ...current, ...patch }))} onSubmit={start} />
+        <AiCommandPrompt organizations={organizations} bots={bots} payload={payload} busy={Boolean(busy)} onChange={(patch) => setPayload((current) => {
+          const next = { ...current, ...patch, auto_apply: false };
+          return { ...next, intensity: next.intensity === "godmode" && !GODMODE_ENABLED ? "savage" : next.intensity };
+        })} onSubmit={start} />
         {message ? <div className={`rounded-2xl border p-4 text-sm ${message.tone === "danger" ? "border-red-400/30 bg-red-500/10" : message.tone === "warning" ? "border-amber-400/30 bg-amber-500/10" : "border-emerald-400/30 bg-emerald-500/10"}`}><strong>{message.title}</strong>{message.detail ? <p className="mt-1 opacity-80">{message.detail}</p> : null}</div> : null}
       </div>
       <div className="grid gap-4">
