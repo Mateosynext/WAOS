@@ -11,6 +11,11 @@ export async function POST(request: NextRequest) {
         { loc: ["body", "organization_id"], msg: "organization_id es obligatorio.", type: "missing" },
       ]);
     }
+    if (payload.userDescription.trim().length < 20) {
+      throw makeWizardValidationError("user_description debe tener al menos 20 caracteres para correr AI Autopilot.", [
+        { loc: ["body", "user_description"], msg: "Describe el negocio con al menos 20 caracteres.", type: "string_too_short" },
+      ]);
+    }
     return runWizardAiAutopilot(payload);
   }, "No se pudo correr AI Autopilot end-to-end.");
 }

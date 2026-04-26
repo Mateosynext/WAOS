@@ -55,18 +55,30 @@ function runStatusIsTerminal(envelope: AiWorkflowRunEnvelope) {
 export function useAiWorkflowStream(runId: string | null) {
   const [state, setState] = useState<StreamState>({ connected: false, terminal: false, error: null, events: [], lastEvent: null, snapshot: null });
   const lastEventIdRef = useRef<string | null>(null);
+  const activeRunIdRef = useRef<string | null>(null);
   const connectedRef = useRef(false);
   const terminalRef = useRef(false);
+  const lastMessageAtRef = useRef<number>(0);
+  const pollingInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!runId) {
+      activeRunIdRef.current = null;
       lastEventIdRef.current = null;
       connectedRef.current = false;
       terminalRef.current = false;
+      pollingInFlightRef.current = false;
+      lastMessageAtRef.current = 0;
       setState({ connected: false, terminal: false, error: null, events: [], lastEvent: null, snapshot: null });
       return;
     }
 
+    if (activeRunIdRef.current !== runId) {
+      activeRunIdRef.current = runId;
+      lastEventIdRef.current = null;
+    }
+
+    lastMessageAtRef.current = Date.now();
     let closed = false;
     const controller = new AbortController();
     const eventUrl = () => {
@@ -81,8 +93,14 @@ export function useAiWorkflowStream(runId: string | null) {
 
     const append = (event: AiWorkflowEvent, options?: { fromPolling?: boolean }) => {
       if (closed) return;
+      lastMessageAtRef.current = Date.now();
       if (event.id) lastEventIdRef.current = String(event.id);
       const eventType = String(event.event_type || "");
+      if (eventType === "workflow.keepalive") {
+        connectedRef.current = options?.fromPolling ? connectedRef.current : true;
+        setState((current) => ({ ...current, connected: options?.fromPolling ? current.connected : true, error: current.terminal ? current.error : null }));
+        return;
+      }
       const terminalEvent = TERMINAL_EVENTS.has(eventType);
       terminalRef.current = terminalRef.current || terminalEvent;
       connectedRef.current = options?.fromPolling ? connectedRef.current : true;
@@ -102,8 +120,11 @@ export function useAiWorkflowStream(runId: string | null) {
       });
     };
 
-    const recoverFromSnapshot = async () => {
-      if (closed || connectedRef.current || terminalRef.current) return;
+    const recoverFromSnapshot = async (options?: { force?: boolean }) => {
+      if (closed || terminalRef.current || pollingInFlightRef.current) return;
+      const hasNoEventsYet = !lastEventIdRef.current;
+      if (connectedRef.current && !options?.force && !hasNoEventsYet) return;
+      pollingInFlightRef.current = true;
       try {
         const response = await fetch(`/api/ai/workflows/${encodeURIComponent(runId)}`, { cache: "no-store", signal: controller.signal });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -111,6 +132,11 @@ export function useAiWorkflowStream(runId: string | null) {
         for (const event of snapshot.events || []) append(event, { fromPolling: true });
         const snapshotTerminal = runStatusIsTerminal(snapshot);
         if (snapshotTerminal) terminalRef.current = true;
+        if ((snapshot.events || []).length) {
+          lastMessageAtRef.current = Date.now();
+          const lastSnapshotEvent = snapshot.events[snapshot.events.length - 1];
+          if (lastSnapshotEvent?.id) lastEventIdRef.current = String(lastSnapshotEvent.id);
+        }
         setState((current) => ({
           ...current,
           snapshot,
@@ -121,6 +147,8 @@ export function useAiWorkflowStream(runId: string | null) {
         if (closed || controller.signal.aborted) return;
         const detail = error instanceof Error ? error.message : "polling failed";
         setState((current) => ({ ...current, error: current.terminal ? current.error : `SSE reconectando automaticamente; polling pendiente (${detail}).` }));
+      } finally {
+        pollingInFlightRef.current = false;
       }
     };
 
@@ -147,7 +175,8 @@ export function useAiWorkflowStream(runId: string | null) {
     };
 
     const pollInterval = window.setInterval(() => {
-      void recoverFromSnapshot();
+      const idleForMs = Date.now() - (lastMessageAtRef.current || 0);
+      void recoverFromSnapshot({ force: idleForMs > 3500 || !lastEventIdRef.current });
     }, 2500);
 
     return () => {

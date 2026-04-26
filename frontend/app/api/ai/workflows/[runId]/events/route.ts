@@ -2,8 +2,12 @@ import { getBearerToken } from "../../../route-helpers";
 import { getServerApiBase } from "@/app/lib/env";
 
 function sseFailure(message: string, status = 502) {
-  return new Response(`event: workflow.failed\ndata: ${JSON.stringify({ event_type: "workflow.failed", message })}\n\n`, {
-    status,
+  const payload = JSON.stringify({ event_type: "workflow.failed", message, upstream_status: status });
+  // EventSource does not expose non-2xx response bodies to the browser. Return a
+  // default message-channel SSE payload with status 200 so the UI can render the
+  // real failure instead of looking like an idle connection.
+  return new Response(`retry: 2500\ndata: ${payload}\n\n`, {
+    status: 200,
     headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" },
   });
 }

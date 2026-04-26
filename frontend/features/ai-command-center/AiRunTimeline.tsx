@@ -28,6 +28,7 @@ function mergeEvents(storedEvents: AiWorkflowEvent[], streamEvents: AiWorkflowEv
   const seen = new Set<string>();
   const merged: AiWorkflowEvent[] = [];
   for (const event of [...storedEvents, ...streamEvents]) {
+    if (String(event.event_type || "") === "workflow.keepalive") continue;
     const key = eventKey(event, merged.length);
     if (seen.has(key)) continue;
     seen.add(key);

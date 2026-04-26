@@ -1,5 +1,5 @@
 import type { WizardApplyResult, WizardDryRunResult, WizardInstance } from "../domain/wizardTypes";
-import { clampAutofixRounds, normalizeAiDescription, normalizeWizardAiIntensity } from "./wizardAutopilotContract";
+import { clampAutofixRounds, normalizeAiDescription, normalizeOptionalWizardId, normalizeRequiredWizardScope, normalizeWizardAiIntensity } from "./wizardAutopilotContract";
 import { buildWizardAiAutofixPath, buildWizardApplyPath, buildWizardBasePath, buildWizardDryRunPath, buildWizardStepPath, WIZARD_AI_AUTOPILOT_PATH, WIZARD_AI_PREFILL_PATH, WIZARD_START_PATH } from "@/features/bot-studio/api/wizardEndpoints";
 
 type WizardRequestOptions = {
@@ -27,7 +27,13 @@ function extractWizardErrorMessage(payload: unknown, status: number) {
 
 async function requestWizardJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: "no-store", credentials: "same-origin", ...init });
-  const payload = await response.json().catch(() => ({}));
+  const text = await response.text();
+  let payload: unknown = {};
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    payload = { detail: text || "La solicitud falló (" + response.status + ")." };
+  }
   if (!response.ok) {
     throw new Error(extractWizardErrorMessage(payload, response.status));
   }
@@ -69,6 +75,8 @@ export function dryRunWizardRequest(wizardId: string, options: WizardRequestOpti
 export function applyWizardRequest(wizardId: string, options: WizardRequestOptions = {}) {
   return requestWizardJson<WizardApplyResult>(buildWizardApplyPath(wizardId), {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm: true }),
     signal: options.signal,
   });
 }
@@ -111,11 +119,11 @@ export type WizardAiPrefillRequest = {
 
 function buildWizardAiRequestBody(request: WizardAiPrefillRequest) {
   return {
-    organization_id: request.organizationId,
-    bot_id: request.botId || null,
-    vertical_id: request.verticalId || null,
-    subvertical: request.subvertical || null,
-    primary_objective: request.primaryObjective || null,
+    organization_id: normalizeRequiredWizardScope(request.organizationId),
+    bot_id: normalizeOptionalWizardId(request.botId),
+    vertical_id: normalizeOptionalWizardId(request.verticalId),
+    subvertical: normalizeOptionalWizardId(request.subvertical),
+    primary_objective: normalizeOptionalWizardId(request.primaryObjective),
     user_description: normalizeAiDescription(request.userDescription),
     intensity: normalizeWizardAiIntensity(request.intensity, "balanced"),
     existing_answers: request.existingAnswers || {},

@@ -156,7 +156,9 @@ def dry_run_wizard(service, uow: UnitOfWork, *, wizard_id: str, user: dict) -> d
     return ok(result)
 
 
-def apply_wizard(service, uow: UnitOfWork, *, wizard_id: str, user: dict) -> dict:
+def apply_wizard(service, uow: UnitOfWork, *, wizard_id: str, payload, user: dict) -> dict:
+    if not getattr(payload, "confirm", False):
+        raise HTTPException(status_code=409, detail="explicit_confirmation_required")
     wizard = service._get_accessible_wizard(uow.conn, wizard_id=wizard_id, user=user, permission="activation.manage")
     diagnostics = (wizard.get("diagnostics") or {}) if isinstance(wizard.get("diagnostics"), dict) else {}
     if diagnostics.get("integrity_mismatch"):

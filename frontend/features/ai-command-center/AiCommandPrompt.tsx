@@ -61,7 +61,13 @@ export function AiCommandPrompt({ organizations, bots, verticals, payload, busy,
     ...(selectedVertical?.subverticals || []),
     ...((selectedVertical?.subvertical_profiles || []).map((item) => item.name || item.id || "")),
   ]), [selectedVertical]);
-  const canSubmit = Boolean(payload.organization_id && payload.user_description.trim().length >= 20 && !busy);
+  const missingOrganization = !payload.organization_id;
+  const missingDescription = payload.user_description.trim().length < 20;
+  const submitHint = missingOrganization
+    ? "Selecciona una organización para crear el run."
+    : missingDescription
+      ? "Escribe mínimo 20 caracteres sobre el negocio para activar la generación."
+      : "Listo para iniciar el Autopilot.";
   const hasVerticalCatalog = verticals.length > 0;
 
   return (
@@ -72,13 +78,13 @@ export function AiCommandPrompt({ organizations, bots, verticals, payload, busy,
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <label className="field-label">Organizacion
-          <select className="input-field mt-2" value={payload.organization_id} onChange={(event) => onChange({ organization_id: event.target.value })}>
+          <select className="input-field mt-2" value={payload.organization_id} disabled={busy} onChange={(event) => onChange({ organization_id: event.target.value })}>
             <option value="">Selecciona organizacion</option>
             {organizations.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
           </select>
         </label>
         <label className="field-label">Bot existente opcional
-          <select className="input-field mt-2" value={payload.bot_id || ""} onChange={(event) => onChange({ bot_id: event.target.value || null })}>
+          <select className="input-field mt-2" value={payload.bot_id || ""} disabled={busy} onChange={(event) => onChange({ bot_id: event.target.value || null })}>
             <option value="">Crear bot nuevo al aplicar</option>
             {bots.map((bot) => <option key={bot.id} value={bot.id}>{bot.name}</option>)}
           </select>
@@ -86,41 +92,42 @@ export function AiCommandPrompt({ organizations, bots, verticals, payload, busy,
       </div>
 
       <label className="field-label mt-4">Descripcion del negocio
-        <textarea className="input-field mt-2 min-h-40" value={payload.user_description} onChange={(event) => onChange({ user_description: event.target.value })} placeholder="Ej. Clinica dental en CDMX que agenda limpiezas y ortodoncia por WhatsApp, debe pedir nombre, servicio, horario y escalar urgencias a humano..." />
+        <textarea className="input-field mt-2 min-h-40" value={payload.user_description} disabled={busy} onChange={(event) => onChange({ user_description: event.target.value })} placeholder="Ej. Clinica dental en CDMX que agenda limpiezas y ortodoncia por WhatsApp, debe pedir nombre, servicio, horario y escalar urgencias a humano..." />
       </label>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <label className="field-label">Industria
-          <select className="input-field mt-2" value={payload.vertical_id || ""} onChange={(event) => onChange({ vertical_id: event.target.value || null, subvertical: null })}>
+          <select className="input-field mt-2" value={payload.vertical_id || ""} disabled={busy} onChange={(event) => onChange({ vertical_id: event.target.value || null, subvertical: null })}>
             <option value="">Detectar con IA</option>
             {verticals.map((vertical) => <option key={vertical.id} value={vertical.id}>{displayVerticalName(vertical)}</option>)}
           </select>
           {!hasVerticalCatalog ? <span className="mt-1 block text-xs text-amber-200">Catalogo no disponible; WAOS detectara la industria desde la descripcion.</span> : null}
         </label>
         <label className="field-label">Subvertical / tipo de operacion
-          <select className="input-field mt-2" value={payload.subvertical || ""} disabled={!payload.vertical_id || !subverticalOptions.length} onChange={(event) => onChange({ subvertical: event.target.value || null })}>
+          <select className="input-field mt-2" value={payload.subvertical || ""} disabled={busy || !payload.vertical_id || !subverticalOptions.length} onChange={(event) => onChange({ subvertical: event.target.value || null })}>
             <option value="">Detectar automaticamente</option>
             {subverticalOptions.map((subvertical) => <option key={subvertical} value={subvertical}>{subvertical}</option>)}
           </select>
           {payload.vertical_id && !subverticalOptions.length ? <span className="mt-1 block text-xs text-[color:var(--text-secondary)]">Esta industria no publico subverticales; WAOS la inferira.</span> : null}
         </label>
-        <label className="field-label">Objetivo principal<input className="input-field mt-2" value={payload.primary_objective || ""} onChange={(event) => onChange({ primary_objective: event.target.value || null })} placeholder="agendar, vender, calificar" /></label>
+        <label className="field-label">Objetivo principal<input className="input-field mt-2" value={payload.primary_objective || ""} disabled={busy} onChange={(event) => onChange({ primary_objective: event.target.value || null })} placeholder="agendar, vender, calificar" /></label>
       </div>
 
       <div className="mt-5 flex flex-wrap gap-2">
-        {INTENSITIES.map((intensity) => <button key={intensity} type="button" className={payload.intensity === intensity ? "primary-btn" : "secondary-btn"} onClick={() => onChange({ intensity })}>{intensity}</button>)}
+        {INTENSITIES.map((intensity) => <button key={intensity} type="button" className={payload.intensity === intensity ? "primary-btn" : "secondary-btn"} disabled={busy} onClick={() => onChange({ intensity })}>{intensity}</button>)}
       </div>
 
       <div className="mt-5 grid gap-2 md:grid-cols-2">
         {BOOLEAN_FIELDS.map((field) => (
           <label key={field} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 p-3 text-sm text-[color:var(--text-secondary)]">
             <span><span className="mono-pill">{field}</span> {FIELD_LABELS[field]}</span>
-            <input type="checkbox" checked={Boolean(payload[field])} disabled={field === "auto_apply"} onChange={(event) => onChange({ [field]: event.target.checked } as Partial<AiCommandPayload>)} />
+            <input type="checkbox" checked={Boolean(payload[field])} disabled={busy || field === "auto_apply"} onChange={(event) => onChange({ [field]: event.target.checked } as Partial<AiCommandPayload>)} />
           </label>
         ))}
       </div>
 
-      <button type="button" className="primary-btn mt-5 w-full" disabled={!canSubmit} onClick={onSubmit}>{busy ? "Construyendo agente..." : "Construir agente con IA"}</button>
+      <p className={`mt-5 text-xs ${missingOrganization || missingDescription ? "text-amber-200" : "text-[color:var(--text-secondary)]"}`}>{submitHint}</p>
+      <button type="button" className="primary-btn mt-2 w-full" disabled={busy} onClick={onSubmit}>{busy ? "Construyendo agente..." : "Construir agente con IA"}</button>
     </section>
   );
 }

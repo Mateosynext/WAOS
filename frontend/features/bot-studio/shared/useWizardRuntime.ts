@@ -109,7 +109,7 @@ export function buildWizardRuntimeController(runtime: ReturnType<typeof useWizar
     goTo: runtime.navigation.goTo,
     handleNext,
     prev: runtime.navigation.prev,
-    primaryDisabled: runtime.navigation.primaryDisabled,
+    primaryDisabled: Boolean(runtime.busy) || runtime.navigation.primaryDisabled,
     primaryLabel: runtime.navigation.primaryLabel,
     primaryTestId: runtime.navigation.primaryTestId,
     progress: runtime.navigation.progress,

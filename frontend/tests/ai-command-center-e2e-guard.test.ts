@@ -31,3 +31,30 @@ test("AI workflow stream recovers snapshots without requiring manual refresh", (
   assert.match(timeline, /mergeEvents/);
   assert.doesNotMatch(hook, /usa Actualizar estado para recuperar/);
 });
+
+
+test("AI Command Center generation click never goes silent on missing inputs", () => {
+  const center = read("features/ai-command-center/AiCommandCenter.tsx");
+  const prompt = read("features/ai-command-center/AiCommandPrompt.tsx");
+  const css = read("app/globals.css");
+  assert.match(center, /getStartBlockingReason/);
+  assert.match(center, /Falta informacion para generar el bot/);
+  assert.match(prompt, /submitHint/);
+  assert.match(prompt, /disabled=\{busy\}/);
+  assert.doesNotMatch(prompt, /disabled=\{!canSubmit\}/);
+  assert.match(css, /\.primary-btn:disabled/);
+});
+
+
+test("AI Command Center guards double-submit and resets SSE cursors per run", () => {
+  const center = read("features/ai-command-center/AiCommandCenter.tsx");
+  const hook = read("features/ai-command-center/useAiWorkflowStream.ts");
+  assert.match(center, /startInFlightRef/);
+  assert.match(center, /actionInFlightRef/);
+  assert.match(center, /if \(startInFlightRef\.current \|\| Boolean\(busy\)\) return/);
+  assert.match(center, /if \(!runId \|\| actionInFlightRef\.current \|\| Boolean\(busy\)\) return/);
+  assert.match(center, /typeof value === "boolean"\) return null/);
+  assert.match(hook, /activeRunIdRef/);
+  assert.match(hook, /lastEventIdRef\.current = null/);
+  assert.match(hook, /lastSnapshotEvent\?\.id/);
+});

@@ -2,7 +2,7 @@ import type { VerticalProfileContract } from "../contracts/verticals";
 import { apiFetch, apiFetchOrDefault } from "../api";
 import { buildWizardAiAutofixBackendPath, buildWizardAiAutopilotBackendPath, buildWizardAiPrefillBackendPath, buildWizardApplyBackendPath, buildWizardBackendBasePath, buildWizardBlueprintBackendPath, buildWizardDryRunBackendPath, buildWizardStepBackendPath, WIZARD_API_PREFIX } from "./wizardEndpoints";
 import { getVerticalProfile } from "./verticals";
-import { clampAutofixRounds, normalizeAiDescription, normalizeWizardAiIntensity } from "@/features/bot-studio/services/wizardAutopilotContract";
+import { clampAutofixRounds, normalizeAiDescription, normalizeOptionalWizardId, normalizeRequiredWizardScope, normalizeWizardAiIntensity } from "@/features/bot-studio/services/wizardAutopilotContract";
 import type {
   WizardApplyResult,
   WizardBlueprint,
@@ -71,6 +71,7 @@ export async function runWizardDryRun(wizardId: string): Promise<WizardDryRunRes
 export async function applyWizard(wizardId: string): Promise<WizardApplyResult> {
   return apiFetch<WizardApplyResult>(buildWizardApplyBackendPath(wizardId), {
     method: "POST",
+    body: JSON.stringify({ confirm: true }),
     timeoutMs: WIZARD_EXECUTION_TIMEOUT_MS,
   });
 }
@@ -88,11 +89,11 @@ export type WizardAiPrefillRequest = {
 
 function toBackendAiPrefillPayload(request: WizardAiPrefillRequest) {
   return {
-    organization_id: request.organizationId,
-    bot_id: request.botId || null,
-    vertical_id: request.verticalId || null,
-    subvertical: request.subvertical || null,
-    primary_objective: request.primaryObjective || null,
+    organization_id: normalizeRequiredWizardScope(request.organizationId),
+    bot_id: normalizeOptionalWizardId(request.botId),
+    vertical_id: normalizeOptionalWizardId(request.verticalId),
+    subvertical: normalizeOptionalWizardId(request.subvertical),
+    primary_objective: normalizeOptionalWizardId(request.primaryObjective),
     user_description: normalizeAiDescription(request.userDescription),
     intensity: normalizeWizardAiIntensity(request.intensity, "balanced"),
     existing_answers: request.existingAnswers || {},

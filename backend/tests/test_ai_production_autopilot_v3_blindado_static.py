@@ -45,6 +45,14 @@ def test_v3_persistence_redacts_and_bounds_json_payloads() -> None:
     assert "idx_ai_workflow_events_run_created" in persistence
 
 
+
+
+def test_v3_persistence_preserves_json_nulls_for_optional_ids() -> None:
+    persistence = read("backend/app/ai_workflows/persistence.py")
+    assert "if v is None: return None" in persistence
+    assert "optional ids such as bot_id/vertical_id" in persistence
+    assert "if v is None: return {}" not in persistence
+
 def test_v3_frontend_stream_and_launch_actions_are_resilient() -> None:
     stream = read("frontend/features/ai-command-center/useAiWorkflowStream.ts")
     center = read("frontend/features/ai-command-center/AiCommandCenter.tsx")
@@ -95,3 +103,12 @@ def test_global_error_renderer_has_last_line_of_defense_for_validation_ctx() -> 
     assert "BaseException" in errors
     assert "exc.errors()" in errors and "_json_safe(exc.errors())" in errors
     assert "Last line of defense" in errors
+
+
+def test_v3_optional_id_normalizer_rejects_boolean_ids_and_tolerates_option_objects() -> None:
+    schema = read("backend/app/ai_workflows/bot_autopilot/schemas.py")
+    assert "ValidationInfo" in schema
+    assert 'info.field_name == "organization_id"' in schema
+    assert "rich option objects" in schema
+    assert "return value if info.field_name == \"organization_id\" else None" in schema
+    assert "elif isinstance(candidate, bool)" in schema

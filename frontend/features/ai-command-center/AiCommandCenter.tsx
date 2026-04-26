@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { AiCommandPrompt } from "./AiCommandPrompt";
 import { AiRunTimeline } from "./AiRunTimeline";
 import { useAiWorkflowStream } from "./useAiWorkflowStream";
@@ -25,7 +25,12 @@ function unwrap<T>(payload: unknown): T {
 
 async function readJson<T>(response: Response): Promise<T> {
   const text = await response.text();
-  const parsed = text ? JSON.parse(text) : {};
+  let parsed: any = {};
+  try {
+    parsed = text ? JSON.parse(text) : {};
+  } catch {
+    parsed = { detail: text || `HTTP ${response.status}` };
+  }
   if (!response.ok) {
     const detail = parsed?.detail || parsed?.error || parsed;
     const message = typeof detail === "string" ? detail : detail?.message || `HTTP ${response.status}`;
@@ -39,7 +44,8 @@ function cleanOptionalString(value: unknown): string | null {
     const cleaned = value.trim();
     return cleaned || null;
   }
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "number") return String(value);
+  if (typeof value === "boolean") return null;
   if (value && typeof value === "object" && !Array.isArray(value)) {
     const record = value as Record<string, unknown>;
     for (const key of ["id", "bot_id", "organization_id", "value"]) {
@@ -49,6 +55,13 @@ function cleanOptionalString(value: unknown): string | null {
     return null;
   }
   return null;
+}
+
+function getStartBlockingReason(payload: AiCommandPayload) {
+  if (!cleanOptionalString(payload.organization_id)) return "Selecciona una organización antes de generar el bot con IA.";
+  const descriptionLength = payload.user_description.trim().length;
+  if (descriptionLength < 20) return `Describe el negocio con al menos 20 caracteres. Ahora hay ${descriptionLength}.`;
+  return "";
 }
 
 function initialPayload(organizations: AiCommandOrganization[]): AiCommandPayload {
@@ -97,13 +110,17 @@ export function AiCommandCenter({ organizations, bots, verticals, initialRunId }
   const [run, setRun] = useState<AiWorkflowRunEnvelope | null>(null);
   const [busy, setBusy] = useState<"start" | "refresh" | "prepare" | "apply" | "canary" | "">("");
   const [message, setMessage] = useState<UiMessage>(null);
+  const startInFlightRef = useRef(false);
+  const refreshInFlightRef = useRef(false);
+  const actionInFlightRef = useRef(false);
   const stream = useAiWorkflowStream(runId);
 
   const mergedRun = useMemo(() => stream.snapshot || run, [run, stream.snapshot]);
-  const terminalEvent = useMemo(() => stream.events.find((event) => TERMINAL_EVENT_TYPES.has(String(event.event_type || ""))) || null, [stream.events]);
+  const terminalEvent = useMemo(() => [...stream.events].reverse().find((event) => TERMINAL_EVENT_TYPES.has(String(event.event_type || ""))) || null, [stream.events]);
 
-  const refreshRun = useCallback(async (targetRunId = runId) => {
-    if (!targetRunId) return;
+  const refreshRun = useCallback(async (targetRunId = runId, options?: { allowDuringBusy?: boolean }) => {
+    if (!targetRunId || refreshInFlightRef.current || (Boolean(busy) && !options?.allowDuringBusy)) return;
+    refreshInFlightRef.current = true;
     setBusy("refresh");
     try {
       const data = await readJson<AiWorkflowRunEnvelope>(await fetch(`/api/ai/workflows/${encodeURIComponent(targetRunId)}`, { cache: "no-store" }));
@@ -112,15 +129,19 @@ export function AiCommandCenter({ organizations, bots, verticals, initialRunId }
     } catch (error) {
       setMessage({ tone: "danger", title: "No se pudo actualizar el run", detail: error instanceof Error ? error.message : "Error desconocido" });
     } finally {
+      refreshInFlightRef.current = false;
       setBusy("");
     }
-  }, [runId]);
+  }, [busy, runId]);
 
   const start = useCallback(async () => {
-    if (!payload.organization_id || payload.user_description.trim().length < 20) {
-      setMessage({ tone: "warning", title: "Falta informacion", detail: "Selecciona organizacion y escribe minimo 20 caracteres del negocio." });
+    if (startInFlightRef.current || Boolean(busy)) return;
+    const blockingReason = getStartBlockingReason(payload);
+    if (blockingReason) {
+      setMessage({ tone: "warning", title: "Falta informacion para generar el bot", detail: blockingReason });
       return;
     }
+    startInFlightRef.current = true;
     setBusy("start");
     setMessage(null);
     try {
@@ -147,13 +168,15 @@ export function AiCommandCenter({ organizations, bots, verticals, initialRunId }
     } catch (error) {
       setMessage({ tone: "danger", title: "No se pudo iniciar el Autopilot", detail: error instanceof Error ? error.message : "Error desconocido" });
     } finally {
+      startInFlightRef.current = false;
       setBusy("");
     }
-  }, [payload]);
+  }, [busy, payload]);
 
   const postRunAction = useCallback(async (action: "prepare-apply" | "apply" | "prepare-canary") => {
-    if (!runId) return;
+    if (!runId || actionInFlightRef.current || Boolean(busy)) return;
     const busyKey = action === "prepare-apply" ? "prepare" : action === "prepare-canary" ? "canary" : "apply";
+    actionInFlightRef.current = true;
     setBusy(busyKey);
     try {
       const body = action === "apply" ? JSON.stringify({ confirm: true }) : undefined;
@@ -163,13 +186,14 @@ export function AiCommandCenter({ organizations, bots, verticals, initialRunId }
         body,
       }));
       setMessage({ tone: "success", title: action === "apply" ? "Bot aplicado" : "Accion completada", detail: "Actualizando estado del workflow." });
-      await refreshRun(runId);
+      await refreshRun(runId, { allowDuringBusy: true });
     } catch (error) {
       setMessage({ tone: "danger", title: "Accion bloqueada", detail: error instanceof Error ? error.message : "Error desconocido" });
     } finally {
+      actionInFlightRef.current = false;
       setBusy("");
     }
-  }, [refreshRun, runId]);
+  }, [busy, refreshRun, runId]);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">

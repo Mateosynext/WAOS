@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Mapping
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from ...config import settings
 
@@ -95,13 +95,15 @@ class BotAutopilotRequest(BaseModel):
 
     @field_validator("organization_id", "bot_id", "vertical_id", "subvertical", "primary_objective", mode="before")
     @classmethod
-    def _strip_empty(cls, value: Any) -> Any:
+    def _strip_empty(cls, value: Any, info: ValidationInfo) -> Any:
         if value is None:
             return None
         if isinstance(value, str):
             cleaned = value.strip()
             return cleaned or None
-        if isinstance(value, (int, float, bool)):
+        if isinstance(value, bool):
+            return value if info.field_name == "organization_id" else None
+        if isinstance(value, (int, float)):
             return str(value)
         if isinstance(value, Mapping):
             # Some frontend selectors/cookies can accidentally serialize an
@@ -113,9 +115,14 @@ class BotAutopilotRequest(BaseModel):
                     cleaned = candidate.strip()
                     if cleaned:
                         return cleaned
-                elif isinstance(candidate, (int, float, bool)):
+                elif isinstance(candidate, bool):
+                    return candidate if info.field_name == "organization_id" else None
+                elif isinstance(candidate, (int, float)):
                     return str(candidate)
-            return None if not value else value
+            # Optional ids sometimes arrive as rich option objects without a useful
+            # id/value. Treat those as unset instead of raising a 422. Keep the
+            # required organization_id strict so a missing tenant never slips through.
+            return value if info.field_name == "organization_id" else None
         return value
 
     @model_validator(mode="after")

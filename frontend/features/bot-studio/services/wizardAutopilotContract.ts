@@ -26,12 +26,37 @@ export function asPlainRecord(value: unknown): Record<string, unknown> {
 }
 
 function textValue(value: unknown) {
-  return typeof value === "string" ? value.trim() : String(value ?? "").trim();
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "boolean") return "";
+  return "";
 }
 
-function optionalTextValue(value: unknown) {
+function optionalTextValue(value: unknown): string | null {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const record = value as Record<string, unknown>;
+    for (const key of ["id", "bot_id", "organization_id", "value"]) {
+      const nested = optionalTextValue(record[key]);
+      if (nested) return nested;
+    }
+    return null;
+  }
   const next = textValue(value);
-  return next ? next : null;
+  if (!next || next === "false") return null;
+  return next;
+}
+
+function requiredScopeTextValue(value: unknown): string {
+  return optionalTextValue(value) || "";
+}
+
+export function normalizeOptionalWizardId(value: unknown): string | null {
+  return optionalTextValue(value);
+}
+
+export function normalizeRequiredWizardScope(value: unknown): string {
+  return requiredScopeTextValue(value);
 }
 
 function pick(body: Record<string, unknown>, snakeKey: string, camelKey: string) {
@@ -67,7 +92,7 @@ export function normalizeWizardAiIntensity(value: unknown, fallback: WizardAiInt
 export function normalizeWizardAiProxyPayload(bodyInput: unknown, fallbackIntensity: WizardAiIntensity = "balanced"): NormalizedWizardAiPayload {
   const body = asPlainRecord(bodyInput);
   return {
-    organizationId: textValue(pick(body, "organization_id", "organizationId")),
+    organizationId: requiredScopeTextValue(pick(body, "organization_id", "organizationId")),
     botId: optionalTextValue(pick(body, "bot_id", "botId")),
     verticalId: optionalTextValue(pick(body, "vertical_id", "verticalId")),
     subvertical: optionalTextValue(body.subvertical),

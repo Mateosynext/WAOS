@@ -41,9 +41,9 @@ class OnboardingService(OnboardingSupport):
         from .onboarding_handlers.commands import dry_run_wizard as _handle
         return _handle(self, uow, wizard_id=wizard_id, user=user)
 
-    def apply_wizard(self, uow: UnitOfWork, *, wizard_id: str, user: dict) -> dict:
+    def apply_wizard(self, uow: UnitOfWork, *, wizard_id: str, payload, user: dict) -> dict:
         from .onboarding_handlers.commands import apply_wizard as _handle
-        return _handle(self, uow, wizard_id=wizard_id, user=user)
+        return _handle(self, uow, wizard_id=wizard_id, payload=payload, user=user)
 
     def summary(self, uow: UnitOfWork, *, user: dict, organization_id: str | None, bot_id: str | None) -> dict:
         from .onboarding_handlers.queries import summary as _handle

@@ -47,6 +47,7 @@ export function wizardPostOptionsResponse() {
 }
 
 const WIZARD_ERROR_MESSAGES: Record<string, string> = {
+  explicit_confirmation_required: "Confirma explícitamente el apply antes de aplicar cambios al bot.",
   dry_run_required: "Debes correr un dry run vigente antes de aplicar la reconfiguración.",
   dry_run_blocked: "El dry run actual sigue bloqueando el apply. Resuelve conflictos o vuelve a validar antes de aplicar.",
   wizard_revision_conflict: "Este wizard cambió mientras estabas guardando. Recarga el estado y vuelve a intentar.",

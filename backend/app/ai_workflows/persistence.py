@@ -12,7 +12,12 @@ def _now() -> str: return datetime.now(timezone.utc).isoformat()
 
 def _clean_json_value(v: Any, depth: int = 0) -> Any:
     if depth > 8: return "[truncated_depth]"
-    if v is None: return {}
+    # Preserve JSON null for nested optional fields. Turning None into {} caused
+    # optional ids such as bot_id/vertical_id to come back from config_json and
+    # result_json as empty objects, which can silently break frontend/backend
+    # contracts after a run snapshot is reloaded. Top-level empty payloads are
+    # already normalized by callers before _json is invoked.
+    if v is None: return None
     if isinstance(v, dict):
         out = {}
         for key, value in v.items():
@@ -118,9 +123,12 @@ def list_steps(conn: DBConnection, run_id: str) -> list[dict]:
 
 def list_runs(conn: DBConnection, limit: int=50, organization_ids: list[str]|None=None) -> list[dict]:
     ensure_ai_workflow_schema(conn); limit=max(1,min(int(limit or 50),200))
-    if organization_ids:
-        placeholders=",".join("?" for _ in organization_ids)
-        rows=fetch_all(conn,f"SELECT * FROM ai_workflow_runs WHERE organization_id IN ({placeholders}) ORDER BY created_at DESC LIMIT ?",(*organization_ids,limit))
+    if organization_ids is not None:
+        cleaned_org_ids=[str(item).strip() for item in organization_ids if str(item or "").strip()]
+        if not cleaned_org_ids:
+            return []
+        placeholders=",".join("?" for _ in cleaned_org_ids)
+        rows=fetch_all(conn,f"SELECT * FROM ai_workflow_runs WHERE organization_id IN ({placeholders}) ORDER BY created_at DESC LIMIT ?",(*cleaned_org_ids,limit))
     else:
         rows=fetch_all(conn,"SELECT * FROM ai_workflow_runs ORDER BY created_at DESC LIMIT ?",(limit,))
     return [_decode(r) or {} for r in rows]

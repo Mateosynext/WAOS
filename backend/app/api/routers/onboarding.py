@@ -8,6 +8,7 @@ from ...schemas import (
     GuidedOnboardingAiAutofixRequest,
     GuidedOnboardingAiAutopilotRequest,
     GuidedOnboardingAiPrefillRequest,
+    GuidedOnboardingWizardApplyRequest,
     GuidedOnboardingWizardStartRequest,
     GuidedOnboardingWizardStepUpdateRequest,
     InboxSavedViewCreateRequest,
@@ -99,8 +100,8 @@ def autofix_guided_wizard_with_ai(wizard_id: str, payload: GuidedOnboardingAiAut
 
 
 @onboarding_router.post("/wizard/{wizard_id}/apply", response_model=ApiEnvelope[OnboardingPayloadResponse])
-def apply_guided_wizard(wizard_id: str, user: CurrentUser, uow: CurrentUoW) -> dict:
-    return onboarding_service.apply_wizard(uow, wizard_id=wizard_id, user=user)
+def apply_guided_wizard(wizard_id: str, payload: GuidedOnboardingWizardApplyRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
+    return onboarding_service.apply_wizard(uow, wizard_id=wizard_id, payload=payload, user=user)
 
 
 @inbox_router.get("/saved-views", response_model=ApiEnvelope[OnboardingPayloadResponse])

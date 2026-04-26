@@ -50,21 +50,27 @@ async function readError(response: Response): Promise<ApiRequestError> {
   let requestId = response.headers.get("x-request-id");
   let correlationId = response.headers.get("x-correlation-id");
   let details: unknown = null;
+  const text = await response.text().catch(() => "");
+  let data: any = null;
   try {
-    const data = await response.json();
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
+  }
+  if (data) {
     if (typeof data?.detail === "string") message = data.detail;
     else if (typeof data?.message === "string") message = data.message;
     else if (typeof data?.error === "string") message = data.error;
     else if (typeof data?.error?.message === "string") message = data.error.message;
     else if (data?.detail?.message) message = data.detail.message;
     if (typeof data?.error?.code === "string") code = data.error.code;
+    else if (typeof data?.detail?.code === "string") code = data.detail.code;
     else if (typeof data?.code === "string") code = data.code;
     requestId = typeof data?.request_id === "string" ? data.request_id : requestId;
     correlationId = typeof data?.correlation_id === "string" ? data.correlation_id : correlationId;
-    details = data?.error?.details ?? data?.details ?? null;
-  } catch {
-    const text = await response.text().catch(() => "");
-    if (text) message = text;
+    details = data?.error?.details ?? data?.details ?? data?.detail ?? null;
+  } else if (text) {
+    message = text.length > 1200 ? text.slice(0, 1200) + "...[truncated]" : text;
   }
   return new ApiRequestError(message, {
     status: response.status,
