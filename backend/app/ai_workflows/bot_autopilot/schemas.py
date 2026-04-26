@@ -2,13 +2,22 @@ from __future__ import annotations
 
 from typing import Any, Literal, Mapping
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from ...config import settings
 
 Intensity = Literal["conservative", "balanced", "aggressive", "savage", "godmode"]
 _SAFE_INTENSITIES = {"conservative", "balanced", "aggressive", "savage"}
 _ALL_INTENSITIES = {*_SAFE_INTENSITIES, "godmode"}
+_BOOL_DEFAULTS = {
+    "auto_generate_knowledge": True,
+    "auto_generate_templates": True,
+    "auto_generate_tools": True,
+    "auto_run_simulations": True,
+    "auto_autofix": True,
+    "auto_prepare_go_live": True,
+    "auto_apply": False,
+}
 
 
 def _truthy(value: Any) -> bool:
@@ -93,18 +102,63 @@ class BotAutopilotRequest(BaseModel):
         # future caller bypasses that pre-normalization path.
         return value if value in _ALL_INTENSITIES else "balanced"
 
-    @field_validator("organization_id", "bot_id", "vertical_id", "subvertical", "primary_objective", mode="before")
+    @field_validator("organization_id", mode="before")
     @classmethod
-    def _strip_empty(cls, value: Any) -> Any:
+    def _strip_required_string(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+    @field_validator("bot_id", "vertical_id", "subvertical", "primary_objective", "requested_intensity", "language", "timezone", mode="before")
+    @classmethod
+    def _strip_empty_optional_string(cls, value: Any) -> Any:
         if value is None:
+            return None
+        if isinstance(value, Mapping) and not value:
             return None
         if isinstance(value, str):
             cleaned = value.strip()
             return cleaned or None
         return value
 
+    @field_validator("auto_generate_knowledge", "auto_generate_templates", "auto_generate_tools", "auto_run_simulations", "auto_autofix", "auto_prepare_go_live", "auto_apply", mode="before")
+    @classmethod
+    def _strip_empty_bool(cls, value: Any, info: ValidationInfo) -> Any:
+        default = _BOOL_DEFAULTS.get(info.field_name or "", False)
+        if value is None:
+            return default
+        if isinstance(value, Mapping) and not value:
+            return default
+        if isinstance(value, list) and not value:
+            return default
+        if isinstance(value, str):
+            cleaned = value.strip().lower()
+            if not cleaned:
+                return default
+            if cleaned in {"1", "true", "yes", "y", "on", "si", "sí"}:
+                return True
+            if cleaned in {"0", "false", "no", "n", "off"}:
+                return False
+        return value
+
+    @field_validator("max_cost_usd", mode="before")
+    @classmethod
+    def _strip_empty_optional_number(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, Mapping) and not value:
+            return None
+        if isinstance(value, list) and not value:
+            return None
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
     @model_validator(mode="after")
     def _validate_safe_state(self) -> "BotAutopilotRequest":
+        self.primary_objective = self.primary_objective or "agendar"
+        self.language = self.language or "es"
+        self.timezone = self.timezone or "America/Mexico_City"
         # Defense in depth: the before-validator should have downgraded this.
         # Keeping the invariant here prevents accidental future regressions.
         if self.intensity == "godmode" and not settings.ai_enable_godmode:

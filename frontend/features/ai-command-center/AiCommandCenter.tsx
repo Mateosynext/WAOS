@@ -4,11 +4,12 @@ import { useCallback, useMemo, useState } from "react";
 import { AiCommandPrompt } from "./AiCommandPrompt";
 import { AiRunTimeline } from "./AiRunTimeline";
 import { useAiWorkflowStream } from "./useAiWorkflowStream";
-import type { AiCommandBotOption, AiCommandOrganization, AiCommandPayload, AiWorkflowRunEnvelope, BotAutopilotStartResponse } from "./types";
+import type { AiCommandBotOption, AiCommandOrganization, AiCommandPayload, AiCommandVerticalOption, AiWorkflowRunEnvelope, BotAutopilotStartResponse } from "./types";
 
 type Props = {
   organizations: AiCommandOrganization[];
   bots: AiCommandBotOption[];
+  verticals: AiCommandVerticalOption[];
   initialRunId: string | null;
 };
 
@@ -30,6 +31,19 @@ async function readJson<T>(response: Response): Promise<T> {
     throw new Error(message);
   }
   return unwrap<T>(parsed);
+}
+
+function optionalString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function optionalNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  }
+  return null;
 }
 
 function initialPayload(organizations: AiCommandOrganization[]): AiCommandPayload {
@@ -54,7 +68,24 @@ function initialPayload(organizations: AiCommandOrganization[]): AiCommandPayloa
   };
 }
 
-export function AiCommandCenter({ organizations, bots, initialRunId }: Props) {
+function cleanAutopilotPayload(payload: AiCommandPayload): AiCommandPayload {
+  return {
+    ...payload,
+    organization_id: optionalString(payload.organization_id) || "",
+    bot_id: optionalString(payload.bot_id),
+    user_description: payload.user_description.trim(),
+    vertical_id: optionalString(payload.vertical_id),
+    subvertical: optionalString(payload.subvertical),
+    primary_objective: optionalString(payload.primary_objective) || "agendar",
+    language: optionalString(payload.language) || "es",
+    timezone: optionalString(payload.timezone) || "America/Mexico_City",
+    intensity: payload.intensity === "godmode" && !GODMODE_ENABLED ? "savage" : payload.intensity,
+    auto_apply: false,
+    max_cost_usd: optionalNumber(payload.max_cost_usd),
+  };
+}
+
+export function AiCommandCenter({ organizations, bots, verticals, initialRunId }: Props) {
   const [payload, setPayload] = useState<AiCommandPayload>(() => initialPayload(organizations));
   const [runId, setRunId] = useState<string | null>(initialRunId);
   const [run, setRun] = useState<AiWorkflowRunEnvelope | null>(null);
@@ -79,18 +110,14 @@ export function AiCommandCenter({ organizations, bots, initialRunId }: Props) {
   }, [runId]);
 
   const start = useCallback(async () => {
-    if (!payload.organization_id || payload.user_description.trim().length < 20) {
+    const safePayload = cleanAutopilotPayload(payload);
+    if (!safePayload.organization_id || safePayload.user_description.length < 20) {
       setMessage({ tone: "warning", title: "Falta información", detail: "Selecciona organización y escribe mínimo 20 caracteres del negocio." });
       return;
     }
     setBusy("start");
     setMessage(null);
     try {
-      const safePayload: AiCommandPayload = {
-        ...payload,
-        intensity: payload.intensity === "godmode" && !GODMODE_ENABLED ? "savage" : payload.intensity,
-        auto_apply: false,
-      };
       const started = await readJson<BotAutopilotStartResponse>(await fetch("/api/ai/bot-autopilot?async_mode=true", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -131,9 +158,14 @@ export function AiCommandCenter({ organizations, bots, initialRunId }: Props) {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
       <div className="grid gap-4">
-        <AiCommandPrompt organizations={organizations} bots={bots} payload={payload} busy={Boolean(busy)} onChange={(patch) => setPayload((current) => {
+        <AiCommandPrompt organizations={organizations} bots={bots} verticals={verticals} payload={payload} busy={Boolean(busy)} onChange={(patch) => setPayload((current) => {
           const next = { ...current, ...patch, auto_apply: false };
-          return { ...next, intensity: next.intensity === "godmode" && !GODMODE_ENABLED ? "savage" : next.intensity };
+          const verticalChanged = Object.prototype.hasOwnProperty.call(patch, "vertical_id") && patch.vertical_id !== current.vertical_id;
+          return {
+            ...next,
+            subvertical: verticalChanged && !Object.prototype.hasOwnProperty.call(patch, "subvertical") ? null : next.subvertical,
+            intensity: next.intensity === "godmode" && !GODMODE_ENABLED ? "savage" : next.intensity,
+          };
         })} onSubmit={start} />
         {message ? <div className={`rounded-2xl border p-4 text-sm ${message.tone === "danger" ? "border-red-400/30 bg-red-500/10" : message.tone === "warning" ? "border-amber-400/30 bg-amber-500/10" : "border-emerald-400/30 bg-emerald-500/10"}`}><strong>{message.title}</strong>{message.detail ? <p className="mt-1 opacity-80">{message.detail}</p> : null}</div> : null}
       </div>

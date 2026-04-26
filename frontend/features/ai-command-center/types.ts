@@ -1,6 +1,23 @@
 export type AiCommandOrganization = { id: string; name: string };
 export type AiCommandBotOption = { id: string; name: string };
 
+export type AiCommandSubverticalProfile = {
+  name?: string | null;
+  promise?: string | null;
+  buyer?: string | null;
+  growth_motion?: string | null;
+};
+
+export type AiCommandVerticalOption = {
+  id: string;
+  name: string;
+  short_name?: string | null;
+  description?: string | null;
+  subverticals?: string[];
+  recommended_subverticals?: string[];
+  subvertical_profiles?: AiCommandSubverticalProfile[];
+};
+
 export type AiWorkflowEvent = {
   id?: string;
   event_type?: string;
