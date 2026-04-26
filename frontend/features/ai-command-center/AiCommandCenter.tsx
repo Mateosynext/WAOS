@@ -16,6 +16,7 @@ type Props = {
 type UiMessage = { tone: "success" | "warning" | "danger"; title: string; detail?: string } | null;
 
 const GODMODE_ENABLED = process.env.NEXT_PUBLIC_AI_ENABLE_GODMODE === "true";
+const TERMINAL_EVENT_TYPES = new Set(["workflow.completed", "workflow.completed_partial", "workflow.failed", "workflow.cancelled", "workflow.paused_cost_limit"]);
 
 function unwrap<T>(payload: unknown): T {
   const value = payload as { data?: T } | T;
@@ -31,6 +32,23 @@ async function readJson<T>(response: Response): Promise<T> {
     throw new Error(message);
   }
   return unwrap<T>(parsed);
+}
+
+function cleanOptionalString(value: unknown): string | null {
+  if (typeof value === "string") {
+    const cleaned = value.trim();
+    return cleaned || null;
+  }
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const record = value as Record<string, unknown>;
+    for (const key of ["id", "bot_id", "organization_id", "value"]) {
+      const nested = cleanOptionalString(record[key]);
+      if (nested) return nested;
+    }
+    return null;
+  }
+  return null;
 }
 
 function initialPayload(organizations: AiCommandOrganization[]): AiCommandPayload {
@@ -82,6 +100,7 @@ export function AiCommandCenter({ organizations, bots, verticals, initialRunId }
   const stream = useAiWorkflowStream(runId);
 
   const mergedRun = useMemo(() => stream.snapshot || run, [run, stream.snapshot]);
+  const terminalEvent = useMemo(() => stream.events.find((event) => TERMINAL_EVENT_TYPES.has(String(event.event_type || ""))) || null, [stream.events]);
 
   const refreshRun = useCallback(async (targetRunId = runId) => {
     if (!targetRunId) return;
@@ -107,6 +126,11 @@ export function AiCommandCenter({ organizations, bots, verticals, initialRunId }
     try {
       const safePayload: AiCommandPayload = {
         ...payload,
+        organization_id: cleanOptionalString(payload.organization_id) || "",
+        bot_id: cleanOptionalString(payload.bot_id),
+        vertical_id: cleanOptionalString(payload.vertical_id),
+        subvertical: cleanOptionalString(payload.subvertical),
+        primary_objective: cleanOptionalString(payload.primary_objective),
         intensity: payload.intensity === "godmode" && !GODMODE_ENABLED ? "savage" : payload.intensity,
         auto_apply: false,
       };
@@ -162,6 +186,7 @@ export function AiCommandCenter({ organizations, bots, verticals, initialRunId }
             <button type="button" className="secondary-btn" disabled={!runId || Boolean(busy)} onClick={() => postRunAction("prepare-canary")}>Prepare canary</button>
           </div>
           <p className="mt-3 text-xs text-[color:var(--text-secondary)]">Run activo: <span className="mono-pill">{runId || "ninguno"}</span></p>
+          {terminalEvent ? <p className="mt-2 text-xs text-[color:var(--text-secondary)]">Evento terminal: <span className="mono-pill">{String(terminalEvent.event_type || "workflow.terminal")}</span></p> : null}
         </div>
         <AiRunTimeline run={mergedRun} events={stream.events} connected={stream.connected} error={stream.error} />
       </div>

@@ -101,6 +101,21 @@ class BotAutopilotRequest(BaseModel):
         if isinstance(value, str):
             cleaned = value.strip()
             return cleaned or None
+        if isinstance(value, (int, float, bool)):
+            return str(value)
+        if isinstance(value, Mapping):
+            # Some frontend selectors/cookies can accidentally serialize an
+            # unselected optional id as `{}`. Treat empty objects as unset and
+            # recover common object-shaped ids (`{ id }`, `{ bot_id }`, `{ value }`).
+            for key in ("id", "bot_id", "organization_id", "value"):
+                candidate = value.get(key)
+                if isinstance(candidate, str):
+                    cleaned = candidate.strip()
+                    if cleaned:
+                        return cleaned
+                elif isinstance(candidate, (int, float, bool)):
+                    return str(candidate)
+            return None if not value else value
         return value
 
     @model_validator(mode="after")

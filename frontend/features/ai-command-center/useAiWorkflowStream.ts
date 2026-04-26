@@ -83,14 +83,14 @@ export function useAiWorkflowStream(runId: string | null) {
       if (closed) return;
       if (event.id) lastEventIdRef.current = String(event.id);
       const eventType = String(event.event_type || "");
-      const isTerminalEvent = TERMINAL_EVENTS.has(eventType);
-      terminalRef.current = terminalRef.current || isTerminalEvent;
+      const terminalEvent = TERMINAL_EVENTS.has(eventType);
+      terminalRef.current = terminalRef.current || terminalEvent;
       connectedRef.current = options?.fromPolling ? connectedRef.current : true;
       setState((current) => {
         const key = eventKey(event, current.events.length);
         const exists = current.events.some((item, index) => eventKey(item, index) === key);
         const events = exists ? current.events : [...current.events, event];
-        const nextTerminal = current.terminal || isTerminalEvent;
+        const nextTerminal = current.terminal || terminalEvent;
         return {
           ...current,
           connected: options?.fromPolling ? current.connected : true,

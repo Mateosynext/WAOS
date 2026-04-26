@@ -76,6 +76,17 @@ def test_v3_autopilot_godmode_is_normalized_not_rejected() -> None:
     assert "effective_intensity" in service
     assert "requested_intensity" in service
     assert "safety_warnings" in service
+    assert "unselected optional id as `{}`" in schema
+    assert '("id", "bot_id", "organization_id", "value")' in schema
+
+
+def test_v3_autopilot_payload_ids_are_sanitized_before_submit() -> None:
+    schema = read("backend/app/ai_workflows/bot_autopilot/schemas.py")
+    center = read("frontend/features/ai-command-center/AiCommandCenter.tsx")
+    assert "cleanOptionalString" in center
+    assert "bot_id: cleanOptionalString(payload.bot_id)" in center
+    assert "vertical_id: cleanOptionalString(payload.vertical_id)" in center
+    assert "return None if not value else value" in schema
 
 
 def test_global_error_renderer_has_last_line_of_defense_for_validation_ctx() -> None:
