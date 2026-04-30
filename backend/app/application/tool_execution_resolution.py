@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 from typing import Any
 
 from fastapi import HTTPException
 
 from ..agent_policy_runtime import evaluate_specialist_policy, get_policy_profile_for_specialist, persist_agent_policy_evaluation
+from ..config import settings
 from ..db import execute, fetch_all, fetch_one
 from ..job_idempotency import begin_job_execution, get_job_execution, mark_job_completed, mark_job_failed
 from ..multi_agent_runtime import build_shared_memory_context
 from ..repositories import create_audit_log, get_bot
 from ..security import ensure_bot_access, ensure_org_access
-from ..utils import from_json, hash_value, new_id, to_json, utcnow_iso
+from ..utils import canonical_hash, from_json, hash_value, new_id, sign_payload, to_json, utcnow, utcnow_iso, verify_signed_payload
 from .outcomes_service import outcomes_service
 from .tool_execution_adapters import (
     ActionPolicy,
@@ -44,24 +46,91 @@ class ToolExecutionResolutionMixin:
     def _resolve_preview_run(self, conn, *, payload, user: dict, normalized: dict[str, Any], policy: ActionPolicy) -> dict[str, Any] | None:
         if not policy.requires_confirmation:
             return None
-        if payload.preview_execution_id:
-            preview = fetch_one(conn, "SELECT * FROM tool_execution_runs WHERE id = ?", (payload.preview_execution_id,))
-            if not preview:
-                raise HTTPException(status_code=404, detail="tool_execution_preview_not_found")
-            ensure_org_access(user, preview["organization_id"])
-            if preview["organization_id"] != payload.organization_id or preview["action"] != payload.action:
-                raise HTTPException(status_code=409, detail="tool_execution_preview_scope_mismatch")
-            expected = preview.get("confirmation_token_hash")
-            if expected and self._hash_confirmation_token(payload.confirmation_token or "") != expected:
-                raise HTTPException(status_code=409, detail="tool_execution_confirmation_token_invalid")
-            if from_json(preview.get("normalized_payload_json"), {}) != normalized:
-                raise HTTPException(status_code=409, detail="tool_execution_preview_payload_mismatch")
-            now = utcnow_iso()
-            execute(conn, "UPDATE tool_execution_runs SET confirmed_by = ?, confirmed_at = ?, updated_at = ? WHERE id = ?", (user["id"], now, now, preview["id"]))
-            return preview
-        if payload.confirm:
-            return None
-        raise HTTPException(status_code=409, detail="tool_execution_requires_confirmation")
+        if not payload.confirm:
+            raise HTTPException(status_code=409, detail="tool_execution_requires_explicit_confirm")
+        if not payload.preview_execution_id:
+            raise HTTPException(status_code=409, detail="tool_execution_requires_preview_execution_id")
+        if not payload.confirmation_token:
+            raise HTTPException(status_code=409, detail="tool_execution_requires_confirmation_token")
+
+        preview = fetch_one(conn, "SELECT * FROM tool_execution_runs WHERE id = ?", (payload.preview_execution_id,))
+        if not preview:
+            raise HTTPException(status_code=404, detail="tool_execution_preview_not_found")
+        ensure_org_access(user, preview["organization_id"])
+        if preview["organization_id"] != payload.organization_id or preview["action"] != payload.action:
+            raise HTTPException(status_code=409, detail="tool_execution_preview_scope_mismatch")
+        if preview.get("execution_mode") != "preview" or preview.get("status") != "preview_ready":
+            raise HTTPException(status_code=409, detail="tool_execution_preview_not_ready")
+        if not preview.get("requires_confirmation"):
+            raise HTTPException(status_code=409, detail="tool_execution_preview_confirmation_not_required")
+
+        expected = preview.get("confirmation_token_hash")
+        provided_hash = self._hash_confirmation_token(payload.confirmation_token)
+        if not expected or not hmac.compare_digest(provided_hash, expected):
+            raise HTTPException(status_code=409, detail="tool_execution_confirmation_token_invalid")
+        self._verify_confirmation_token(payload.confirmation_token, preview=preview, normalized_payload=normalized)
+        if from_json(preview.get("normalized_payload_json"), {}) != normalized:
+            raise HTTPException(status_code=409, detail="tool_execution_preview_payload_mismatch")
+        now = utcnow_iso()
+        execute(conn, "UPDATE tool_execution_runs SET confirmed_by = ?, confirmed_at = ?, updated_at = ? WHERE id = ?", (user["id"], now, now, preview["id"]))
+        return preview
+
+    def _ensure_preview_idempotency_scope(self, conn, *, preview_run_id: str | None, idempotency_key: str) -> None:
+        if not preview_run_id:
+            return
+        prior = fetch_one(
+            conn,
+            """
+            SELECT id, idempotency_key, status
+            FROM tool_execution_runs
+            WHERE preview_run_id = ?
+              AND execution_mode = 'execute'
+              AND status IN ('running', 'completed')
+            ORDER BY created_at ASC
+            LIMIT 1
+            """,
+            (preview_run_id,),
+        )
+        if prior and prior.get("idempotency_key") != idempotency_key:
+            raise HTTPException(status_code=409, detail="tool_execution_preview_already_consumed")
+
+    def _idempotency_target_id(self, action: str, normalized_payload: dict[str, Any]) -> str:
+        if action == "reschedule":
+            value = normalized_payload.get("appointment_id")
+        elif action == "send_receipt":
+            value = normalized_payload.get("payment_id")
+        elif action == "create_payment_link":
+            value = normalized_payload.get("appointment_id") or normalized_payload.get("contact_id") or normalized_payload.get("conversation_id")
+        elif action == "book_appointment":
+            value = normalized_payload.get("conversation_id") or normalized_payload.get("contact_id") or normalized_payload.get("bot_id")
+        elif action == "update_contact_stage":
+            value = normalized_payload.get("contact_id")
+        else:
+            value = normalized_payload.get("target_id")
+        target_id = str(value or "").strip()
+        if not target_id:
+            raise HTTPException(status_code=400, detail="tool_execution_requires_target_id")
+        return target_id
+
+    def _client_request_id(self, payload) -> str:
+        value = getattr(payload, "client_request_id", None) or payload.idempotency_key or (payload.metadata or {}).get("client_request_id")
+        client_request_id = str(value or "").strip()
+        if not client_request_id:
+            raise HTTPException(status_code=400, detail="tool_execution_requires_client_request_id")
+        if len(client_request_id) < 8 or len(client_request_id) > 180:
+            raise HTTPException(status_code=400, detail="tool_execution_invalid_client_request_id")
+        return client_request_id
+
+    def _resolve_idempotency_key(self, action: str, organization_id: str, normalized_payload: dict[str, Any], payload) -> tuple[str, str, str]:
+        target_id = self._idempotency_target_id(action, normalized_payload)
+        client_request_id = self._client_request_id(payload)
+        key_material = {
+            "organization_id": organization_id,
+            "action_type": action,
+            "target_id": target_id,
+            "client_request_id": client_request_id,
+        }
+        return f"tool-exec:v2:{canonical_hash(key_material)}", target_id, client_request_id
 
     def _normalize_payload(self, conn, *, payload) -> dict[str, Any]:
         raw = dict(payload.payload or {})
@@ -115,6 +184,7 @@ class ToolExecutionResolutionMixin:
                 "bot_id": raw["bot_id"],
                 "conversation_id": raw["conversation_id"],
                 "contact_id": raw["contact_id"],
+                "appointment_id": raw.get("appointment_id"),
                 "title": raw["title"],
                 "amount": amount,
                 "currency": raw.get("currency") or "MXN",
@@ -196,10 +266,35 @@ class ToolExecutionResolutionMixin:
         )
 
     def _default_idempotency_key(self, action: str, organization_id: str, normalized_payload: dict[str, Any]) -> str:
-        return f"tool-exec:{organization_id}:{action}:{hash_value(to_json(normalized_payload))}"
+        # Legacy helper kept only for backwards internal callers; execute paths must use _resolve_idempotency_key.
+        return f"tool-exec:legacy:{organization_id}:{action}:{canonical_hash(normalized_payload)}"
+
+    def _confirmation_token_secret(self) -> str:
+        return f"{settings.app_secret}:tool-execution-confirmation:v1"
 
     def _build_confirmation_token(self, *, run_id: str, normalized_payload: dict[str, Any]) -> str:
-        return hashlib.sha256(f"{run_id}:{to_json(normalized_payload)}".encode("utf-8")).hexdigest()[:24]
+        exp = int(utcnow().timestamp()) + 15 * 60
+        return sign_payload(
+            {
+                "purpose": "tool_execution_confirmation",
+                "preview_execution_id": run_id,
+                "payload_hash": canonical_hash(normalized_payload),
+                "exp": exp,
+            },
+            self._confirmation_token_secret(),
+        )
+
+    def _verify_confirmation_token(self, token: str, *, preview: dict[str, Any], normalized_payload: dict[str, Any]) -> None:
+        claims = verify_signed_payload(token, self._confirmation_token_secret())
+        if not claims:
+            raise HTTPException(status_code=409, detail="tool_execution_confirmation_token_invalid")
+        expected_payload_hash = canonical_hash(normalized_payload)
+        if claims.get("purpose") != "tool_execution_confirmation":
+            raise HTTPException(status_code=409, detail="tool_execution_confirmation_token_invalid")
+        if claims.get("preview_execution_id") != preview.get("id"):
+            raise HTTPException(status_code=409, detail="tool_execution_confirmation_token_scope_mismatch")
+        if claims.get("payload_hash") != expected_payload_hash:
+            raise HTTPException(status_code=409, detail="tool_execution_confirmation_token_payload_mismatch")
 
     def _hash_confirmation_token(self, token: str) -> str:
         return hashlib.sha256(token.encode("utf-8")).hexdigest() if token else ""

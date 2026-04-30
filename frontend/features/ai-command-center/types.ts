@@ -26,11 +26,33 @@ export type AiWorkflowEvent = {
   [key: string]: unknown;
 };
 
+export type AiHumanConfirmation = {
+  field_key?: string;
+  label?: string | null;
+  reason?: string | null;
+  status?: string | null;
+  suggested_value?: string | null;
+  confirmed_value?: string | null;
+  [key: string]: unknown;
+};
+
+export type AiGoLiveReadiness = {
+  status?: string;
+  score?: number;
+  blockers?: string[];
+  warnings?: string[];
+  can_apply?: boolean;
+  can_publish?: boolean;
+  recommended_next_action?: string;
+  human_confirmations_required?: AiHumanConfirmation[];
+  [key: string]: unknown;
+};
+
 export type AiWorkflowRunEnvelope = {
   run?: Record<string, unknown>;
   steps?: Array<Record<string, unknown>>;
   events?: AiWorkflowEvent[];
-  human_confirmations?: Array<Record<string, unknown>>;
+  human_confirmations?: AiHumanConfirmation[];
   result?: Record<string, unknown>;
 };
 
@@ -44,6 +66,9 @@ export type BotAutopilotStartResponse = {
   effective_intensity?: string;
   safety_warnings?: string[];
   next_action?: Record<string, unknown>;
+  idempotency_key?: string;
+  idempotent_replay?: boolean;
+  enqueue_worker?: boolean;
 };
 
 export type AiCommandPayload = {
@@ -64,4 +89,5 @@ export type AiCommandPayload = {
   auto_prepare_go_live: boolean;
   auto_apply: boolean;
   max_cost_usd?: number | null;
+  client_request_id?: string | null;
 };

@@ -4,7 +4,8 @@ from typing import Any
 
 from .db import execute, fetch_one
 from .platform import store_secret
-from .utils import add_minutes, hash_value, new_id, parse_iso, random_token, to_json, utcnow_iso
+from .utils import add_minutes, from_json, hash_value, new_id, parse_iso, random_token, to_json, utcnow_iso
+from .whatsapp_connection_state import clean_provider_id, require_real_provider_ids, update_whatsapp_metadata
 
 
 def start_meta_embedded_signup(conn, integration: dict[str, Any]) -> dict[str, Any]:
@@ -68,26 +69,48 @@ def complete_meta_embedded_signup(
         store_secret(conn, organization_id=integration["organization_id"], bot_id=bot_id, scope="bot" if bot_id else "tenant", key_name="META_ACCESS_TOKEN", secret_value=access_token)
     if app_secret:
         store_secret(conn, organization_id=integration["organization_id"], bot_id=None, scope="tenant", key_name="META_APP_SECRET", secret_value=app_secret)
+    try:
+        require_real_provider_ids(phone_number_id=phone_number_id, waba_id=waba_id)
+    except ValueError as exc:
+        raise ValueError("whatsapp_provider_ids_must_be_real") from exc
+    phone_number_id = clean_provider_id(phone_number_id)
+    if not phone_number_id:
+        raise ValueError("whatsapp_phone_number_id_required")
+    waba_id = clean_provider_id(waba_id)
     verify_token = webhook_verify_token or random_token("waverify")
     row = fetch_one(conn, "SELECT * FROM whatsapp_numbers WHERE bot_id = ?", (bot_id,)) if bot_id else None
     now = utcnow_iso()
     masked = (access_token[:4] + "***" + access_token[-3:]) if access_token else (row.get("access_token_masked") if row else "")
-    metadata = payload or {}
+    metadata = from_json(row.get("metadata_json"), {}) if row else {}
+    if payload:
+        metadata.update(payload)
+    webhook_verified = bool(metadata.get("webhook_verified_at") or (metadata.get("connection_steps") or {}).get("webhook_verified"))
+    connection_status, metadata_json = update_whatsapp_metadata(
+        metadata,
+        phone_number=phone_number or (row or {}).get("phone_number"),
+        phone_number_id=phone_number_id,
+        waba_id=waba_id or (row or {}).get("waba_id"),
+        access_token_present=bool(access_token or masked),
+        webhook_verified=webhook_verified,
+        source="meta_embedded_signup",
+    )
     if row:
         execute(
             conn,
-            "UPDATE whatsapp_numbers SET phone_number = ?, phone_number_id = ?, waba_id = ?, connection_status = 'connected', webhook_verify_token = ?, access_token_masked = ?, metadata_json = ?, updated_at = ? WHERE id = ?",
-            (phone_number or row.get("phone_number"), phone_number_id, waba_id or row.get("waba_id"), verify_token, masked, to_json(metadata), now, row["id"]),
+            "UPDATE whatsapp_numbers SET phone_number = ?, phone_number_id = ?, waba_id = ?, connection_status = ?, webhook_verify_token = ?, access_token_masked = ?, metadata_json = ?, updated_at = ? WHERE id = ?",
+            (phone_number or row.get("phone_number"), phone_number_id, waba_id or row.get("waba_id"), connection_status, verify_token, masked, metadata_json, now, row["id"]),
         )
     elif bot_id:
         execute(
             conn,
-            "INSERT INTO whatsapp_numbers (id, organization_id, bot_id, provider, phone_number, phone_number_id, waba_id, connection_status, webhook_verify_token, access_token_masked, metadata_json, created_at, updated_at) VALUES (?, ?, ?, 'meta_cloud_api', ?, ?, ?, 'connected', ?, ?, ?, ?, ?)",
-            (new_id("wan"), integration["organization_id"], bot_id, phone_number or "", phone_number_id, waba_id or "", verify_token, masked or "", to_json(metadata), now, now),
+            "INSERT INTO whatsapp_numbers (id, organization_id, bot_id, provider, phone_number, phone_number_id, waba_id, connection_status, webhook_verify_token, access_token_masked, metadata_json, created_at, updated_at) VALUES (?, ?, ?, 'meta_cloud_api', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (new_id("wan"), integration["organization_id"], bot_id, phone_number or "", phone_number_id, waba_id or None, connection_status, verify_token, masked or "", metadata_json, now, now),
         )
     config = payload or {}
     config["embedded_signup_completed_at"] = now
-    execute(conn, "UPDATE integration_connections SET status = 'active', health_status = 'healthy', credential_status = ?, config_json = ?, updated_at = ? WHERE id = ?", ("connected" if access_token else "configured", to_json(config), now, integration["id"]))
+    config["connection_status"] = connection_status
+    config["connection_steps"] = from_json(metadata_json, {}).get("connection_steps", {})
+    execute(conn, "UPDATE integration_connections SET status = ?, health_status = ?, credential_status = ?, config_json = ?, updated_at = ? WHERE id = ?", ("active" if connection_status == "send_ready" else "configured", "healthy" if connection_status == "send_ready" else "degraded", connection_status if access_token else "configured", to_json(config), now, integration["id"]))
     execute(conn, "UPDATE oauth_states SET consumed_at = ? WHERE id = ?", (now, oauth_state["id"]))
     return {
         "integration": fetch_one(conn, "SELECT * FROM integration_connections WHERE id = ?", (integration["id"],)),

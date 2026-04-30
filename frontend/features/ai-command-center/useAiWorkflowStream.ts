@@ -42,8 +42,28 @@ function parseEvent(raw: string): AiWorkflowEvent {
   }
 }
 
+function eventSequence(event: AiWorkflowEvent): number | null {
+  const raw = (event as AiWorkflowEvent & { sequence?: unknown }).sequence;
+  const value = typeof raw === "number" ? raw : Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
 function eventKey(event: AiWorkflowEvent, fallback: number) {
-  return String(event.id || `${event.event_type || "event"}:${event.created_at || fallback}:${event.message || ""}`);
+  if (event.id) return String(event.id);
+  const sequence = eventSequence(event);
+  if (sequence !== null) return `sequence:${sequence}`;
+  return String(`${event.event_type || "event"}:${event.created_at || fallback}:${event.message || ""}`);
+}
+
+function orderEvents(events: AiWorkflowEvent[]) {
+  return [...events].sort((left, right) => {
+    const leftSequence = eventSequence(left);
+    const rightSequence = eventSequence(right);
+    if (leftSequence !== null && rightSequence !== null && leftSequence !== rightSequence) return leftSequence - rightSequence;
+    if (leftSequence !== null && rightSequence === null) return -1;
+    if (leftSequence === null && rightSequence !== null) return 1;
+    return String(left.created_at || "").localeCompare(String(right.created_at || ""));
+  });
 }
 
 function runStatusIsTerminal(envelope: AiWorkflowRunEnvelope) {
@@ -60,6 +80,7 @@ export function useAiWorkflowStream(runId: string | null) {
   const terminalRef = useRef(false);
   const lastMessageAtRef = useRef<number>(0);
   const pollingInFlightRef = useRef(false);
+  const finalSnapshotFetchedRef = useRef(false);
 
   useEffect(() => {
     if (!runId) {
@@ -68,6 +89,7 @@ export function useAiWorkflowStream(runId: string | null) {
       connectedRef.current = false;
       terminalRef.current = false;
       pollingInFlightRef.current = false;
+      finalSnapshotFetchedRef.current = false;
       lastMessageAtRef.current = 0;
       setState({ connected: false, terminal: false, error: null, events: [], lastEvent: null, snapshot: null });
       return;
@@ -76,6 +98,7 @@ export function useAiWorkflowStream(runId: string | null) {
     if (activeRunIdRef.current !== runId) {
       activeRunIdRef.current = runId;
       lastEventIdRef.current = null;
+      finalSnapshotFetchedRef.current = false;
     }
 
     lastMessageAtRef.current = Date.now();
@@ -89,39 +112,12 @@ export function useAiWorkflowStream(runId: string | null) {
 
     connectedRef.current = false;
     terminalRef.current = false;
+    finalSnapshotFetchedRef.current = false;
     setState({ connected: false, terminal: false, error: null, events: [], lastEvent: null, snapshot: null });
 
-    const append = (event: AiWorkflowEvent, options?: { fromPolling?: boolean }) => {
-      if (closed) return;
-      lastMessageAtRef.current = Date.now();
-      if (event.id) lastEventIdRef.current = String(event.id);
-      const eventType = String(event.event_type || "");
-      if (eventType === "workflow.keepalive") {
-        connectedRef.current = options?.fromPolling ? connectedRef.current : true;
-        setState((current) => ({ ...current, connected: options?.fromPolling ? current.connected : true, error: current.terminal ? current.error : null }));
-        return;
-      }
-      const terminalEvent = TERMINAL_EVENTS.has(eventType);
-      terminalRef.current = terminalRef.current || terminalEvent;
-      connectedRef.current = options?.fromPolling ? connectedRef.current : true;
-      setState((current) => {
-        const key = eventKey(event, current.events.length);
-        const exists = current.events.some((item, index) => eventKey(item, index) === key);
-        const events = exists ? current.events : [...current.events, event];
-        const nextTerminal = current.terminal || terminalEvent;
-        return {
-          ...current,
-          connected: options?.fromPolling ? current.connected : true,
-          terminal: nextTerminal,
-          error: eventType === "workflow.failed" ? String(event.message || "Workflow fallo") : nextTerminal ? null : current.error,
-          events,
-          lastEvent: event,
-        };
-      });
-    };
-
-    const recoverFromSnapshot = async (options?: { force?: boolean }) => {
-      if (closed || terminalRef.current || pollingInFlightRef.current) return;
+    const recoverFromSnapshot = async (options?: { force?: boolean; allowTerminal?: boolean }) => {
+      if (closed || pollingInFlightRef.current) return;
+      if (terminalRef.current && !options?.allowTerminal) return;
       const hasNoEventsYet = !lastEventIdRef.current;
       if (connectedRef.current && !options?.force && !hasNoEventsYet) return;
       pollingInFlightRef.current = true;
@@ -129,12 +125,13 @@ export function useAiWorkflowStream(runId: string | null) {
         const response = await fetch(`/api/ai/workflows/${encodeURIComponent(runId)}`, { cache: "no-store", signal: controller.signal });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const snapshot = unwrap<AiWorkflowRunEnvelope>(await response.json());
-        for (const event of snapshot.events || []) append(event, { fromPolling: true });
+        const snapshotEvents = snapshot.events || [];
+        for (const event of snapshotEvents) append(event, { fromPolling: true });
         const snapshotTerminal = runStatusIsTerminal(snapshot);
         if (snapshotTerminal) terminalRef.current = true;
-        if ((snapshot.events || []).length) {
+        if (snapshotEvents.length) {
           lastMessageAtRef.current = Date.now();
-          const lastSnapshotEvent = snapshot.events[snapshot.events.length - 1];
+          const lastSnapshotEvent = snapshotEvents[snapshotEvents.length - 1];
           if (lastSnapshotEvent?.id) lastEventIdRef.current = String(lastSnapshotEvent.id);
         }
         setState((current) => ({
@@ -152,6 +149,45 @@ export function useAiWorkflowStream(runId: string | null) {
       }
     };
 
+    const append = (event: AiWorkflowEvent, options?: { fromPolling?: boolean }) => {
+      if (closed) return;
+      lastMessageAtRef.current = Date.now();
+      if (event.id) lastEventIdRef.current = String(event.id);
+      const eventType = String(event.event_type || "");
+      if (eventType === "workflow.keepalive") {
+        connectedRef.current = options?.fromPolling ? connectedRef.current : true;
+        setState((current) => ({ ...current, connected: options?.fromPolling ? current.connected : true, error: current.terminal ? current.error : null }));
+        return;
+      }
+      if (eventType === "workflow.cursor_not_found") {
+        void recoverFromSnapshot({ force: true });
+      }
+      const terminalEvent = TERMINAL_EVENTS.has(eventType);
+      terminalRef.current = terminalRef.current || terminalEvent;
+      connectedRef.current = options?.fromPolling ? connectedRef.current : true;
+      setState((current) => {
+        const key = eventKey(event, current.events.length);
+        const exists = current.events.some((item, index) => eventKey(item, index) === key);
+        const events = exists ? current.events : orderEvents([...current.events, event]);
+        const nextTerminal = current.terminal || terminalEvent;
+        const lastOrderedEvent = events[events.length - 1] || event;
+        return {
+          ...current,
+          connected: options?.fromPolling ? current.connected : true,
+          terminal: nextTerminal,
+          error: eventType === "workflow.failed" ? String(event.message || "Workflow fallo") : eventType === "workflow.stream_error" ? String(event.message || "Error temporal de stream; recuperando por polling.") : nextTerminal ? null : current.error,
+          events,
+          lastEvent: lastOrderedEvent,
+        };
+      });
+      if (terminalEvent && !options?.fromPolling && !finalSnapshotFetchedRef.current) {
+        // Fetch exactly one final server snapshot after terminal SSE events so
+        // stale event-only payloads cannot hide readiness, confirmations, or bot_id.
+        finalSnapshotFetchedRef.current = true;
+        queueMicrotask(() => void recoverFromSnapshot({ force: true, allowTerminal: true }));
+      }
+    };
+
     source.onopen = () => {
       if (closed) return;
       connectedRef.current = true;
@@ -162,6 +198,7 @@ export function useAiWorkflowStream(runId: string | null) {
       source.addEventListener(type, (message) => append(parseEvent((message as MessageEvent).data)));
     }
     source.addEventListener("workflow.keepalive", (message) => append(parseEvent((message as MessageEvent).data)));
+    source.addEventListener("workflow.stream_error", (message) => append(parseEvent((message as MessageEvent).data)));
     source.onerror = () => {
       if (closed) return;
       connectedRef.current = false;
@@ -175,6 +212,7 @@ export function useAiWorkflowStream(runId: string | null) {
     };
 
     const pollInterval = window.setInterval(() => {
+      if (terminalRef.current) return;
       const idleForMs = Date.now() - (lastMessageAtRef.current || 0);
       void recoverFromSnapshot({ force: idleForMs > 3500 || !lastEventIdRef.current });
     }, 2500);

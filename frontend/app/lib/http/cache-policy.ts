@@ -1,9 +1,28 @@
+const SCRIPT_SRC = "script-src 'self'";
+
+export const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  "form-action 'self'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "style-src 'self' 'unsafe-inline'",
+  SCRIPT_SRC,
+  "connect-src 'self' https: wss:",
+  "media-src 'self' blob: data: https:",
+  "worker-src 'self' blob:",
+].join("; ");
+
 export const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+  { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
 ];
 
 const PRIVATE_ROUTE_SOURCES = [

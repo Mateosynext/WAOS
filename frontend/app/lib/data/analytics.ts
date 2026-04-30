@@ -3,7 +3,7 @@ import { normalizeAnalyticsDaily, normalizeAuditLog, normalizeBusinessHubOvervie
 import type { RunContract } from "../contracts/bots";
 import { normalizeRun } from "../contracts/bots";
 import { apiFetchOrDefault } from "../api";
-import { fetchArray, fetchRecord, orgQuery, selectedBotId, type LooseRecord } from "./shared";
+import { fetchArray, fetchArrayState, fetchRecord, fetchRecordState, orgQuery, selectedBotId, type LooseRecord, type PortalModuleState } from "./shared";
 
 export type DirectorModeResponse = {
   summary: LooseRecord;
@@ -35,17 +35,25 @@ export async function getLogs(): Promise<AuditLogContract[]> {
   return fetchArray(`/api/v1/logs/technical?${query}`, [], normalizeAuditLog);
 }
 
-export async function getObservability(): Promise<ObservabilityContract> {
+export async function getObservabilityState(): Promise<PortalModuleState<ObservabilityContract>> {
   const query = await orgQuery();
-  return fetchRecord(`/api/v1/observability/overview?${query}`, { totals: {}, recent_failures: [], recent_logs: [] }, normalizeObservability);
+  return fetchRecordState(`/api/v1/observability/overview?${query}`, { totals: {}, recent_failures: [], recent_logs: [] }, normalizeObservability);
+}
+
+export async function getObservability(): Promise<ObservabilityContract> {
+  return (await getObservabilityState()).data;
+}
+
+export async function getQueueState(): Promise<PortalModuleState<QueueOverviewContract>> {
+  const query = await orgQuery();
+  return fetchRecordState(`/api/v1/runtime/queue?${query}`, { automation_jobs: [], outbox: [], callbacks: [], integration_sync: [] }, normalizeQueueOverview);
 }
 
 export async function getQueue(): Promise<QueueOverviewContract> {
-  const query = await orgQuery();
-  return fetchRecord(`/api/v1/runtime/queue?${query}`, { automation_jobs: [], outbox: [], callbacks: [], integration_sync: [] }, normalizeQueueOverview);
+  return (await getQueueState()).data;
 }
 
-export async function getWhatsappDeliveryTruth(botId?: string, options?: { reconcile?: boolean; windowHours?: number; limit?: number }) {
+export async function getWhatsappDeliveryTruthState(botId?: string, options?: { reconcile?: boolean; windowHours?: number; limit?: number }): Promise<PortalModuleState<Record<string, unknown>>> {
   const query = await orgQuery();
   const currentBotId = await selectedBotId(botId);
   const params = new URLSearchParams(query);
@@ -53,7 +61,11 @@ export async function getWhatsappDeliveryTruth(botId?: string, options?: { recon
   if (options?.reconcile) params.set("reconcile", "true");
   if (options?.windowHours) params.set("window_hours", String(options.windowHours));
   if (options?.limit) params.set("limit", String(options.limit));
-  return apiFetchOrDefault<Record<string, unknown>>(`/api/v1/analytics/whatsapp/delivery-truth?${params.toString()}`, { summary: {}, breakdowns: {}, recent_messages: [], alerts: [], reconciliation: {} });
+  return fetchRecordState(`/api/v1/analytics/whatsapp/delivery-truth?${params.toString()}`, { summary: {}, breakdowns: {}, recent_messages: [], alerts: [], reconciliation: {} }, (value) => (value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : { summary: {}, breakdowns: {}, recent_messages: [], alerts: [], reconciliation: {} }));
+}
+
+export async function getWhatsappDeliveryTruth(botId?: string, options?: { reconcile?: boolean; windowHours?: number; limit?: number }) {
+  return (await getWhatsappDeliveryTruthState(botId, options)).data;
 }
 
 export async function getDailyAnalytics(botId?: string): Promise<AnalyticsDailyContract> {
@@ -67,14 +79,25 @@ export async function getReactivationRecommendations(): Promise<RecommendationCo
   return fetchArray(`/api/v1/reactivation/recommendations?${query}`, [], normalizeRecommendation);
 }
 
-export async function getExecutiveReports() {
+export async function getExecutiveReportsState(): Promise<PortalModuleState<Array<Record<string, unknown>>>> {
   const query = await orgQuery();
-  return apiFetchOrDefault<Array<Record<string, unknown>>>(`/api/v1/reports/executive?${query}`, []);
+  return fetchArrayState(`/api/v1/reports/executive?${query}`, [], (value) => (value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}));
+}
+
+export async function getExecutiveReports() {
+  return (await getExecutiveReportsState()).data;
+}
+
+export async function getDirectorModeState(): Promise<PortalModuleState<DirectorModeResponse>> {
+  const query = await orgQuery();
+  return fetchRecordState(`/api/v1/analytics/director-mode?${query}`, { summary: {}, narrative: [] }, (value) => {
+    const record = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+    return { summary: (record.summary && typeof record.summary === "object" ? record.summary as LooseRecord : {}), narrative: Array.isArray(record.narrative) ? record.narrative.filter((item): item is LooseRecord => Boolean(item) && typeof item === "object") : [] };
+  });
 }
 
 export async function getDirectorMode(): Promise<DirectorModeResponse> {
-  const query = await orgQuery();
-  return apiFetchOrDefault<DirectorModeResponse>(`/api/v1/analytics/director-mode?${query}`, { summary: {}, narrative: [] });
+  return (await getDirectorModeState()).data;
 }
 
 export async function getI18nConfig(botId?: string) {

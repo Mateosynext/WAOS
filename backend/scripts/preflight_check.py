@@ -2,102 +2,139 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
+from urllib.parse import urlparse
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from app.config import settings  # noqa: E402
-from app.db import get_connection  # noqa: E402
-
-
-def _is_local(value: str | None) -> bool:
-    raw = (value or '').strip().lower()
-    return any(token in raw for token in ['localhost', '127.0.0.1'])
+REQUIRED = [
+    "DATABASE_URL", "APP_SECRET", "SECRET_ENCRYPTION_KEY", "PUBLIC_APP_URL", "API_BASE_URL",
+    "CORS_ALLOWED_ORIGINS", "ALLOWED_HOSTS", "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "META_VERIFY_TOKEN",
+]
+WEAK = {"", "change-me", "changeme", "dev", "development", "test", "secret", "super-secret", "replace-me", "replace_me", "example", "default"}
 
 
-def _validate_ai_provider_alignment(errors: list[str], warnings: list[str]) -> None:
-    if not settings.openai_api_key:
-        message = 'OPENAI_API_KEY no configurada: AI Autopilot usará solo heurístico.' if __file__.endswith('preflight_check.py') else 'OPENAI_API_KEY is empty: AI Autopilot will run heuristic-only.'
-        if settings.is_production:
-            errors.append(message)
-        else:
-            warnings.append(message)
+def truthy(k: str, default: str = "false") -> bool:
+    return os.getenv(k, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def csv(v: str) -> list[str]:
+    return [x.strip() for x in v.split(",") if x.strip()]
+
+
+def host_from_url(value: str) -> str:
+    return urlparse(value).netloc.split("@")[-1].split(":")[0].lower()
+
+
+def int_env(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return -1
+
+
+def main() -> None:
+    env = os.getenv("APP_ENV", "").lower()
+    if env not in {"production", "prod"} and not truthy("WAOS_FORCE_PRODUCTION_PREFLIGHT"):
+        print("production preflight skipped outside production")
         return
-    try:
-        settings.validate_ai_provider_alignment(require_explicit=settings.is_production)
-    except ValueError as exc:
-        errors.append(str(exc))
 
-
-def _validate_autopilot_budget(errors: list[str]) -> None:
-    if settings.openai_timeout_seconds != 30:
-        errors.append('OPENAI_TIMEOUT_SECONDS debe mantenerse en 30 para el presupuesto de timeout del autopilot.' if __file__.endswith('preflight_check.py') else 'OPENAI_TIMEOUT_SECONDS must stay at 30 for the autopilot timeout budget.')
-    if settings.autopilot_max_autofix_rounds > 2:
-        errors.append('AUTOPILOT_MAX_AUTOFIX_ROUNDS no puede ser mayor que 2 en producción.' if __file__.endswith('preflight_check.py') else 'AUTOPILOT_MAX_AUTOFIX_ROUNDS cannot be greater than 2 in production.')
-
-
-def main() -> int:
     errors: list[str] = []
-    warnings: list[str] = []
+    for k in REQUIRED:
+        if not os.getenv(k):
+            errors.append(f"missing required env var: {k}")
 
-    if settings.is_production:
-        api_host = settings.api_base_url.split('://', 1)[-1].split('/', 1)[0].split(':', 1)[0].lower()
-        public_host = settings.public_app_url.split('://', 1)[-1].split('/', 1)[0].split(':', 1)[0].lower()
-        cors_hosts = {
-            origin.split('://', 1)[-1].split('/', 1)[0].split(':', 1)[0].lower()
-            for origin in settings.cors_allowed_origins
-            if origin.strip()
-        }
-        allowed_hosts = {host.strip().lower() for host in settings.allowed_hosts if host.strip()}
+    for k in ("APP_SECRET", "SECRET_ENCRYPTION_KEY", "META_VERIFY_TOKEN"):
+        v = os.getenv(k, "").strip()
+        if v.lower() in WEAK or len(v) < 32:
+            errors.append(f"{k} must be a strong non-default secret of at least 32 characters")
+    if os.getenv("APP_SECRET", "").strip() == os.getenv("SECRET_ENCRYPTION_KEY", "").strip():
+        errors.append("SECRET_ENCRYPTION_KEY must be distinct from APP_SECRET")
 
-        if settings.app_secret_is_default:
-            errors.append('APP_SECRET sigue con valor por defecto.')
-        if settings.encryption_key_is_default:
-            errors.append('SECRET_ENCRYPTION_KEY sigue con valor por defecto.')
-        if settings.run_bootstrap_seed:
-            errors.append('RUN_BOOTSTRAP_SEED debe ser false en producción.')
-        if not settings.secure_cookies:
-            errors.append('SECURE_COOKIES debe ser true en producción.')
-        if _is_local(settings.public_app_url):
-            errors.append('PUBLIC_APP_URL no puede apuntar a localhost en producción.')
-        if _is_local(settings.api_base_url):
-            errors.append('API_BASE_URL no puede apuntar a localhost en producción.')
-        if not settings.cors_allowed_origins:
-            errors.append('CORS_ALLOWED_ORIGINS no puede quedar vacío en producción.')
-        if not settings.allowed_hosts:
-            errors.append('ALLOWED_HOSTS no puede quedar vacío en producción.')
-        if api_host and api_host not in allowed_hosts:
-            errors.append('ALLOWED_HOSTS debe incluir el host de API_BASE_URL.')
-        if public_host and public_host not in cors_hosts:
-            errors.append('CORS_ALLOWED_ORIGINS debe incluir PUBLIC_APP_URL.')
-        _validate_ai_provider_alignment(errors, warnings)
-        _validate_autopilot_budget(errors)
+    db = os.getenv("DATABASE_URL", "")
+    if db and not db.startswith(("postgres://", "postgresql://")):
+        errors.append("DATABASE_URL must be PostgreSQL in production")
+    if truthy("ENABLE_API_DOCS"):
+        errors.append("ENABLE_API_DOCS must be false in production")
+    if truthy("USE_FAKE_PROVIDERS") or truthy("USE_FAKE_PAYMENT_PROVIDER") or truthy("WAOS_E2E_FAKE_PROVIDERS"):
+        errors.append("fake providers must be disabled in production")
+    if not truthy("STARTUP_DB_REQUIRED", "true"):
+        errors.append("STARTUP_DB_REQUIRED must remain true in production")
+    if not truthy("AUTO_RUN_MIGRATIONS", "true"):
+        errors.append("AUTO_RUN_MIGRATIONS must remain true for production deploys")
+
+    for k in ("PUBLIC_APP_URL", "API_BASE_URL"):
+        v = os.getenv(k, "")
+        if v:
+            u = urlparse(v)
+            if u.scheme != "https":
+                errors.append(f"{k} must use https")
+            if "example.com" in v or "localhost" in v or "127.0.0.1" in v:
+                errors.append(f"{k} must not use example.com, localhost or loopback hosts")
+
+    public_host = host_from_url(os.getenv("PUBLIC_APP_URL", "")) if os.getenv("PUBLIC_APP_URL") else ""
+    api_host = host_from_url(os.getenv("API_BASE_URL", "")) if os.getenv("API_BASE_URL") else ""
+    cors_origins = csv(os.getenv("CORS_ALLOWED_ORIGINS", ""))
+    allowed_hosts = {item.lower() for item in csv(os.getenv("ALLOWED_HOSTS", ""))}
+
+    if "*" in cors_origins:
+        errors.append("CORS_ALLOWED_ORIGINS must not contain wildcard")
+    if "*" in allowed_hosts:
+        errors.append("ALLOWED_HOSTS must not contain wildcard")
+    if public_host and not any(host_from_url(origin) == public_host for origin in cors_origins if "://" in origin):
+        errors.append("CORS_ALLOWED_ORIGINS must include PUBLIC_APP_URL host")
+    if api_host and api_host not in allowed_hosts:
+        errors.append("ALLOWED_HOSTS must include API_BASE_URL host")
+
+    if not truthy("SECURE_COOKIES", "true"):
+        errors.append("SECURE_COOKIES must be true in production")
+    if not truthy("SECURITY_HARDENING_ENABLED", "true"):
+        errors.append("SECURITY_HARDENING_ENABLED must be true in production")
+    if not truthy("ENFORCE_HTTPS", "true"):
+        errors.append("ENFORCE_HTTPS must be true in production")
+    if not truthy("REJECT_UNTRUSTED_PROXY_HEADERS", "true"):
+        errors.append("REJECT_UNTRUSTED_PROXY_HEADERS must be true in production")
+    if not truthy("REQUIRE_SIGNED_WEBHOOKS", "true"):
+        errors.append("REQUIRE_SIGNED_WEBHOOKS must be true in production")
+    if not truthy("SECURITY_RATE_LIMIT_ENABLED", "true"):
+        errors.append("SECURITY_RATE_LIMIT_ENABLED must be true in production")
+    rate_limit_backend = os.getenv("RATE_LIMIT_BACKEND", "").strip().lower()
+    if rate_limit_backend in {"", "memory", "local", "inprocess", "in-process"}:
+        errors.append("RATE_LIMIT_BACKEND must be redis, valkey, upstash, or gateway in production")
+    elif rate_limit_backend in {"redis", "valkey", "upstash"}:
+        if not (os.getenv("RATE_LIMIT_REDIS_URL") or os.getenv("REDIS_URL")):
+            errors.append("RATE_LIMIT_REDIS_URL or REDIS_URL is required for distributed rate limiting")
+    elif rate_limit_backend == "gateway":
+        if not truthy("RATE_LIMIT_GATEWAY_ENFORCED"):
+            errors.append("RATE_LIMIT_GATEWAY_ENFORCED must be true when RATE_LIMIT_BACKEND=gateway")
     else:
-        warnings.append('Preflight en entorno no productivo: algunas validaciones estrictas se omiten.')
+        errors.append("RATE_LIMIT_BACKEND must be one of: redis, valkey, upstash, gateway")
+    if int_env("RATE_LIMIT_MEMORY_MAX_BUCKETS", 10000) < 100:
+        errors.append("RATE_LIMIT_MEMORY_MAX_BUCKETS must be >= 100 for bounded in-process fallback")
+    if int_env("MAX_REQUEST_BODY_BYTES", 2 * 1024 * 1024) > 10 * 1024 * 1024:
+        errors.append("MAX_REQUEST_BODY_BYTES must be <= 10MiB in production")
+    if int_env("MAX_WEBHOOK_BODY_BYTES", 1024 * 1024) > 5 * 1024 * 1024:
+        errors.append("MAX_WEBHOOK_BODY_BYTES must be <= 5MiB in production")
+    if int_env("AUTH_RATE_LIMIT_MAX_REQUESTS", int_env("LOGIN_RATE_LIMIT_MAX_ATTEMPTS", 5)) > 10:
+        errors.append("AUTH_RATE_LIMIT_MAX_REQUESTS must be <= 10 in production")
+    if int_env("HSTS_MAX_AGE_SECONDS", 63072000) < 31536000:
+        errors.append("HSTS_MAX_AGE_SECONDS must be at least 31536000")
+    csp = os.getenv("CONTENT_SECURITY_POLICY", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+    if "default-src" not in csp or "frame-ancestors" not in csp:
+        errors.append("CONTENT_SECURITY_POLICY must include default-src and frame-ancestors")
+    if truthy("TRUST_PROXY_HEADERS", "true") and not os.getenv("TRUSTED_PROXY_IPS"):
+        errors.append("TRUSTED_PROXY_IPS is required when TRUST_PROXY_HEADERS is enabled")
+    if truthy("WAOS_REQUIRE_WHATSAPP_PRODUCTION", "true") and not os.getenv("META_APP_SECRET"):
+        errors.append("META_APP_SECRET is required when WhatsApp production mode is enabled")
+    if truthy("WAOS_REQUIRE_PAYMENT_PRODUCTION") and not (os.getenv("STRIPE_SECRET_KEY") or os.getenv("MERCADOPAGO_ACCESS_TOKEN")):
+        errors.append("payment production mode requires STRIPE_SECRET_KEY or MERCADOPAGO_ACCESS_TOKEN")
+    if truthy("WAOS_REQUIRE_OBSERVABILITY") and not (os.getenv("SENTRY_DSN") or truthy("OTEL_EXPORT_ENABLED") or os.getenv("DATADOG_API_KEY") or os.getenv("NEW_RELIC_LICENSE_KEY")):
+        errors.append("observability is required: configure SENTRY_DSN, OTEL_EXPORT_ENABLED, DATADOG_API_KEY, or NEW_RELIC_LICENSE_KEY")
 
-    try:
-        with get_connection() as conn:
-            conn.execute('SELECT 1')
-    except Exception as exc:  # pragma: no cover
-        message = f'No se pudo abrir conexión a la base de datos: {exc}'
-        if settings.startup_db_required:
-            errors.append(message)
-        else:
-            warnings.append(message)
-
-    if warnings:
-        for item in warnings:
-            print(f'[warn] {item}')
     if errors:
-        for item in errors:
-            print(f'[error] {item}')
-        return 1
+        print("production preflight failed:", file=sys.stderr)
+        for e in errors:
+            print(f"- {e}", file=sys.stderr)
+        raise SystemExit(1)
+    print("production preflight ok")
 
-    print('[ok] preflight listo')
-    return 0
 
-
-if __name__ == '__main__':
-    raise SystemExit(main())
+if __name__ == "__main__":
+    main()

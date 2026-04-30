@@ -8,6 +8,8 @@ import { getWizardBlueprint, getWizardInstance, getWizardVerticalProfile } from 
 import type { CreateRouteStep, ReconfigureRouteStep, RouteStep } from "../domain/flowConfig";
 import type { WizardBlueprint, WizardInstance, WizardMode } from "../domain/wizardTypes";
 
+export type BotStudioLoadWarning = { source: string; message: string };
+
 export type BotStudioFlowData = {
   organizations: SessionOrganization[];
   verticals: VerticalProfileContract[];
@@ -24,6 +26,7 @@ export type BotStudioFlowData = {
   initialWizardId?: string;
   initialWizard?: WizardInstance | null;
   initialStepOverride?: RouteStep | string;
+  loadWarnings?: BotStudioLoadWarning[];
 };
 
 type Args = {
@@ -87,17 +90,23 @@ function buildRouteLoadPlan(mode: WizardMode, step?: RouteStep | string | null):
   };
 }
 
-async function safeOptional<T>(loader: () => Promise<T>, fallback: T): Promise<T> {
+function optionalErrorMessage(source: string, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "unknown error");
+  return `${source}: ${message}`;
+}
+
+async function safeOptional<T>(source: string, warnings: BotStudioLoadWarning[], loader: () => Promise<T>, fallback: T): Promise<T> {
   try {
     return await loader();
-  } catch {
+  } catch (error) {
+    warnings.push({ source, message: optionalErrorMessage(source, error) });
     return fallback;
   }
 }
 
-async function getSelectedBotOrNull(botId: string) {
+async function getSelectedBotOrNull(botId: string, warnings: BotStudioLoadWarning[]) {
   if (!botId) return null;
-  const bot = await safeOptional(() => getBot(botId), null);
+  const bot = await safeOptional("selected_bot", warnings, () => getBot(botId), null);
   return bot?.id ? bot : null;
 }
 
@@ -139,18 +148,19 @@ export async function loadBotStudioRoute(args: Args): Promise<BotStudioFlowData>
   const routeStep = cleanRouteParam(args.step);
   const initialMode: WizardMode = routeMode === "reconfigure" ? "reconfigure" : "create";
   const loadPlan = buildRouteLoadPlan(initialMode, routeStep);
+  const loadWarnings: BotStudioLoadWarning[] = [];
 
   const [session, initialWizard] = await Promise.all([
     requireSession(),
-    routeWizardId ? safeOptional(() => getWizardInstance(routeWizardId), null) : Promise.resolve(null),
+    routeWizardId ? safeOptional("wizard_instance", loadWarnings, () => getWizardInstance(routeWizardId), null) : Promise.resolve(null),
   ]);
 
   const selectedBotIdFromRouteOrWizard = initialMode === "reconfigure" ? routeBotId || cleanRouteParam(initialWizard?.bot_id) : "";
   const [verticals, strongestVerticals, botList, selectedBotFromDetailRoute] = await Promise.all([
-    loadPlan.loadVerticalCatalog ? safeOptional(() => getVerticalCatalog(), []) : Promise.resolve([]),
-    loadPlan.loadStrongestVerticals ? safeOptional(() => getStrongestVerticals(), []) : Promise.resolve([]),
-    loadPlan.loadBotList ? safeOptional(() => getBots(), []) : Promise.resolve([]),
-    loadPlan.loadSelectedBot ? getSelectedBotOrNull(selectedBotIdFromRouteOrWizard) : Promise.resolve(null),
+    loadPlan.loadVerticalCatalog ? safeOptional("vertical_catalog", loadWarnings, () => getVerticalCatalog(), []) : Promise.resolve([]),
+    loadPlan.loadStrongestVerticals ? safeOptional("strongest_verticals", loadWarnings, () => getStrongestVerticals(), []) : Promise.resolve([]),
+    loadPlan.loadBotList ? safeOptional("bot_list", loadWarnings, () => getBots(), []) : Promise.resolve([]),
+    loadPlan.loadSelectedBot ? getSelectedBotOrNull(selectedBotIdFromRouteOrWizard, loadWarnings) : Promise.resolve(null),
   ]);
 
   const organizations = session?.user.organizations || [];
@@ -182,8 +192,8 @@ export async function loadBotStudioRoute(args: Args): Promise<BotStudioFlowData>
   const initialSelectedBotId = initialMode === "reconfigure" ? initialSelectedBot?.id || cleanRouteParam(initialWizard?.bot_id) : "";
   const shouldLoadPreview = loadPlan.loadBlueprintAndProfile && initialOrganizationId && initialVerticalId;
   const [initialBlueprint, initialVerticalProfile] = shouldLoadPreview ? await Promise.all([
-    safeOptional(() => getWizardBlueprint({ organizationId: initialOrganizationId, verticalId: initialVerticalId, subvertical: initialSubvertical, primaryObjective: initialPrimaryObjective, botId: initialSelectedBotId || undefined }), null),
-    safeOptional(() => getWizardVerticalProfile({ organizationId: initialOrganizationId, verticalId: initialVerticalId, subvertical: initialSubvertical || undefined, botId: initialSelectedBotId || undefined, mode: initialMode }), null),
+    safeOptional("wizard_blueprint", loadWarnings, () => getWizardBlueprint({ organizationId: initialOrganizationId, verticalId: initialVerticalId, subvertical: initialSubvertical, primaryObjective: initialPrimaryObjective, botId: initialSelectedBotId || undefined }), null),
+    safeOptional("wizard_vertical_profile", loadWarnings, () => getWizardVerticalProfile({ organizationId: initialOrganizationId, verticalId: initialVerticalId, subvertical: initialSubvertical || undefined, botId: initialSelectedBotId || undefined, mode: initialMode }), null),
   ]) : [null, null];
 
   return {
@@ -202,6 +212,7 @@ export async function loadBotStudioRoute(args: Args): Promise<BotStudioFlowData>
     initialWizardId: routeWizardId || undefined,
     initialWizard: initialWizard || null,
     initialStepOverride: routeStep || undefined,
+    loadWarnings,
   };
 }
 

@@ -1,4 +1,4 @@
-import { ApiRequestError, apiFetchOrDefault, apiFetchResult } from "../api";
+import { ApiRequestError, apiFetchOrDefault, apiFetchResult, recordApiFallback } from "../api";
 import { normalizeCollection } from "../contracts/shared";
 import { getCurrentBotId, getCurrentOrganizationId } from "../session";
 
@@ -22,12 +22,12 @@ export async function selectedBotId(botId?: string): Promise<string | null> {
 }
 
 export async function fetchArray<T>(path: string, fallback: unknown[], normalizeItem: (value: unknown) => T): Promise<T[]> {
-  const raw = await apiFetchOrDefault<unknown>(path, fallback);
+  const raw = await apiFetchOrDefault<unknown>(path, fallback, { fallbackReason: `non-critical collection fallback for ${path}` });
   return normalizeCollection(raw, normalizeItem);
 }
 
 export async function fetchRecord<T>(path: string, fallback: unknown, normalizeItem: (value: unknown) => T): Promise<T> {
-  const raw = await apiFetchOrDefault<unknown>(path, fallback);
+  const raw = await apiFetchOrDefault<unknown>(path, fallback, { fallbackReason: `non-critical record fallback for ${path}` });
   return normalizeItem(raw);
 }
 
@@ -41,12 +41,22 @@ export function portalDisabledState<T>(data: T, endpoint: string): PortalModuleS
 
 export async function fetchArrayState<T>(endpoint: string, fallback: unknown[], normalizeItem: (value: unknown) => T): Promise<PortalModuleState<T[]>> {
   const result = await apiFetchResult<unknown>(endpoint);
-  if (!result.ok) return { ok: false, data: normalizeCollection(fallback, normalizeItem), error: result.error, endpoint };
+  if (!result.ok) {
+    await recordApiFallback(endpoint, result.error, { reason: `operator-visible collection degradation for ${endpoint}`, severity: "operator_visible" });
+    return { ok: false, data: normalizeCollection(fallback, normalizeItem), error: result.error, endpoint };
+  }
   return { ok: true, data: normalizeCollection(result.data, normalizeItem), error: null, endpoint };
 }
 
 export async function fetchRecordState<T>(endpoint: string, fallback: unknown, normalizeItem: (value: unknown) => T): Promise<PortalModuleState<T>> {
   const result = await apiFetchResult<unknown>(endpoint);
-  if (!result.ok) return { ok: false, data: normalizeItem(fallback), error: result.error, endpoint };
+  if (!result.ok) {
+    await recordApiFallback(endpoint, result.error, { reason: `operator-visible record degradation for ${endpoint}`, severity: "operator_visible" });
+    return { ok: false, data: normalizeItem(fallback), error: result.error, endpoint };
+  }
   return { ok: true, data: normalizeItem(result.data), error: null, endpoint };
+}
+
+export function hasModuleFailures(states: Array<PortalModuleState<unknown>>): boolean {
+  return states.some((state) => !state.ok);
 }

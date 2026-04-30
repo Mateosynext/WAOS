@@ -1,0 +1,3 @@
+# CI-only security tooling for release certification.
+# Keep pinned so the release gate is reproducible.
+pip-audit==2.7.3

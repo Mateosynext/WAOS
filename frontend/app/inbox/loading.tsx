@@ -4,7 +4,7 @@ export default function Loading() {
       <section className="rounded-[32px] border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] p-6 shadow-[var(--shadow-sm)]">
         <div className="h-3 w-32 animate-pulse rounded-full bg-[color:var(--surface-subtle)]" />
         <div className="mt-4 h-8 w-72 animate-pulse rounded-full bg-[color:var(--surface-subtle)]" />
-        <p className="mt-4 max-w-2xl text-sm leading-6 text-[color:var(--text-secondary)]">Preparando conversaciones, filtros y señales operativas sin spinner genérico.</p>
+        <p className="mt-4 max-w-2xl text-sm leading-6 text-[color:var(--text-secondary)]">Preparando conversaciones, filtros y señales operativas con esqueleto dedicado.</p>
       </section>
       <section className="grid gap-4 md:grid-cols-3">
         <div className="h-28 animate-pulse rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)]" />

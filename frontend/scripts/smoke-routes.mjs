@@ -57,3 +57,5 @@ assert.equal(headers.some((item) => item.source === "/api/:path*" && item.header
 assert.equal(headers.some((item) => item.source === "/legal" && item.headers.some((header) => header.key === "Cache-Control" && /stale-while-revalidate/.test(header.value))), true);
 
 console.log("Smoke OK: contracts, operations typing, wizard data gateways, view models, auth routing, and cache policies verified.");
+
+if (!process.exitCode) process.exit(0);

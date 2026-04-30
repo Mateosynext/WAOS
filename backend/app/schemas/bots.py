@@ -47,17 +47,37 @@ class BotCreateRequest(BaseModel):
     hours: str = Field(default="", max_length=1000)
     faqs: list[FAQItem] = Field(default_factory=list, max_length=50)
     whatsapp_number: str = Field(default="", max_length=40)
+    # Backend is the source of truth: when the frontend omits publish_now, creation publishes by default.
     publish_now: bool = True
+    client_request_id: str | None = Field(default=None, min_length=8, max_length=160)
 
     @field_validator("services", mode="before")
     @classmethod
     def _normalize_services(cls, value: Any) -> list[str]:
         return _clean_string_list(value, limit=50, item_limit=180)
 
+    @field_validator("client_request_id", mode="before")
+    @classmethod
+    def _normalize_client_request_id(cls, value: Any) -> str | None:
+        cleaned = str(value or "").strip()[:160]
+        return cleaned or None
+
     @field_validator("whatsapp_number", mode="before")
     @classmethod
     def _normalize_whatsapp(cls, value: Any) -> str:
         return str(value or "").strip()[:40]
+
+
+class BotCreateWorkflowRequest(BotCreateRequest):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    subvertical: str | None = Field(default=None, max_length=120)
+
+    @field_validator("subvertical", mode="before")
+    @classmethod
+    def _normalize_subvertical(cls, value: Any) -> str | None:
+        cleaned = str(value or "").strip()[:120]
+        return cleaned or None
 
 
 class BotUpdateRequest(BaseModel):

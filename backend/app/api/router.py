@@ -32,6 +32,7 @@ from .routers.runtime import router as runtime_router
 from .routers.security import router as security_router
 from .routers.talent import router as talent_router
 from .routers.tool_execution import router as tool_execution_router
+from .routers.operational_events import router as operational_events_router
 from .routers.system import router as system_router
 from .routers.telephony import router as telephony_router
 from .routers.transactions import router as transactions_router
@@ -55,6 +56,7 @@ api_router.include_router(optimizer_router)
 api_router.include_router(outcomes_router)
 api_router.include_router(proactive_reasoning_router)
 api_router.include_router(tool_execution_router)
+api_router.include_router(operational_events_router)
 api_router.include_router(bots_router)
 api_router.include_router(bot_ops_router)
 api_router.include_router(conversations_router)

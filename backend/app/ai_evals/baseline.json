@@ -1,0 +1,12 @@
+{
+  "module_scores": {
+    "eval_wizard_generation": 1.0,
+    "eval_autofix_safety": 1.0,
+    "eval_runtime_reply_safety": 1.0,
+    "eval_simulation_judge": 1.0,
+    "eval_vertical_detection": 1.0,
+    "eval_agent_policy_pack": 1.0,
+    "eval_whatsapp_template_pack": 1.0,
+    "eval_go_live_readiness": 1.0
+  }
+}

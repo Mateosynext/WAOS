@@ -21,6 +21,16 @@ def _truthy(value: Any) -> bool:
     return False
 
 
+def _actor_global_role(user: Any) -> str:
+    if isinstance(user, Mapping):
+        return str(user.get("global_role") or user.get("role") or "").strip()
+    return str(getattr(user, "global_role", "") or getattr(user, "role", "") or "").strip()
+
+
+def _actor_is_super_admin(user: Any) -> bool:
+    return _actor_global_role(user) == "super_admin"
+
+
 def _clean_intensity(value: Any) -> str:
     if value is None:
         return "balanced"
@@ -50,6 +60,7 @@ class BotAutopilotRequest(BaseModel):
     auto_prepare_go_live: bool = True
     auto_apply: bool = False
     max_cost_usd: float | None = Field(default=None, ge=0, le=250)
+    client_request_id: str | None = Field(default=None, min_length=8, max_length=160)
 
     @model_validator(mode="before")
     @classmethod
@@ -93,7 +104,7 @@ class BotAutopilotRequest(BaseModel):
         # future caller bypasses that pre-normalization path.
         return value if value in _ALL_INTENSITIES else "balanced"
 
-    @field_validator("organization_id", "bot_id", "vertical_id", "subvertical", "primary_objective", mode="before")
+    @field_validator("organization_id", "bot_id", "vertical_id", "subvertical", "primary_objective", "client_request_id", mode="before")
     @classmethod
     def _strip_empty(cls, value: Any, info: ValidationInfo) -> Any:
         if value is None:
@@ -138,6 +149,18 @@ class BotAutopilotRequest(BaseModel):
             self.auto_apply = False
             if "auto_apply_disabled_for_autopilot_start" not in self.safety_warnings:
                 self.safety_warnings.append("auto_apply_disabled_for_autopilot_start")
+        return self
+
+    def enforce_actor_godmode(self, user: Any) -> "BotAutopilotRequest":
+        # Role checks cannot safely live in the request body validator because the
+        # authenticated actor comes from the server-side auth dependency, not from
+        # client-controlled JSON. Keep this method in the schema so every service
+        # entry point can re-apply the invariant before persisting/executing a run.
+        if self.intensity == "godmode" and not _actor_is_super_admin(user):
+            self.intensity = "savage"  # type: ignore[assignment]
+            self.requested_intensity = self.requested_intensity or "godmode"
+            if "godmode_requires_super_admin_downgraded_to_savage" not in self.safety_warnings:
+                self.safety_warnings.append("godmode_requires_super_admin_downgraded_to_savage")
         return self
 
     @property

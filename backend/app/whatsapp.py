@@ -11,6 +11,7 @@ from .utils import RetryableProviderError, from_json, new_id, to_json, utcnow_is
 from .circuit_breaker import circuit_guard, record_provider_failure, record_provider_success
 from .whatsapp_channel_runtime import normalize_whatsapp_outbound_request
 from .whatsapp_governance import classify_meta_error_policy, update_whatsapp_number_health
+from .whatsapp_connection_state import WHATSAPP_STATUS_SEND_READY, clean_provider_id, is_whatsapp_send_ready
 
 
 WHATSAPP_TOKEN_KEYS = [
@@ -72,9 +73,28 @@ def send_whatsapp_message(
     number = fetch_one(conn, "SELECT * FROM whatsapp_numbers WHERE bot_id = ?", (bot_id,))
     if not number:
         raise RetryableProviderError("whatsapp_number_not_configured", retryable=False)
+    if not clean_provider_id(number.get("phone_number_id")):
+        raise RetryableProviderError("whatsapp_phone_number_id_not_verified", retryable=False)
+    if not clean_provider_id(number.get("waba_id")):
+        raise RetryableProviderError("whatsapp_waba_id_not_verified", retryable=False)
     access_token = resolve_whatsapp_access_token(conn, organization_id=organization_id, bot_id=bot_id)
     if not access_token:
         raise RetryableProviderError("missing_whatsapp_access_token", retryable=False)
+    if not is_whatsapp_send_ready(number, access_token_present=bool(access_token)):
+        raise RetryableProviderError(
+            "whatsapp_not_send_ready",
+            retryable=False,
+            details={
+                "connection_status": number.get("connection_status"),
+                "required_status": WHATSAPP_STATUS_SEND_READY,
+                "requires": {
+                    "real_phone_number_id": True,
+                    "real_waba_id": True,
+                    "access_token": True,
+                    "webhook_verified": True,
+                },
+            },
+        )
     provider_payload = {"messaging_product": "whatsapp", **payload}
     if provider_payload.get("status") != "read":
         provider_payload.update({"recipient_type": "individual", "to": _normalize_phone(phone)})

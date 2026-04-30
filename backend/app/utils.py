@@ -175,6 +175,15 @@ def to_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, default=_json_default)
 
 
+def canonical_json(value: Any) -> str:
+    """Stable JSON for hashes, signatures and idempotency payload binding."""
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=_json_default)
+
+
+def canonical_hash(value: Any) -> str:
+    return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
+
+
 def from_json(value: str | None, default: Any) -> Any:
     if value in (None, ""):
         return default

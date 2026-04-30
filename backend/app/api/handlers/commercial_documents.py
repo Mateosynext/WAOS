@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html as _html
+import secrets
 
 from .common import *
 from .common import _require_permission
@@ -26,6 +27,35 @@ from ...domains.commercial_documents_e2e import (
     public_pdf_path,
     send_document,
 )
+
+
+def _smart_docs_style_nonce() -> str:
+    return secrets.token_urlsafe(18)
+
+
+def _smart_docs_security_headers(*, style_nonce: str) -> dict[str, str]:
+    # Public Smart Docs render tenant/customer-controlled document fields. Keep
+    # the page display-only: no scripts, no embeds, no framing and no data leaks.
+    csp = "; ".join([
+        "default-src 'none'",
+        "base-uri 'none'",
+        "object-src 'none'",
+        "script-src 'none'",
+        f"style-src 'self' 'nonce-{style_nonce}'",
+        "img-src 'self' data:",
+        "font-src 'self' data:",
+        "connect-src 'none'",
+        "form-action 'none'",
+        "frame-ancestors 'none'",
+        "upgrade-insecure-requests",
+    ])
+    return {
+        "Content-Security-Policy": csp,
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+        "Cross-Origin-Opener-Policy": "same-origin",
+    }
 
 
 def _resolve_org_or_400(user: dict, organization_id: str | None) -> str:
@@ -200,12 +230,13 @@ def public_commercial_document_view_route(document_id: str, token: str | None = 
         payment = doc.get("payment_url") or ""
         rows = "".join(f"<tr><td>{_html.escape(str(item.get('name') or ''))}</td><td>{_html.escape(str(item.get('quantity') or 1))}</td><td>{_html.escape(str(item.get('unit') or ''))}</td><td>{_html.escape(str(item.get('total') or 0))}</td></tr>" for item in doc.get("items", []))
         payment_link = f"<a class='btn secondary' href='{_html.escape(str(payment), quote=True)}'>Pagar anticipo</a>" if payment else ""
+        style_nonce = _smart_docs_style_nonce()
         html = f"""
         <html><head><meta charset='utf-8'><title>{_html.escape(str(doc.get('folio') or 'Documento'))}</title>
-        <style>body{{font-family:Arial,sans-serif;background:#f6f7fb;color:#111827;margin:0;padding:32px}}.card{{max-width:860px;margin:auto;background:white;border-radius:24px;padding:28px;box-shadow:0 20px 50px rgba(15,23,42,.12)}}.muted{{color:#6b7280}}.btn{{display:inline-block;margin:8px 8px 0 0;padding:12px 16px;border-radius:999px;background:#111827;color:white;text-decoration:none;font-weight:700}}.secondary{{background:#25D366;color:#07110b}}table{{width:100%;border-collapse:collapse;margin-top:16px}}td,th{{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left}}</style></head>
+        <style nonce='{_html.escape(style_nonce, quote=True)}'>body{{font-family:Arial,sans-serif;background:#f6f7fb;color:#111827;margin:0;padding:32px}}.card{{max-width:860px;margin:auto;background:white;border-radius:24px;padding:28px;box-shadow:0 20px 50px rgba(15,23,42,.12)}}.muted{{color:#6b7280}}.btn{{display:inline-block;margin:8px 8px 0 0;padding:12px 16px;border-radius:999px;background:#111827;color:white;text-decoration:none;font-weight:700}}.secondary{{background:#25D366;color:#07110b}}table{{width:100%;border-collapse:collapse;margin-top:16px}}td,th{{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left}}</style></head>
         <body><main class='card'><p class='muted'>WAOS Smart Docs</p><h1>{_html.escape(str(doc.get('folio') or ''))} - {_html.escape(str(doc.get('title') or 'Documento comercial'))}</h1><p>{_html.escape(str(doc.get('summary') or ''))}</p><h2>Total: {_html.escape(str(doc.get('currency') or 'MXN'))} {float(doc.get('total') or 0):,.2f}</h2><p>Estado: <b>{_html.escape(str(doc.get('status') or ''))}</b></p><table><thead><tr><th>Concepto</th><th>Cantidad</th><th>Unidad</th><th>Total</th></tr></thead><tbody>{rows}</tbody></table><p class='muted'>{_html.escape(str(doc.get('terms') or ''))}</p><a class='btn' href='{_html.escape(pdf_url, quote=True)}'>Abrir PDF</a><a class='btn secondary' href='{_html.escape(accept_url, quote=True)}'>Aceptar presupuesto</a>{payment_link}</main></body></html>
         """
-        return HTMLResponse(html)
+        return HTMLResponse(html, headers=_smart_docs_security_headers(style_nonce=style_nonce))
 
 
 def public_commercial_document_pdf_route(document_id: str, token: str | None = Query(default=None)):
@@ -225,5 +256,6 @@ def public_commercial_document_accept_route(document_id: str, token: str | None 
         payment = result.get("payment") or {}
         payment_url = doc.get("payment_url") or payment.get("payment_link_url") or ""
         payment_html = f"<p><a class='btn' href='{_html.escape(str(payment_url), quote=True)}'>Pagar anticipo</a></p>" if payment_url else ""
-        html = f"""<html><head><meta charset='utf-8'><style>body{{font-family:Arial,sans-serif;background:#f6f7fb;color:#111827;padding:32px}}.card{{max-width:680px;margin:auto;background:white;border-radius:24px;padding:28px;box-shadow:0 20px 50px rgba(15,23,42,.12)}}.btn{{display:inline-block;padding:12px 16px;border-radius:999px;background:#25D366;color:#07110b;text-decoration:none;font-weight:700}}</style></head><body><main class='card'><h1>Presupuesto aceptado</h1><p>Gracias. El documento {_html.escape(str(doc.get('folio') or ''))} quedo aceptado.</p>{payment_html}<p>El equipo puede continuar con el siguiente paso operativo.</p></main></body></html>"""
-        return HTMLResponse(html)
+        style_nonce = _smart_docs_style_nonce()
+        html = f"""<html><head><meta charset='utf-8'><style nonce='{_html.escape(style_nonce, quote=True)}'>body{{font-family:Arial,sans-serif;background:#f6f7fb;color:#111827;padding:32px}}.card{{max-width:680px;margin:auto;background:white;border-radius:24px;padding:28px;box-shadow:0 20px 50px rgba(15,23,42,.12)}}.btn{{display:inline-block;padding:12px 16px;border-radius:999px;background:#25D366;color:#07110b;text-decoration:none;font-weight:700}}</style></head><body><main class='card'><h1>Presupuesto aceptado</h1><p>Gracias. El documento {_html.escape(str(doc.get('folio') or ''))} quedo aceptado.</p>{payment_html}<p>El equipo puede continuar con el siguiente paso operativo.</p></main></body></html>"""
+        return HTMLResponse(html, headers=_smart_docs_security_headers(style_nonce=style_nonce))

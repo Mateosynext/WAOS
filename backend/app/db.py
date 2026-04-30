@@ -94,6 +94,8 @@ class DBConnection:
         self._releaser = releaser
 
     def execute(self, sql: str, params: Iterable = ()):
+        if isinstance(sql, str) and "CREATE" in sql.upper() and "INDEX" in sql.upper():
+            _ensure_index_columns(self, sql)
         prepared_sql = _prepare_sql(sql, self.backend)
         return self._connection.execute(prepared_sql, tuple(params))
 
@@ -107,6 +109,7 @@ class DBConnection:
         return self._connection.executemany(prepared_sql, params)
 
     def executescript(self, script: str) -> None:
+        _ensure_index_columns(self, script)
         if self.backend == "sqlite":
             self._connection.executescript(script)
             return
@@ -139,6 +142,30 @@ class DBConnection:
         else:
             self.commit()
         self.close()
+
+
+
+def _ensure_index_columns(conn: DBConnection, script: str) -> None:
+    """Best-effort guard for versioned DDL that adds indexes before columns."""
+    for match in re.finditer(
+        r"CREATE\s+(?:UNIQUE\s+)?INDEX\s+IF\s+NOT\s+EXISTS\s+[A-Za-z_][A-Za-z0-9_]*\s+ON\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)",
+        script,
+        flags=re.IGNORECASE | re.DOTALL,
+    ):
+        table = match.group(1)
+        if not table_exists(conn, table):
+            continue
+        for raw_term in match.group(2).split(","):
+            term = raw_term.strip()
+            if not term or "(" in term:
+                continue
+            column = term.split()[0].strip('"')
+            if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", column):
+                continue
+            if column.lower() in {"asc", "desc", "nulls", "where"}:
+                continue
+            if not has_column(conn, table, column):
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
 
 
 def get_db_path() -> str:

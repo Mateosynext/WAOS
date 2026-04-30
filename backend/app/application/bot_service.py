@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+
 from fastapi import HTTPException
 
 from ..config import settings
@@ -18,6 +21,8 @@ from ..repositories import (
 from ..security import ensure_bot_access, ensure_org_access
 from ..serializers import serialize_bot_details
 from ..utils import from_json, new_id, to_json, utcnow_iso
+from ..whatsapp import resolve_whatsapp_access_token
+from ..whatsapp_connection_state import decorate_whatsapp_number
 from ..application.vertical_service import vertical_service
 from ..domains.language import upsert_language_config
 from .support import org_filter_sql, require_permission
@@ -34,7 +39,7 @@ class BotService:
             params.append(status)
         query = (
             f"""
-            SELECT b.*, w.phone_number, w.connection_status, w.phone_number_id
+            SELECT b.*, w.phone_number, w.connection_status, w.phone_number_id, w.waba_id, w.metadata_json AS whatsapp_metadata_json
             FROM bots b
             LEFT JOIN whatsapp_numbers w ON w.bot_id = b.id
             {where_sql}
@@ -44,7 +49,7 @@ class BotService:
             """
             if where_sql
             else """
-            SELECT b.*, w.phone_number, w.connection_status, w.phone_number_id
+            SELECT b.*, w.phone_number, w.connection_status, w.phone_number_id, w.waba_id, w.metadata_json AS whatsapp_metadata_json
             FROM bots b
             LEFT JOIN whatsapp_numbers w ON w.bot_id = b.id
             WHERE b.deleted_at IS NULL
@@ -52,7 +57,26 @@ class BotService:
             LIMIT ? OFFSET ?
             """
         )
-        return fetch_all(conn, query, params + [clamp_limit(limit), clamp_offset(offset)])
+        rows = fetch_all(conn, query, params + [clamp_limit(limit), clamp_offset(offset)])
+        rendered: list[dict] = []
+        for row in rows:
+            number = {
+                "phone_number": row.get("phone_number"),
+                "phone_number_id": row.get("phone_number_id"),
+                "waba_id": row.get("waba_id"),
+                "connection_status": row.get("connection_status"),
+                "metadata_json": row.get("whatsapp_metadata_json"),
+            }
+            access_token_present = bool(resolve_whatsapp_access_token(conn, organization_id=row["organization_id"], bot_id=row["id"])) if row.get("phone_number") or row.get("phone_number_id") else False
+            whatsapp_view = decorate_whatsapp_number(number, access_token_present=access_token_present) if number else None
+            rendered.append({
+                **row,
+                "connection_status": (whatsapp_view or {}).get("connection_status") or row.get("connection_status"),
+                "whatsapp_send_ready": bool((whatsapp_view or {}).get("send_ready")),
+                "whatsapp_ui_status": (whatsapp_view or {}).get("ui_status"),
+                "whatsapp_connection_steps": (whatsapp_view or {}).get("connection_steps") or {},
+            })
+        return rendered
 
     def _assert_created_bot_contract(self, conn, *, bot: dict | None, organization_id: str, publish_now: bool) -> dict:
         if not bot or not bot.get("id"):
@@ -69,27 +93,95 @@ class BotService:
                 raise HTTPException(status_code=500, detail={"code": "bot_initial_publish_missing", "message": "Initial published version was not created"})
         return config
 
+
+    def _ensure_bot_creation_idempotency_schema(self, conn) -> None:
+        if getattr(conn, "backend", "sqlite") == "sqlite":
+            rows = conn.execute("PRAGMA table_info(bots)").fetchall()
+            if not any(row[1] == "client_request_id" for row in rows):
+                conn.execute("ALTER TABLE bots ADD COLUMN client_request_id TEXT")
+        else:
+            row = conn.execute(
+                """
+                SELECT 1 AS present
+                FROM information_schema.columns
+                WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?
+                LIMIT 1
+                """,
+                ("bots", "client_request_id"),
+            ).fetchone()
+            if not row:
+                conn.execute("ALTER TABLE bots ADD COLUMN client_request_id TEXT")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_bots_org_client_request ON bots(organization_id, client_request_id)")
+
+    def _bot_create_request_key(self, payload) -> str:
+        explicit = str(getattr(payload, "client_request_id", None) or "").strip()
+        if explicit:
+            return explicit[:160]
+        seed = {
+            "organization_id": payload.organization_id,
+            "business_name": payload.business_name,
+            "vertical": payload.vertical,
+            "bot_name": payload.bot_name,
+            "primary_objective": payload.primary_objective,
+            "tone": payload.tone,
+            "language": payload.language,
+            "timezone": payload.timezone,
+            "services": payload.services,
+            "hours": payload.hours,
+            "faqs": [item.model_dump() for item in payload.faqs],
+            "whatsapp_number": payload.whatsapp_number,
+            "publish_now": payload.publish_now,
+        }
+        encoded = json.dumps(seed, sort_keys=True, ensure_ascii=False, default=str)
+        return "botcreate_" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:48]
+
+    def _get_bot_by_client_request_id(self, conn, *, organization_id: str, client_request_id: str) -> dict | None:
+        key = str(client_request_id or "").strip()
+        if not key:
+            return None
+        return fetch_one(conn, "SELECT * FROM bots WHERE organization_id = ? AND client_request_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1", (organization_id, key))
+
     def create(self, uow: UnitOfWork, *, user: dict, payload) -> dict:
         conn = uow.conn
         ensure_org_access(user, payload.organization_id)
         require_permission(user, payload.organization_id, "bot.manage")
-        bot = create_bot(
-            conn,
-            organization_id=payload.organization_id,
-            business_name=payload.business_name,
-            vertical=payload.vertical,
-            bot_name=payload.bot_name,
-            primary_objective=payload.primary_objective,
-            tone=payload.tone,
-            language=payload.language,
-            timezone=payload.timezone,
-            services=payload.services,
-            hours=payload.hours,
-            faqs=[item.model_dump() for item in payload.faqs],
-            whatsapp_number=payload.whatsapp_number,
-            publish_now=payload.publish_now,
-            created_by=user,
-        )
+        self._ensure_bot_creation_idempotency_schema(conn)
+        client_request_id = self._bot_create_request_key(payload)
+        existing = self._get_bot_by_client_request_id(conn, organization_id=payload.organization_id, client_request_id=client_request_id)
+        if existing:
+            return serialize_bot_details(conn, existing)
+        try:
+            bot = create_bot(
+                conn,
+                organization_id=payload.organization_id,
+                business_name=payload.business_name,
+                vertical=payload.vertical,
+                bot_name=payload.bot_name,
+                primary_objective=payload.primary_objective,
+                tone=payload.tone,
+                language=payload.language,
+                timezone=payload.timezone,
+                services=payload.services,
+                hours=payload.hours,
+                faqs=[item.model_dump() for item in payload.faqs],
+                whatsapp_number=payload.whatsapp_number,
+                publish_now=payload.publish_now,
+                created_by=user,
+                client_request_id=client_request_id,
+            )
+        except Exception:
+            # Concurrent idempotent creates can raise a unique-constraint error.
+            # PostgreSQL marks the current transaction as aborted after that, so
+            # rollback before reading the already-created row. The repository uses
+            # short committed writes, so this does not undo a committed winner.
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            existing = self._get_bot_by_client_request_id(conn, organization_id=payload.organization_id, client_request_id=client_request_id)
+            if existing:
+                return serialize_bot_details(conn, existing)
+            raise
         config = self._assert_created_bot_contract(conn, bot=bot, organization_id=payload.organization_id, publish_now=payload.publish_now)
         create_or_update_knowledge_items(conn, organization_id=payload.organization_id, bot_id=bot["id"], config=config)
         vertical_service.apply(conn, user=user, organization_id=payload.organization_id, bot_id=bot["id"], vertical=payload.vertical, business_name=payload.business_name, bot_name=payload.bot_name, tone=payload.tone, language=payload.language, timezone=payload.timezone, primary_objective=payload.primary_objective, services=payload.services, faqs=[item.model_dump() for item in payload.faqs], hours=payload.hours, whatsapp_number=payload.whatsapp_number)

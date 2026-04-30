@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 from .common import *
+from fastapi import Request
 from .common import _org_filter_sql, _require_permission
 from ...contracts import ok, payment_row
-from ...db import table_exists
+from ...utils import canonical_hash
+from ...job_idempotency import begin_job_execution, mark_job_completed, mark_job_failed
+from ...application.uow import UnitOfWork
+from ...application.tool_execution_service import tool_execution_service
+from ...schemas.tool_execution import ToolExecutionRequest
+from ...db import fetch_one, table_exists
 from ...domains.whatsapp_flows import (
     create_flow_experiment,
     create_whatsapp_flow_version,
@@ -103,21 +109,53 @@ def list_payments(
         rows = fetch_all(conn, f"SELECT * FROM commerce_payments {where_sql} ORDER BY created_at DESC LIMIT 200", params)
         return [payment_row(row) for row in rows]
 
-def create_payment_link_route(payload: PaymentRequestCreate, user: dict = Depends(get_current_user)) -> dict:
+def create_payment_link_route(payload: PaymentRequestCreate, request: Request, user: dict = Depends(get_current_user)) -> dict:
+    """Legacy commerce endpoint kept as a safe wrapper.
+
+    Payment creation is irreversible enough that this endpoint must never create a
+    checkout directly. It requires the same preview + signed confirmation token +
+    idempotency contract as /api/v1/tool-executions/execute and delegates there.
+    """
     ensure_org_access(user, payload.organization_id)
     _require_permission(user, payload.organization_id, "revenue.manage")
-    with get_connection() as conn:
-        values = payload.model_dump()
-        metadata = dict(values.get("metadata") or {})
-        if values.get("appointment_id"):
-            metadata["appointment_id"] = values["appointment_id"]
-        if values.get("provider"):
-            metadata["provider"] = values["provider"]
-        values["metadata"] = metadata
-        values.pop("appointment_id", None)
-        values.pop("provider", None)
-        payment = create_payment_request(conn, actor_user=user, **values)
+    header_key = request.headers.get("Idempotency-Key") or request.headers.get("X-Idempotency-Key")
+    idempotency_key = str(payload.idempotency_key or payload.client_request_id or header_key or "").strip()
+    if not idempotency_key:
+        raise HTTPException(status_code=400, detail="payment_requires_idempotency_key")
+    if not payload.preview_execution_id:
+        raise HTTPException(status_code=409, detail="payment_requires_preview_execution_id")
+    if not payload.confirmation_token:
+        raise HTTPException(status_code=409, detail="payment_requires_confirmation_token")
+    tool_payload = {
+        "bot_id": payload.bot_id,
+        "conversation_id": payload.conversation_id,
+        "contact_id": payload.contact_id,
+        "title": payload.title,
+        "amount": payload.amount,
+        "currency": payload.currency,
+        "reminder_minutes": payload.reminder_minutes,
+        "send_receipt_on_confirm": payload.send_receipt_on_confirm,
+        "appointment_id": payload.appointment_id,
+        "metadata": {**(payload.metadata or {}), "legacy_route": "/api/v1/sales/payments"},
+    }
+    execution_payload = ToolExecutionRequest(
+        organization_id=payload.organization_id,
+        bot_id=payload.bot_id,
+        action="create_payment_link",
+        payload=tool_payload,
+        idempotency_key=idempotency_key,
+        client_request_id=payload.client_request_id or idempotency_key,
+        preview_execution_id=payload.preview_execution_id,
+        confirmation_token=payload.confirmation_token,
+        confirm=True,
+        metadata={**(payload.metadata or {}), "legacy_route": "/api/v1/sales/payments"},
+    )
+    with UnitOfWork(mode="write") as uow:
+        result = tool_execution_service.execute(uow, payload=execution_payload, user=user)
+    payment = (((result or {}).get("data") or {}).get("result") or {}).get("payment")
+    if payment:
         return payment_row(payment)
+    return result
 
 def confirm_payment_route(payment_id: str, payload: PaymentConfirmRequest, user: dict = Depends(get_current_user)) -> dict:
     with get_connection() as conn:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from ...application.tool_execution_service import tool_execution_service
 from ...schemas import ApiEnvelope, FlexibleSchema, ToolExecutionRequest
@@ -17,7 +17,10 @@ def preview_tool_execution(payload: ToolExecutionRequest, user: CurrentUser, uow
 
 
 @router.post("/api/v1/tool-executions/execute", response_model=ApiEnvelope[FlexibleSchema])
-def execute_tool_execution(payload: ToolExecutionRequest, user: CurrentUser, uow: CurrentUoW) -> dict[str, Any]:
+def execute_tool_execution(payload: ToolExecutionRequest, request: Request, user: CurrentUser, uow: CurrentUoW) -> dict[str, Any]:
+    header_key = request.headers.get("Idempotency-Key") or request.headers.get("X-Idempotency-Key")
+    if header_key and not payload.idempotency_key:
+        payload = payload.model_copy(update={"idempotency_key": header_key.strip()})
     return tool_execution_service.execute(uow, payload=payload, user=user)
 
 

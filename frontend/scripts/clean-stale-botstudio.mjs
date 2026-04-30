@@ -95,3 +95,5 @@ const details = [];
 if (removed) details.push(`removed ${removed} stale file${removed === 1 ? "" : "s"}`);
 if (migrated) details.push(`migrated ${migrated} legacy import file${migrated === 1 ? "" : "s"}`);
 console.log(`[cleanup:ok] ${details.length ? details.join("; ") : "stale Bot Studio files are absent"}`);
+
+if (!process.exitCode) process.exit(0);

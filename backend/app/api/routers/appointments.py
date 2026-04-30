@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from ...application.appointment_service import AppointmentService
 from ...schemas import (
@@ -33,9 +33,13 @@ def list_appointments(organization_id: str | None = Query(default=None), user: C
     return service.list(uow, user=user, organization_id=organization_id)
 
 
+def _client_request_id_from_request(request: Request, explicit: str | None = None) -> str | None:
+    return (request.headers.get("Idempotency-Key") or request.headers.get("X-Idempotency-Key") or explicit or "").strip() or None
+
+
 @router.post("/api/v1/appointments", response_model=OperationalAppointmentResponse)
-def create_appointment(payload: AppointmentRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
-    return service.create(uow, user=user, payload=payload)
+def create_appointment(payload: AppointmentRequest, request: Request, user: CurrentUser, uow: CurrentUoW) -> dict:
+    return service.create(uow, user=user, payload=payload, client_request_id=_client_request_id_from_request(request, payload.client_request_id))
 
 
 @router.post("/api/v1/appointments/{appointment_id}/confirm", response_model=OperationalAppointmentResponse)
@@ -45,8 +49,8 @@ def confirm_appointment(appointment_id: str, payload: AppointmentStatusRequest, 
 
 
 @router.post("/api/v1/appointments/{appointment_id}/reschedule", response_model=OperationalAppointmentResponse)
-def reschedule_appointment(appointment_id: str, payload: AppointmentRescheduleRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
-    return service.reschedule(uow, user=user, appointment_id=appointment_id, scheduled_for=payload.scheduled_for)
+def reschedule_appointment(appointment_id: str, payload: AppointmentRescheduleRequest, request: Request, user: CurrentUser, uow: CurrentUoW) -> dict:
+    return service.reschedule(uow, user=user, appointment_id=appointment_id, scheduled_for=payload.scheduled_for, client_request_id=_client_request_id_from_request(request, payload.client_request_id))
 
 
 @router.post("/api/v1/appointments/{appointment_id}/cancel", response_model=OperationalAppointmentResponse)

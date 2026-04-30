@@ -5,40 +5,32 @@ from ...verticals import get_vertical_profile, list_vertical_profiles
 from ...vertical_10x import build_strongest_verticals, get_subvertical_profile
 from ...world_class_ext import authenticate_public_api_credential, public_sdk_manifest, register_channel_event
 from ...rate_limiter import public_ingest_rate_limit
-from ...world_class_plus import append_immutable_audit_event, module_health_checks
+from ...world_class_plus import append_immutable_audit_event
 
 def root() -> str:
-    return f"<html><body style='font-family:Arial,sans-serif;background:#0A0A0A;color:#F5F2EE;padding:32px'><h1>WAOS API {settings.app_version}</h1><p>Runtime listo para operación productiva con PostgreSQL, Business Hub, Customer Preview y Launch Center.</p><ul><li><a style='color:#00E676' href='/app'>Abrir consola WAOS</a></li><li><a style='color:#00E676' href='/docs'>OpenAPI docs</a></li><li><a style='color:#00E676' href='/healthz'>Health</a></li><li><a style='color:#00E676' href='/readyz'>Readiness</a></li></ul></body></html>"
+    return f"<html><body style='font-family:Arial,sans-serif;background:#0A0A0A;color:#F5F2EE;padding:32px'><h1>WAOS API {settings.app_version}</h1><p>Runtime listo para operación productiva con PostgreSQL, Business Hub, Customer Preview y Launch Center.</p><ul><li><a style='color:#00E676' href='/app'>Abrir consola WAOS</a></li><li><a style='color:#00E676' href='/docs'>OpenAPI docs</a></li><li><a style='color:#00E676' href='/health/live'>Health</a></li><li><a style='color:#00E676' href='/health/ready'>Readiness</a></li></ul></body></html>"
 
 def app_console() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 def health() -> dict:
-    try:
-        with get_connection() as conn:
-            db_ok = fetch_one(conn, "SELECT 1 as ok") is not None
-            queue = queue_overview(conn)
-            scheduler = scheduler_overview(conn)
-    except Exception as exc:
-        return {"status": "degraded", "app": settings.app_name, "database": False, "queue": {}, "scheduler": {}, "error": str(exc)}
-    degraded = not db_ok or any(item.get("status") == "dead_letter" and int(item.get("count") or 0) > 0 for item in queue.get("automation_jobs", []) + queue.get("outbox", []))
-    return {"status": "degraded" if degraded else "ok", "app": settings.app_name, "database": db_ok, "queue": queue, "scheduler": scheduler}
+    return {"status": "ok"}
+
 
 def health_live() -> dict:
-    return {"status": "alive", "app": settings.app_name, "time": utcnow_iso()}
+    return {"status": "alive"}
 
-def health_ready() -> dict:
+
+def health_ready() -> JSONResponse:
     try:
         with get_connection() as conn:
-            db_ok = fetch_one(conn, "SELECT 1 as ok") is not None
-            queue = queue_overview(conn)
-            scheduler = scheduler_overview(conn)
-            dead_letters = sum(int(item.get("count") or 0) for item in queue.get("automation_jobs", []) if item.get("status") == "dead_letter") + sum(int(item.get("count") or 0) for item in queue.get("outbox", []) if item.get("status") == "dead_letter")
-            modules = module_health_checks(conn)
-    except Exception as exc:
-        return {"status": "not_ready", "database": False, "app": settings.app_name, "queue": {}, "scheduler": {}, "dead_letters": None, "modules": {"status": "error"}, "error": str(exc)}
-    ready = db_ok and dead_letters < 25 and modules.get("status") != "error"
-    return {"status": "ready" if ready else "not_ready", "database": db_ok, "app": settings.app_name, "queue": queue, "scheduler": scheduler, "dead_letters": dead_letters, "modules": modules}
+            ready = fetch_one(conn, "SELECT 1 as ok") is not None
+    except Exception:
+        ready = False
+    return JSONResponse(
+        status_code=200 if ready else 503,
+        content={"status": "ready" if ready else "not_ready"},
+    )
 
 
 

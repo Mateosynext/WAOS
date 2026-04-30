@@ -48,6 +48,8 @@ class Settings:
     ai_enable_outcomes_learning: bool = _env_bool("AI_ENABLE_OUTCOMES_LEARNING", True)
     ai_max_cost_per_run: float = float(os.getenv("AI_MAX_COST_PER_RUN", "12"))
     ai_provider_timeout_ms: int = int(os.getenv("AI_PROVIDER_TIMEOUT_MS", "30000"))
+    ai_workflow_recovery_on_startup: bool = _env_bool("AI_WORKFLOW_RECOVERY_ON_STARTUP", True)
+    ai_workflow_recovery_stale_after_minutes: int = int(os.getenv("AI_WORKFLOW_RECOVERY_STALE_AFTER_MINUTES", "30"))
     meta_graph_api_base: str = os.getenv("META_GRAPH_API_BASE", "https://graph.facebook.com/v23.0")
     meta_verify_token: str = os.getenv("META_VERIFY_TOKEN", "")
     default_timezone: str = os.getenv("DEFAULT_TIMEZONE", "America/Mexico_City")
@@ -86,11 +88,43 @@ class Settings:
     login_rate_limit_window_seconds: int = int(os.getenv("LOGIN_RATE_LIMIT_WINDOW_SECONDS", "900"))
     login_rate_limit_max_attempts: int = int(os.getenv("LOGIN_RATE_LIMIT_MAX_ATTEMPTS", "5"))
     trusted_proxy_ips_raw: str = os.getenv("TRUSTED_PROXY_IPS", "")
+    security_hardening_enabled: bool = _env_bool("SECURITY_HARDENING_ENABLED", True)
+    enforce_https: bool = _env_bool("ENFORCE_HTTPS", os.getenv("APP_ENV", "development").strip().lower() == "production")
+    reject_untrusted_proxy_headers: bool = _env_bool("REJECT_UNTRUSTED_PROXY_HEADERS", os.getenv("APP_ENV", "development").strip().lower() == "production")
+    require_signed_webhooks: bool = _env_bool("REQUIRE_SIGNED_WEBHOOKS", os.getenv("APP_ENV", "development").strip().lower() == "production")
+    security_rate_limit_enabled: bool = _env_bool("SECURITY_RATE_LIMIT_ENABLED", True)
+    rate_limit_backend: str = os.getenv("RATE_LIMIT_BACKEND", "memory").strip().lower()
+    rate_limit_redis_url: str = os.getenv("RATE_LIMIT_REDIS_URL", os.getenv("REDIS_URL", "")).strip()
+    rate_limit_redis_timeout_seconds: float = float(os.getenv("RATE_LIMIT_REDIS_TIMEOUT_SECONDS", "0.5"))
+    rate_limit_key_prefix: str = os.getenv("RATE_LIMIT_KEY_PREFIX", "waos:rate-limit").strip()
+    rate_limit_memory_max_buckets: int = int(os.getenv("RATE_LIMIT_MEMORY_MAX_BUCKETS", "10000"))
+    rate_limit_memory_eviction_batch: int = int(os.getenv("RATE_LIMIT_MEMORY_EVICTION_BATCH", "128"))
+    rate_limit_gateway_enforced: bool = _env_bool("RATE_LIMIT_GATEWAY_ENFORCED", False)
+    rate_limit_gateway_fallback_enabled: bool = _env_bool("RATE_LIMIT_GATEWAY_FALLBACK_ENABLED", True)
+    global_rate_limit_window_seconds: int = int(os.getenv("GLOBAL_RATE_LIMIT_WINDOW_SECONDS", "60"))
+    global_rate_limit_max_requests: int = int(os.getenv("GLOBAL_RATE_LIMIT_MAX_REQUESTS", "600"))
+    auth_rate_limit_window_seconds: int = int(os.getenv("AUTH_RATE_LIMIT_WINDOW_SECONDS", os.getenv("LOGIN_RATE_LIMIT_WINDOW_SECONDS", "900")))
+    auth_rate_limit_max_requests: int = int(os.getenv("AUTH_RATE_LIMIT_MAX_REQUESTS", os.getenv("LOGIN_RATE_LIMIT_MAX_ATTEMPTS", "5")))
+    webhook_rate_limit_window_seconds: int = int(os.getenv("WEBHOOK_RATE_LIMIT_WINDOW_SECONDS", "60"))
+    webhook_rate_limit_max_requests: int = int(os.getenv("WEBHOOK_RATE_LIMIT_MAX_REQUESTS", "120"))
+    max_request_body_bytes: int = int(os.getenv("MAX_REQUEST_BODY_BYTES", "2097152"))
+    max_webhook_body_bytes: int = int(os.getenv("MAX_WEBHOOK_BODY_BYTES", "1048576"))
+    frontend_telemetry_public_token: str = os.getenv("FRONTEND_TELEMETRY_PUBLIC_TOKEN", "").strip()
+    frontend_telemetry_require_token: bool = _env_bool("FRONTEND_TELEMETRY_REQUIRE_TOKEN", os.getenv("APP_ENV", "development").strip().lower() == "production")
+    frontend_telemetry_allowed_origins_raw: str = os.getenv("FRONTEND_TELEMETRY_ALLOWED_ORIGINS", os.getenv("CORS_ALLOWED_ORIGINS", DEFAULT_CORS_ALLOWED_ORIGINS))
+    frontend_telemetry_rate_limit_window_seconds: int = int(os.getenv("FRONTEND_TELEMETRY_RATE_LIMIT_WINDOW_SECONDS", "60"))
+    frontend_telemetry_rate_limit_max_events: int = int(os.getenv("FRONTEND_TELEMETRY_RATE_LIMIT_MAX_EVENTS", "60"))
+    frontend_telemetry_max_body_bytes: int = int(os.getenv("FRONTEND_TELEMETRY_MAX_BODY_BYTES", "8192"))
+    hsts_max_age_seconds: int = int(os.getenv("HSTS_MAX_AGE_SECONDS", "63072000"))
+    hsts_include_subdomains: bool = _env_bool("HSTS_INCLUDE_SUBDOMAINS", True)
+    hsts_preload: bool = _env_bool("HSTS_PRELOAD", True)
+    content_security_policy: str = os.getenv("CONTENT_SECURITY_POLICY", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
     strict_security_startup: bool = _env_bool("STRICT_SECURITY_STARTUP", True)
     startup_init_db: bool = _env_bool("STARTUP_INIT_DB", True)
-    startup_db_required: bool = _env_bool("STARTUP_DB_REQUIRED", False if os.getenv("APP_ENV", "development").strip().lower() == "production" else True)
+    startup_db_required: bool = _env_bool("STARTUP_DB_REQUIRED", True)
     request_tracing_enabled: bool = _env_bool("REQUEST_TRACING_ENABLED", True)
     allow_sqlite_for_tests: bool = _env_bool("ALLOW_SQLITE_FOR_TESTS", False)
+    waos_e2e_fake_providers: bool = _env_bool("WAOS_E2E_FAKE_PROVIDERS", False)
     voice_media_storage_dir: str = os.getenv("VOICE_MEDIA_STORAGE_DIR", "./.waos-voice-media")
     voice_media_ttl_minutes: int = int(os.getenv("VOICE_MEDIA_TTL_MINUTES", "1440"))
     voice_transcription_webhook_url: str = os.getenv("VOICE_TRANSCRIPTION_WEBHOOK_URL", "")
@@ -142,6 +176,14 @@ class Settings:
     @property
     def cors_allowed_origins(self) -> list[str]:
         values = [item.strip() for item in self.cors_allowed_origins_raw.split(",") if item.strip()]
+        return values or [DEFAULT_PUBLIC_APP_URL]
+
+    @property
+    def frontend_telemetry_allowed_origins(self) -> list[str]:
+        values = [item.strip().rstrip("/") for item in self.frontend_telemetry_allowed_origins_raw.split(",") if item.strip()]
+        public_app_url = self.public_app_url.strip().rstrip("/")
+        if public_app_url and public_app_url not in values:
+            values.append(public_app_url)
         return values or [DEFAULT_PUBLIC_APP_URL]
 
     @property
@@ -270,8 +312,14 @@ class Settings:
             raise ValueError("Public ingest rate limit settings are invalid")
         if self.openai_circuit_failure_threshold < 1 or self.openai_circuit_open_minutes < 1:
             raise ValueError("OpenAI circuit breaker settings are invalid")
+        if self.ai_workflow_recovery_stale_after_minutes < 1 or self.ai_workflow_recovery_stale_after_minutes > 24 * 60:
+            raise ValueError("AI_WORKFLOW_RECOVERY_STALE_AFTER_MINUTES must be between 1 and 1440")
         if self.meta_circuit_failure_threshold < 1 or self.meta_circuit_open_minutes < 1:
             raise ValueError("Meta circuit breaker settings are invalid")
+        if self.is_production and self.waos_e2e_fake_providers:
+            raise ValueError("WAOS_E2E_FAKE_PROVIDERS cannot be enabled in production")
+        if self.is_production and not self.startup_db_required:
+            raise ValueError("STARTUP_DB_REQUIRED cannot be false in production")
         if "*" in self.cors_allowed_origins:
             raise ValueError("CORS_ALLOWED_ORIGINS cannot contain '*' when credentials are enabled")
         if not self.allowed_hosts:
@@ -294,6 +342,47 @@ class Settings:
                     raise ValueError("TRUSTED_PROXY_IPS contains invalid IP/CIDR entry") from exc
             if any(host == "*" for host in self.allowed_hosts):
                 raise ValueError("ALLOWED_HOSTS cannot contain '*' in production")
+            if not self.security_hardening_enabled:
+                raise ValueError("SECURITY_HARDENING_ENABLED cannot be disabled in production")
+            if not self.enforce_https:
+                raise ValueError("ENFORCE_HTTPS cannot be disabled in production")
+            if not self.require_signed_webhooks:
+                raise ValueError("REQUIRE_SIGNED_WEBHOOKS cannot be disabled in production")
+            if self.security_rate_limit_enabled and self.rate_limit_backend == "memory":
+                raise ValueError("RATE_LIMIT_BACKEND must be redis, valkey, upstash, or gateway in production")
+            if self.security_rate_limit_enabled and self.rate_limit_backend == "gateway" and not self.rate_limit_gateway_enforced:
+                raise ValueError("RATE_LIMIT_GATEWAY_ENFORCED must be true when RATE_LIMIT_BACKEND=gateway in production")
+            if self.max_request_body_bytes > 10 * 1024 * 1024:
+                raise ValueError("MAX_REQUEST_BODY_BYTES must be <= 10MiB in production")
+            if self.max_webhook_body_bytes > 5 * 1024 * 1024:
+                raise ValueError("MAX_WEBHOOK_BODY_BYTES must be <= 5MiB in production")
+        if self.security_hardening_enabled:
+            allowed_rate_backends = {"memory", "redis", "valkey", "upstash", "gateway"}
+            if self.rate_limit_backend not in allowed_rate_backends:
+                raise ValueError("RATE_LIMIT_BACKEND must be one of: gateway, memory, redis, upstash, valkey")
+            if self.rate_limit_backend in {"redis", "valkey", "upstash"} and not self.rate_limit_redis_url:
+                raise ValueError("RATE_LIMIT_REDIS_URL or REDIS_URL is required for distributed rate limiting")
+            if self.rate_limit_redis_timeout_seconds <= 0:
+                raise ValueError("RATE_LIMIT_REDIS_TIMEOUT_SECONDS must be > 0")
+            if self.rate_limit_memory_max_buckets < 100:
+                raise ValueError("RATE_LIMIT_MEMORY_MAX_BUCKETS must be >= 100")
+            if self.rate_limit_memory_eviction_batch < 1:
+                raise ValueError("RATE_LIMIT_MEMORY_EVICTION_BATCH must be >= 1")
+            if self.max_request_body_bytes < 1024:
+                raise ValueError("MAX_REQUEST_BODY_BYTES must be at least 1024")
+            if self.max_webhook_body_bytes < 1024:
+                raise ValueError("MAX_WEBHOOK_BODY_BYTES must be at least 1024")
+            for name, value in {
+                "GLOBAL_RATE_LIMIT_WINDOW_SECONDS": self.global_rate_limit_window_seconds,
+                "GLOBAL_RATE_LIMIT_MAX_REQUESTS": self.global_rate_limit_max_requests,
+                "AUTH_RATE_LIMIT_WINDOW_SECONDS": self.auth_rate_limit_window_seconds,
+                "AUTH_RATE_LIMIT_MAX_REQUESTS": self.auth_rate_limit_max_requests,
+                "WEBHOOK_RATE_LIMIT_WINDOW_SECONDS": self.webhook_rate_limit_window_seconds,
+                "WEBHOOK_RATE_LIMIT_MAX_REQUESTS": self.webhook_rate_limit_max_requests,
+                "HSTS_MAX_AGE_SECONDS": self.hsts_max_age_seconds,
+            }.items():
+                if int(value) < 1:
+                    raise ValueError(f"{name} must be >= 1")
 
     def public_summary(self) -> dict[str, object]:
         return {
@@ -313,6 +402,7 @@ class Settings:
             "startup_init_db": self.startup_init_db,
             "startup_db_required": self.startup_db_required,
             "request_tracing_enabled": self.request_tracing_enabled,
+            "waos_e2e_fake_providers": self.waos_e2e_fake_providers,
             "max_page_size": self.max_page_size,
             "runtime_cache_ttl_seconds": self.runtime_cache_ttl_seconds,
             "web_concurrency": self.web_concurrency,
@@ -348,6 +438,31 @@ class Settings:
             "session_idle_timeout_minutes": self.session_idle_timeout_minutes,
             "login_rate_limit_window_seconds": self.login_rate_limit_window_seconds,
             "login_rate_limit_max_attempts": self.login_rate_limit_max_attempts,
+            "security_hardening_enabled": self.security_hardening_enabled,
+            "enforce_https": self.enforce_https,
+            "reject_untrusted_proxy_headers": self.reject_untrusted_proxy_headers,
+            "require_signed_webhooks": self.require_signed_webhooks,
+            "security_rate_limit_enabled": self.security_rate_limit_enabled,
+            "rate_limit_backend": self.rate_limit_backend,
+            "rate_limit_redis_configured": bool(self.rate_limit_redis_url),
+            "rate_limit_memory_max_buckets": self.rate_limit_memory_max_buckets,
+            "rate_limit_gateway_enforced": self.rate_limit_gateway_enforced,
+            "global_rate_limit_window_seconds": self.global_rate_limit_window_seconds,
+            "global_rate_limit_max_requests": self.global_rate_limit_max_requests,
+            "auth_rate_limit_window_seconds": self.auth_rate_limit_window_seconds,
+            "auth_rate_limit_max_requests": self.auth_rate_limit_max_requests,
+            "webhook_rate_limit_window_seconds": self.webhook_rate_limit_window_seconds,
+            "webhook_rate_limit_max_requests": self.webhook_rate_limit_max_requests,
+            "max_request_body_bytes": self.max_request_body_bytes,
+            "max_webhook_body_bytes": self.max_webhook_body_bytes,
+            "frontend_telemetry_allowed_origins": self.frontend_telemetry_allowed_origins,
+            "frontend_telemetry_require_token": self.frontend_telemetry_require_token,
+            "frontend_telemetry_rate_limit_window_seconds": self.frontend_telemetry_rate_limit_window_seconds,
+            "frontend_telemetry_rate_limit_max_events": self.frontend_telemetry_rate_limit_max_events,
+            "frontend_telemetry_max_body_bytes": self.frontend_telemetry_max_body_bytes,
+            "hsts_max_age_seconds": self.hsts_max_age_seconds,
+            "hsts_include_subdomains": self.hsts_include_subdomains,
+            "hsts_preload": self.hsts_preload,
         }
 
 

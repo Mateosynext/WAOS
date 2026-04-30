@@ -8,6 +8,7 @@ from .base import ConnectionLike
 from ..db import execute, fetch_all, fetch_one
 from ..defaults import default_bot_config
 from ..utils import from_json, hash_password, new_id, slugify, to_json, utcnow_iso
+from ..whatsapp_connection_state import WHATSAPP_STATUS_NUMBER_ENTERED, update_whatsapp_metadata
 from ..verticals import build_organization_settings
 from .audit import create_audit_log
 from .bots import get_bot, publish_version
@@ -69,21 +70,29 @@ def create_bot(
         ),
     )
     if whatsapp_number:
+        connection_status, metadata_json = update_whatsapp_metadata(
+            {},
+            phone_number=whatsapp_number,
+            phone_number_id=None,
+            waba_id=None,
+            access_token_present=False,
+            webhook_verified=False,
+            source="seed_bot_creation",
+        )
         execute(
             conn,
             """
             INSERT INTO whatsapp_numbers
             (id, organization_id, bot_id, provider, phone_number, phone_number_id, waba_id, connection_status, webhook_verify_token, access_token_masked, metadata_json, created_at, updated_at)
-            VALUES (?, ?, ?, 'meta_cloud_api', ?, ?, ?, 'connected', ?, '***redacted', '{}', ?, ?)
+            VALUES (?, ?, ?, 'meta_cloud_api', ?, NULL, NULL, ?, NULL, NULL, ?, ?, ?)
             """,
             (
                 new_id("wan"),
                 organization_id,
                 bot_id,
                 whatsapp_number,
-                f"PHONE-{bot_id[-8:]}",
-                f"WABA-{bot_id[-8:]}",
-                os.getenv("META_VERIFY_TOKEN", ""),
+                connection_status or WHATSAPP_STATUS_NUMBER_ENTERED,
+                metadata_json,
                 now,
                 now,
             ),

@@ -5,11 +5,12 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from ..security import ensure_org_access
+from ..security import ensure_org_access, ensure_request_scope_matches
 from .persistence import get_run, require_run
 
-TERMINAL_STATUSES = {"completed", "completed_partial", "failed", "cancelled", "paused_cost_limit"}
+TERMINAL_STATUSES = {"completed", "completed_partial", "failed", "retryable_failed", "cancelled", "paused_cost_limit"}
 SAFE_CONFIRMATION_STATUSES = {"confirmed", "not_applicable", "escalate_to_human", "blocked_response", "range_confirmed", "deferred_safe"}
+ALL_CONFIRMATION_STATUSES = SAFE_CONFIRMATION_STATUSES | {"pending", "rejected"}
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9:_-]{8,160}$")
 
 
@@ -27,6 +28,7 @@ def require_authorized_run(conn, run_id: str, user: dict) -> dict[str, Any]:
     except KeyError:
         raise HTTPException(status_code=404, detail={"code": "workflow_not_found", "message": "Workflow run not found"})
     ensure_org_access(user, str(run.get("organization_id") or ""))
+    ensure_request_scope_matches(organization_id=str(run.get("organization_id") or ""), bot_id=str(run.get("bot_id") or ""), resource_type="ai_workflow_run")
     return run
 
 
@@ -36,6 +38,7 @@ def get_authorized_run(conn, run_id: str, user: dict) -> dict[str, Any] | None:
     if not run:
         return None
     ensure_org_access(user, str(run.get("organization_id") or ""))
+    ensure_request_scope_matches(organization_id=str(run.get("organization_id") or ""), bot_id=str(run.get("bot_id") or ""), resource_type="ai_workflow_run")
     return run
 
 
@@ -47,13 +50,28 @@ def require_not_terminal(run: dict[str, Any], *, action: str) -> None:
         )
 
 
-def require_finished_before_launch(run: dict[str, Any]) -> None:
+def require_finished_before_launch(run: dict[str, Any], *, allow_partial_override: bool = False) -> None:
     status = run.get("status")
+    if status == "completed_partial" and not allow_partial_override:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "workflow_partial_completion_blocked", "message": "completed_partial cannot launch/apply without explicit_partial_apply_override and audited missing artifact waiver"},
+        )
     if status not in {"completed", "completed_partial"}:
         raise HTTPException(
             status_code=409,
-            detail={"code": "workflow_not_finished", "message": "Launch actions require a completed or completed_partial workflow"},
+            detail={"code": "workflow_not_finished", "message": "Launch actions require a completed workflow"},
         )
+
+
+def validate_confirmation_status(status: str) -> str:
+    value = str(status or "pending").strip()
+    if value not in ALL_CONFIRMATION_STATUSES:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "invalid_confirmation_status", "message": f"Unsupported confirmation status: {value}"},
+        )
+    return value
 
 
 def pending_human_confirmations(items: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -53,6 +53,8 @@ async function refreshSession(refreshToken: string) {
 }
 
 async function fetchSessionUser(accessToken: string, selectedOrganizationId: string | null) {
+  // fetchSessionUserFromApi throws on upstream/server failures so middleware can surface
+  // an explicit degraded-session path instead of silently treating the operator as logged out.
   return fetchSessionUserFromApi(API_BASE, accessToken, selectedOrganizationId);
 }
 

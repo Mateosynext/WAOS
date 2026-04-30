@@ -3,6 +3,7 @@ import type { BotContract } from "@/app/lib/contracts/bots";
 import type { VerticalProfileContract } from "@/app/lib/contracts/verticals";
 import type { RouteStep } from "@/features/bot-studio/domain/flowConfig";
 import type { WizardBlueprint, WizardInstance, WizardMode } from "@/features/bot-studio/domain/wizardTypes";
+export type BotStudioLoadWarning = { source: string; message: string };
 
 export type BotStudioFlowProps = {
   organizations: SessionOrganization[];
@@ -20,6 +21,7 @@ export type BotStudioFlowProps = {
   initialWizardId?: string;
   initialWizard?: WizardInstance | null;
   initialStepOverride?: string;
+  loadWarnings?: BotStudioLoadWarning[];
   routeMode: WizardMode;
   routeStep: RouteStep;
 };

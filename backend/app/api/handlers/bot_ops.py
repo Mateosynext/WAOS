@@ -3,6 +3,8 @@ from __future__ import annotations
 from ...contracts import build_row, release_request_row, run_row
 from .common import *
 from .common import _require_permission
+from ...whatsapp import resolve_whatsapp_access_token
+from ...whatsapp_connection_state import decorate_whatsapp_number
 
 
 def _release_security_ready(release: dict, policy: dict) -> bool:
@@ -371,7 +373,13 @@ def whatsapp_numbers_status(organization_id: str | None = Query(default=None), b
             """,
             params,
         )
-        return rows
+        return [
+            decorate_whatsapp_number(
+                row,
+                access_token_present=bool(resolve_whatsapp_access_token(conn, organization_id=row["organization_id"], bot_id=row.get("bot_id"))),
+            )
+            for row in rows
+        ]
 
 def publish_schedules_list(organization_id: str | None = Query(default=None), bot_id: str | None = Query(default=None), limit: int = Query(default=settings.default_page_size), offset: int = Query(default=0), user: dict = Depends(get_current_user)) -> list[dict]:
     with get_connection() as conn:

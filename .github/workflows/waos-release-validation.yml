@@ -1,0 +1,105 @@
+name: WAOS release validation
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'backend/app/ai_evals/**'
+      - 'frontend/**'
+      - 'scripts/**'
+      - 'tools/**'
+      - '.github/workflows/waos-release-validation.yml'
+      - 'backend/requirements*.txt'
+      - 'frontend/package*.json'
+
+jobs:
+  source-sanity:
+    name: Source sanity, build and SCA
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install backend and CI tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt -r tools/requirements-ci.txt
+      - name: Backend deterministic gates
+        run: |
+          python backend/scripts/validate_release_candidate.py
+          python backend/scripts/check_repo_hygiene.py
+          python backend/scripts/release_gate.py
+      - name: AI behavior evals
+        run: python -m backend.app.ai_evals.run_all
+      - name: AI live provider fixture contract
+        run: python -m backend.app.ai_evals.eval_live_provider_sandbox
+      - name: Backend SCA
+        run: python -m pip_audit -r backend/requirements.lock --strict
+      - name: Backend tests
+        run: pytest -q backend/tests
+      - name: Frontend install, SCA, typecheck and build
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm audit --audit-level=moderate
+          npm run typecheck
+          npm run build
+          test -s .next/BUILD_ID
+          npm run test:node
+
+  production-certification-from-zip:
+    name: Production certification from ZIP
+    runs-on: ubuntu-latest
+    needs: source-sanity
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    timeout-minutes: 75
+    env:
+      CI: 'true'
+      WAOS_CI_TRACE: '0'
+      # Release certification is intentionally blocked unless this GitHub Actions
+      # secret exists; live provider evals are required for production promotion.
+      WAOS_REQUIRE_LIVE_AI_EVALS: '1'
+      WAOS_AI_EVAL_LIVE: '1'
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      WAOS_INSTALL_PLAYWRIGHT_BROWSERS: '1'
+      WAOS_E2E_BASE_URL: ${{ secrets.WAOS_E2E_BASE_URL }}
+      WAOS_E2E_EMAIL: ${{ secrets.WAOS_E2E_EMAIL }}
+      WAOS_E2E_PASSWORD: ${{ secrets.WAOS_E2E_PASSWORD }}
+      WAOS_E2E_ORGANIZATION_ID: ${{ secrets.WAOS_E2E_ORGANIZATION_ID }}
+      WAOS_E2E_WHATSAPP_SANDBOX_PHONE: ${{ secrets.WAOS_E2E_WHATSAPP_SANDBOX_PHONE }}
+      WAOS_E2E_PAYMENT_BOT_ID: ${{ secrets.WAOS_E2E_PAYMENT_BOT_ID }}
+      WAOS_E2E_PAYMENT_CONVERSATION_ID: ${{ secrets.WAOS_E2E_PAYMENT_CONVERSATION_ID }}
+      WAOS_E2E_PAYMENT_CONTACT_ID: ${{ secrets.WAOS_E2E_PAYMENT_CONTACT_ID }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install backend and CI tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt -r tools/requirements-ci.txt
+      - name: Build source ZIP without generated artifacts
+        run: |
+          git archive --format=zip --output=/tmp/waos-source.zip HEAD
+      - name: Validate extracted ZIP end to end
+        run: bash scripts/validate_zip_reproducible.sh /tmp/waos-source.zip

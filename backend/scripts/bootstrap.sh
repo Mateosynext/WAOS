@@ -1,20 +1,27 @@
 #!/usr/bin/env bash
-set -euo pipefail
-export RUN_BOOTSTRAP_SEED=${RUN_BOOTSTRAP_SEED:-false}
-export AUTO_RUN_MIGRATIONS=${AUTO_RUN_MIGRATIONS:-true}
-export WEB_CONCURRENCY=${WEB_CONCURRENCY:-3}
-export GUNICORN_TIMEOUT_SECONDS=${GUNICORN_TIMEOUT_SECONDS:-120}
-python scripts/deploy_guard.py --runtime
-python scripts/preflight_check.py
-if [ "${AUTO_RUN_MIGRATIONS}" = "true" ]; then
-  python scripts/run_migrations.py
+set -Eeuo pipefail
+
+cd "$(dirname "$0")/.."
+
+export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
+export PORT="${PORT:-10000}"
+
+echo "[waos] running release-candidate validation"
+python scripts/validate_release_candidate.py
+
+if [[ "${WAOS_SKIP_PREFLIGHT:-false}" != "true" ]]; then
+  echo "[waos] running production preflight"
+  python scripts/preflight_check.py
 fi
-exec gunicorn app.main:app \
-  -k uvicorn.workers.UvicornWorker \
-  -w ${WEB_CONCURRENCY} \
-  -b 0.0.0.0:${PORT:-8000} \
-  --timeout ${GUNICORN_TIMEOUT_SECONDS} \
-  --graceful-timeout 30 \
-  --keep-alive 15 \
-  --access-logfile - \
-  --error-logfile -
+
+if [[ "${AUTO_RUN_MIGRATIONS:-false}" == "true" ]]; then
+  echo "[waos] applying database schema and migrations"
+  python - <<'PY'
+from app.db import init_db
+init_db()
+print("database init ok")
+PY
+fi
+
+echo "[waos] starting API on port ${PORT}"
+exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT}"

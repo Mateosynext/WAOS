@@ -4,7 +4,7 @@ from typing import Any, Literal, Mapping
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
-from app.config import settings
+from ..config import settings
 
 
 def _truthy(value: Any) -> bool:

@@ -37,6 +37,12 @@ export function BotStudioRoute(props: BotStudioFlowProps) {
       />
 
       {controller.banner ? <UiMessage title={controller.banner.title} tone={controller.banner.tone}>{controller.banner.detail}</UiMessage> : null}
+      {props.loadWarnings?.length ? (
+        <UiMessage title="Bot Studio cargó en modo degradado" tone="warning">
+          <p>Algunos datos opcionales fallaron. No interpretes listas vacías como estado real hasta revisar backend/API.</p>
+          <ul className="mt-2 list-disc pl-5">{props.loadWarnings.map((warning) => <li key={`${warning.source}:${warning.message}`}>{warning.message}</li>)}</ul>
+        </UiMessage>
+      ) : null}
       {controller.busy ? <UiMessage title="Procesando" tone="info">{controller.busy}</UiMessage> : null}
       {state.slices.autosave.lastSavedAt ? <UiMessage title="Persistencia" tone="success">Último guardado visible: {state.slices.autosave.lastSavedAt}</UiMessage> : null}
 

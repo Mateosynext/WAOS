@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from .base import ConnectionLike
@@ -8,6 +7,7 @@ from .base import ConnectionLike
 from ..db import execute, fetch_all, fetch_one
 from ..defaults import default_bot_config
 from ..utils import from_json, hash_password, new_id, slugify, to_json, utcnow_iso
+from ..whatsapp_connection_state import WHATSAPP_STATUS_NUMBER_ENTERED, update_whatsapp_metadata
 from ..verticals import build_organization_settings
 
 def get_bot(conn: ConnectionLike, bot_id: str) -> dict | None:
@@ -129,7 +129,21 @@ def create_bot(
     whatsapp_number: str,
     publish_now: bool,
     created_by: dict,
+    client_request_id: str | None = None,
 ) -> dict:
+    if client_request_id:
+        existing = fetch_one(
+            conn,
+            """
+            SELECT * FROM bots
+            WHERE organization_id = ? AND client_request_id = ? AND deleted_at IS NULL
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (organization_id, client_request_id),
+        )
+        if existing:
+            return existing
+
     bot_id = new_id("bot")
     now = utcnow_iso()
     config = default_bot_config(
@@ -149,8 +163,8 @@ def create_bot(
         conn,
         """
         INSERT INTO bots
-        (id, organization_id, name, business_name, vertical, language, timezone, status, ai_paused, current_state, published_version_id, config_draft_json, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 0, ?, NULL, ?, ?, ?)
+        (id, organization_id, name, business_name, vertical, language, timezone, status, ai_paused, current_state, published_version_id, config_draft_json, created_at, updated_at, client_request_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 0, ?, NULL, ?, ?, ?, ?)
         """,
         (
             bot_id,
@@ -164,24 +178,33 @@ def create_bot(
             to_json(config),
             now,
             now,
+            client_request_id,
         ),
     )
     if whatsapp_number:
+        connection_status, metadata_json = update_whatsapp_metadata(
+            {},
+            phone_number=whatsapp_number,
+            phone_number_id=None,
+            waba_id=None,
+            access_token_present=False,
+            webhook_verified=False,
+            source="bot_creation",
+        )
         execute(
             conn,
             """
             INSERT INTO whatsapp_numbers
             (id, organization_id, bot_id, provider, phone_number, phone_number_id, waba_id, connection_status, webhook_verify_token, access_token_masked, metadata_json, created_at, updated_at)
-            VALUES (?, ?, ?, 'meta_cloud_api', ?, ?, ?, 'connected', ?, '***redacted', '{}', ?, ?)
+            VALUES (?, ?, ?, 'meta_cloud_api', ?, NULL, NULL, ?, NULL, NULL, ?, ?, ?)
             """,
             (
                 new_id("wan"),
                 organization_id,
                 bot_id,
                 whatsapp_number,
-                f"PHONE-{bot_id[-8:]}",
-                f"WABA-{bot_id[-8:]}",
-                os.getenv("META_VERIFY_TOKEN", ""),
+                connection_status or WHATSAPP_STATUS_NUMBER_ENTERED,
+                metadata_json,
                 now,
                 now,
             ),
@@ -196,7 +219,7 @@ def create_bot(
         entity_type="bot",
         entity_id=bot_id,
         action="bot.created",
-        metadata={"name": bot_name, "publish_now": publish_now},
+        metadata={"name": bot_name, "publish_now": publish_now, "client_request_id": client_request_id},
     )
     return get_bot(conn, bot_id)
 

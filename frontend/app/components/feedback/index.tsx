@@ -52,3 +52,53 @@ export function EmptyActionState({ title, description, primaryAction, secondaryA
 export function PermissionGate({ allowed, fallback = null, children }: { allowed: boolean; fallback?: ReactNode; children: ReactNode }) {
   return allowed ? <>{children}</> : <>{fallback}</>;
 }
+
+
+export type OperationalStateLike = {
+  ok: boolean;
+  endpoint: string;
+  error: { status?: number | null; code?: string | null; message?: string | null } | null;
+};
+
+export function hasOperationalFailures(states: OperationalStateLike[]): boolean {
+  return states.some((state) => !state.ok);
+}
+
+export function OperationalDegradedBanner({
+  states,
+  title = "Backend degradado",
+  description = "Esta vista no va a mostrar datos vacíos como si fueran sanos. Revisa los endpoints fallidos antes de tomar decisiones operativas.",
+  block = false,
+}: {
+  states: OperationalStateLike[];
+  title?: string;
+  description?: string;
+  block?: boolean;
+}) {
+  const failures = states.filter((state) => !state.ok);
+  if (!failures.length) return null;
+  return (
+    <div className="rounded-3xl border border-[color:var(--danger-border)] bg-[color:var(--danger-soft)] p-5 text-[color:var(--danger-text)]">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <Badge tone="red">{block ? "BLOQUEADO" : "DEGRADADO"}</Badge>
+            <div className="text-lg font-semibold text-[color:var(--text-primary)]">{title}</div>
+          </div>
+          <p className="mt-2 max-w-4xl text-sm leading-6">{description}</p>
+          {block ? <p className="mt-2 text-sm font-semibold">Los KPIs y tablas críticas quedan bloqueados para evitar decisiones con datos incompletos.</p> : null}
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2">
+        {failures.slice(0, 8).map((state) => (
+          <div key={state.endpoint} className="rounded-2xl border border-[color:var(--danger-border)] bg-[color:var(--surface-strong)] p-3 text-sm">
+            <div className="font-mono text-xs text-[color:var(--text-primary)]">{state.endpoint}</div>
+            <div className="mt-1 text-[color:var(--danger-text)]">
+              {state.error?.status ?? "sin_status"} · {state.error?.code || "api_error"} · {state.error?.message || "Backend no respondió correctamente"}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

@@ -58,3 +58,20 @@ test("AI Command Center guards double-submit and resets SSE cursors per run", ()
   assert.match(hook, /lastEventIdRef\.current = null/);
   assert.match(hook, /lastSnapshotEvent\?\.id/);
 });
+
+test("AI Command Center resolves human confirmations before safe apply", () => {
+  const center = read("features/ai-command-center/AiCommandCenter.tsx");
+  const types = read("features/ai-command-center/types.ts");
+  const helper = read("app/api/ai/route-helpers.ts");
+  assert.match(types, /AiHumanConfirmation/);
+  assert.match(types, /AiGoLiveReadiness/);
+  assert.match(center, /HumanConfirmationsPanel/);
+  assert.match(center, /human-confirmations/);
+  assert.match(center, /go-live-readiness/);
+  assert.match(center, /pendingConfirmations\.length === 0/);
+  assert.match(center, /readiness\.can_apply !== false/);
+  assert.match(center, /!wizardId/);
+  assert.match(center, /Abrir bot/);
+  assert.match(helper, /LONG_RUNNING_PROXY_TIMEOUT_MS = 120_000/);
+  assert.match(helper, /prepare-apply\|prepare-canary\|go-live-readiness/);
+});

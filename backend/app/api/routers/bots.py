@@ -4,11 +4,13 @@ from fastapi import APIRouter, Query
 
 from ...config import settings
 from ...application.bot_service import BotService
-from ...schemas import BotCreateRequest, BotUpdateRequest, CloneBotRequest, FlexibleSchema, PublishRequest
+from ...application.bot_creation_workflow_service import BotCreationWorkflowService
+from ...schemas import BotCreateRequest, BotCreateWorkflowRequest, BotUpdateRequest, CloneBotRequest, FlexibleSchema, PublishRequest
 from ..dependencies import CurrentUoW, CurrentUser
 
 router = APIRouter(tags=["bots"])
 service = BotService()
+workflow_service = BotCreationWorkflowService()
 
 
 @router.get("/api/v1/bots", response_model=list[FlexibleSchema])
@@ -26,6 +28,20 @@ def list_bots(
 @router.post("/api/v1/bots", response_model=FlexibleSchema)
 def create_bot(payload: BotCreateRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
     return service.create(uow, user=user, payload=payload)
+
+@router.post("/api/v1/bots/creation-workflows", response_model=FlexibleSchema)
+def create_bot_with_workflow(payload: BotCreateWorkflowRequest, user: CurrentUser, uow: CurrentUoW) -> dict:
+    return workflow_service.create(uow, user=user, payload=payload)
+
+
+@router.get("/api/v1/bots/creation-workflows/{workflow_id}", response_model=FlexibleSchema)
+def get_bot_creation_workflow(workflow_id: str, user: CurrentUser, uow: CurrentUoW) -> dict:
+    return workflow_service.get(uow, user=user, workflow_id=workflow_id)
+
+
+@router.post("/api/v1/bots/creation-workflows/{workflow_id}/retry", response_model=FlexibleSchema)
+def retry_bot_creation_workflow(workflow_id: str, user: CurrentUser, uow: CurrentUoW) -> dict:
+    return workflow_service.retry(uow, user=user, workflow_id=workflow_id)
 
 
 @router.get("/api/v1/bots/{bot_id}", response_model=FlexibleSchema)

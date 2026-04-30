@@ -49,8 +49,9 @@ test("edge session helper hardens auth beyond cookie presence", () => {
 
   assert.match(edgeSession, /decodeAccessTokenClaims/);
   assert.match(edgeSession, /isExpiredJwt/);
-  assert.match(edgeSession, /\/api\/v1\/auth\/refresh/);
-  assert.match(edgeSession, /\/api\/v1\/auth\/me/);
+  assert.match(edgeSession, /requestSessionRefresh/);
+  assert.match(edgeSession, /fetchSessionUserFromApi/);
+  assert.match(edgeSession, /from "\.\/shared-session\.ts"/);
   assert.match(edgeSession, /selectedOrganizationId/);
 });
 

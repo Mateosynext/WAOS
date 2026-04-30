@@ -14,10 +14,12 @@ class AppointmentRequest(BaseModel):
     duration_minutes: int = 30
     timezone: str = "America/Mexico_City"
     notes: str = ""
+    client_request_id: str | None = Field(default=None, min_length=8, max_length=180)
 
 
 class AppointmentRescheduleRequest(BaseModel):
     scheduled_for: str
+    client_request_id: str | None = Field(default=None, min_length=8, max_length=180)
 
 
 class AppointmentStatusRequest(BaseModel):

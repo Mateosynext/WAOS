@@ -13,7 +13,8 @@ from ...providers.stripe import stripe_provider
 from ...repositories import create_audit_log, get_bot, get_whatsapp_number_for_bot
 from ...security import ensure_bot_access, ensure_org_access
 from ...utils import from_json, new_id, to_json, utcnow_iso
-from ...whatsapp import resolve_whatsapp_app_secret
+from ...whatsapp import resolve_whatsapp_app_secret, resolve_whatsapp_access_token
+from ...whatsapp_connection_state import clean_provider_id, decorate_whatsapp_number, require_real_provider_ids, update_whatsapp_metadata
 from ...integrations_runtime import build_google_oauth_url, exchange_google_oauth_code, get_google_calendar_availability, list_google_calendars, sync_google_calendar, test_google_calendar_connection
 from ..support import org_filter_sql, require_permission
 from ..uow import UnitOfWork
@@ -37,13 +38,42 @@ def upsert_integration(self, uow: UnitOfWork, *, payload, user: dict) -> dict:
 
 def configure_whatsapp(self, uow: UnitOfWork, *, payload, user: dict) -> dict:
     self._ensure_integration_access(uow, organization_id=payload.organization_id, bot_id=payload.bot_id, user=user)
+    try:
+        require_real_provider_ids(phone_number_id=payload.phone_number_id, waba_id=payload.waba_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"code": "whatsapp_provider_ids_must_be_real", "message": str(exc)}) from exc
+    requested_phone_number_id = clean_provider_id(payload.phone_number_id)
+    requested_waba_id = clean_provider_id(payload.waba_id)
+    scope = "bot" if payload.bot_id else "tenant"
+    if payload.access_token:
+        store_secret(uow.conn, organization_id=payload.organization_id, bot_id=payload.bot_id, scope=scope, key_name="META_ACCESS_TOKEN", secret_value=payload.access_token)
+    if payload.app_secret:
+        store_secret(uow.conn, organization_id=payload.organization_id, bot_id=payload.bot_id, scope=scope, key_name="META_APP_SECRET", secret_value=payload.app_secret)
+    access_token_present = bool(payload.access_token or resolve_whatsapp_access_token(uow.conn, organization_id=payload.organization_id, bot_id=payload.bot_id))
+    existing = fetch_one(uow.conn, "SELECT * FROM whatsapp_numbers WHERE bot_id = ?", (payload.bot_id,)) if payload.bot_id else None
+    phone_number_id = requested_phone_number_id or clean_provider_id((existing or {}).get("phone_number_id"))
+    waba_id = requested_waba_id or clean_provider_id((existing or {}).get("waba_id"))
+    phone_number = payload.phone_number or (existing or {}).get("phone_number") or ""
+    existing_metadata = from_json((existing or {}).get("metadata_json"), {}) if existing else {}
+    webhook_verified = bool(existing_metadata.get("webhook_verified_at") or (existing_metadata.get("connection_steps") or {}).get("webhook_verified"))
+    connection_status, metadata_json = update_whatsapp_metadata(
+        existing_metadata,
+        phone_number=phone_number,
+        phone_number_id=phone_number_id,
+        waba_id=waba_id,
+        access_token_present=access_token_present,
+        webhook_verified=webhook_verified,
+        source="manual_whatsapp_config",
+    )
     config = {
-        "phone_number": payload.phone_number,
-        "phone_number_id": payload.phone_number_id,
-        "waba_id": payload.waba_id,
+        "phone_number": phone_number,
+        "phone_number_id": phone_number_id,
+        "waba_id": waba_id,
         "webhook_verify_token": payload.webhook_verify_token or settings.meta_verify_token,
+        "connection_status": connection_status,
+        "connection_steps": from_json(metadata_json, {}).get("connection_steps", {}),
     }
-    final_status = "active" if payload.access_token and payload.phone_number_id else payload.status
+    final_status = "active" if connection_status == "send_ready" else payload.status
     integration = upsert_integration(
         uow.conn,
         organization_id=payload.organization_id,
@@ -54,25 +84,19 @@ def configure_whatsapp(self, uow: UnitOfWork, *, payload, user: dict) -> dict:
         status=final_status,
         config=config,
     )
-    scope = "bot" if payload.bot_id else "tenant"
-    if payload.access_token:
-        store_secret(uow.conn, organization_id=payload.organization_id, bot_id=payload.bot_id, scope=scope, key_name="META_ACCESS_TOKEN", secret_value=payload.access_token)
-    if payload.app_secret:
-        store_secret(uow.conn, organization_id=payload.organization_id, bot_id=payload.bot_id, scope=scope, key_name="META_APP_SECRET", secret_value=payload.app_secret)
     if payload.bot_id:
-        existing = fetch_one(uow.conn, "SELECT * FROM whatsapp_numbers WHERE bot_id = ?", (payload.bot_id,))
         now = utcnow_iso()
         if existing:
             execute(
                 uow.conn,
-                "UPDATE whatsapp_numbers SET phone_number = ?, phone_number_id = ?, waba_id = ?, connection_status = ?, webhook_verify_token = ?, access_token_masked = ?, updated_at = ? WHERE id = ?",
-                (payload.phone_number, payload.phone_number_id, payload.waba_id, "connected" if payload.access_token and payload.phone_number_id else "configured", payload.webhook_verify_token or settings.meta_verify_token, "***redacted" if payload.access_token else existing.get("access_token_masked"), now, existing["id"]),
+                "UPDATE whatsapp_numbers SET phone_number = ?, phone_number_id = ?, waba_id = ?, connection_status = ?, webhook_verify_token = ?, access_token_masked = ?, metadata_json = ?, updated_at = ? WHERE id = ?",
+                (phone_number, phone_number_id, waba_id, connection_status, payload.webhook_verify_token or settings.meta_verify_token, "***redacted" if payload.access_token else existing.get("access_token_masked"), metadata_json, now, existing["id"]),
             )
         else:
             execute(
                 uow.conn,
-                "INSERT INTO whatsapp_numbers (id, organization_id, bot_id, provider, phone_number, phone_number_id, waba_id, connection_status, webhook_verify_token, access_token_masked, metadata_json, created_at, updated_at) VALUES (?, ?, ?, 'meta_cloud_api', ?, ?, ?, ?, ?, ?, '{}', ?, ?)",
-                (new_id("wan"), payload.organization_id, payload.bot_id, payload.phone_number, payload.phone_number_id or f"PHONE-{payload.bot_id[-8:]}", payload.waba_id, "connected" if payload.access_token and payload.phone_number_id else "configured", payload.webhook_verify_token or settings.meta_verify_token, "***redacted" if payload.access_token else None, now, now),
+                "INSERT INTO whatsapp_numbers (id, organization_id, bot_id, provider, phone_number, phone_number_id, waba_id, connection_status, webhook_verify_token, access_token_masked, metadata_json, created_at, updated_at) VALUES (?, ?, ?, 'meta_cloud_api', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (new_id("wan"), payload.organization_id, payload.bot_id, phone_number, phone_number_id, waba_id, connection_status, payload.webhook_verify_token or settings.meta_verify_token, "***redacted" if payload.access_token else None, metadata_json, now, now),
             )
     create_audit_log(
         uow.conn,
@@ -82,7 +106,7 @@ def configure_whatsapp(self, uow: UnitOfWork, *, payload, user: dict) -> dict:
         entity_type="integration",
         entity_id=integration["id"],
         action="integration.whatsapp.configured",
-        metadata={"bot_id": payload.bot_id, "phone_number_id": payload.phone_number_id, "waba_id": payload.waba_id},
+        metadata={"bot_id": payload.bot_id, "phone_number_id": phone_number_id, "waba_id": waba_id, "connection_status": connection_status},
     )
     uow.commit()
     row = fetch_one(uow.conn, "SELECT * FROM integration_connections WHERE id = ?", (integration["id"],))
@@ -229,15 +253,19 @@ def test_integration(self, uow: UnitOfWork, *, integration_id: str, user: dict) 
         elif row["provider"] == "meta_cloud_api":
             token = resolve_secret(uow.conn, organization_id=row["organization_id"], bot_id=row.get("bot_id"), key_name="META_ACCESS_TOKEN")
             number = get_whatsapp_number_for_bot(uow.conn, row.get("bot_id")) if row.get("bot_id") else None
+            rendered_number = decorate_whatsapp_number(number, access_token_present=bool(token)) if number else None
             result = {
                 "has_access_token": bool(token),
                 "phone_number_id": number.get("phone_number_id") if number else None,
                 "webhook_app_secret_configured": bool(resolve_whatsapp_app_secret(uow.conn, organization_id=row["organization_id"], bot_id=row.get("bot_id"))),
                 "waba_id": number.get("waba_id") if number else None,
+                "connection_status": (rendered_number or {}).get("connection_status"),
+                "connection_steps": (rendered_number or {}).get("connection_steps") or {},
+                "send_ready": bool((rendered_number or {}).get("send_ready")),
             }
-            health_status = "healthy" if token and number and number.get("phone_number_id") else "degraded"
-            credential_status = "connected" if token else "missing_credentials"
-            last_error = None if token else "missing_whatsapp_access_token"
+            health_status = "healthy" if result["send_ready"] else "degraded"
+            credential_status = (result.get("connection_status") or "configured") if token else "missing_credentials"
+            last_error = None if result["send_ready"] else "whatsapp_pending_send_ready"
         elif row["provider"] == "meta_embedded_signup":
             result = {
                 "has_app_id": bool(config.get("app_id")),
@@ -328,7 +356,7 @@ def trigger_integration_sync(self, uow: UnitOfWork, *, integration_id: str, user
         finished = finish_integration_sync_run(uow.conn, sync_id=sync_run["id"], status="completed", summary=summary)
         execute(
             uow.conn,
-            "UPDATE integration_connections SET health_status = 'healthy', credential_status = CASE WHEN provider = 'stripe' THEN credential_status ELSE 'connected' END, last_error = NULL, last_sync_at = ?, last_success_at = ?, retry_count = 0, next_sync_at = CASE WHEN auto_sync_enabled = 1 THEN ? ELSE next_sync_at END, updated_at = ? WHERE id = ?",
+            "UPDATE integration_connections SET health_status = 'healthy', last_sync_status = 'completed', last_error = NULL, last_sync_at = ?, last_success_at = ?, retry_count = 0, next_sync_at = CASE WHEN auto_sync_enabled = 1 THEN ? ELSE next_sync_at END, updated_at = ? WHERE id = ?",
             (utcnow_iso(), utcnow_iso(), utcnow_iso(), utcnow_iso(), integration_id),
         )
         create_audit_log(uow.conn, organization_id=integration["organization_id"], actor_user_id=user["id"], actor_type="user", entity_type="integration", entity_id=integration_id, action="integration.synced", metadata=summary)
@@ -338,7 +366,7 @@ def trigger_integration_sync(self, uow: UnitOfWork, *, integration_id: str, user
         raise
     except Exception as exc:
         finished = finish_integration_sync_run(uow.conn, sync_id=sync_run["id"], status="failed", summary={}, error={"error": str(exc)})
-        execute(uow.conn, "UPDATE integration_connections SET health_status = 'degraded', last_error = ?, retry_count = COALESCE(retry_count, 0) + 1, updated_at = ? WHERE id = ?", (str(exc), utcnow_iso(), integration_id))
+        execute(uow.conn, "UPDATE integration_connections SET health_status = 'degraded', last_sync_status = 'failed', last_provider_error = ?, last_error = ?, retry_count = COALESCE(retry_count, 0) + 1, updated_at = ? WHERE id = ?", (str(exc), str(exc), utcnow_iso(), integration_id))
         uow.commit()
         return {**finished, "summary": from_json(finished.get("summary_json"), {}), "error": from_json(finished.get("error_json"), {})}
 

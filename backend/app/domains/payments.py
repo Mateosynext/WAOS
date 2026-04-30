@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from collections import Counter
+import hashlib
 from typing import Any
 
 from ..config import settings
 from ..db import execute, fetch_all, fetch_one
 from ..repositories import create_audit_log, create_message, get_bot, get_contact, get_contact_memory, get_conversation, upsert_memory
 from ..utils import add_minutes, new_id, parse_iso, to_json, from_json, utcnow_iso
+from ..operational_events import record_operational_event
 
 BUY_KEYWORDS = [
     "quiero", "me interesa", "cotizacion", "cotización", "precio", "agendar", "comprar", "pagar", "hoy", "listo",
@@ -133,8 +135,28 @@ def create_payment_request(
     send_receipt_on_confirm: bool = True,
     actor_user: dict | None = None,
     metadata: dict[str, Any] | None = None,
+    preview_execution_id: str | None = None,
+    confirmation_token: str | None = None,
+    idempotency_key: str | None = None,
+    client_request_id: str | None = None,
 ) -> dict:
-    metadata = metadata or {}
+    metadata = dict(metadata or {})
+    preview_execution_id = preview_execution_id or metadata.get("preview_execution_id")
+    idempotency_key = idempotency_key or metadata.get("tool_execution_idempotency_key") or metadata.get("idempotency_key")
+    client_request_id = client_request_id or metadata.get("client_request_id")
+    confirmation_token_hash = hashlib.sha256(str(confirmation_token or metadata.get("confirmation_token") or "").encode("utf-8")).hexdigest() if (confirmation_token or metadata.get("confirmation_token")) else metadata.get("confirmation_token_hash")
+    if not preview_execution_id:
+        raise ValueError("payment_requires_preview_execution_id")
+    if not confirmation_token_hash:
+        raise ValueError("payment_requires_confirmation_token")
+    if not idempotency_key:
+        raise ValueError("payment_requires_idempotency_key")
+    metadata.update({
+        "preview_execution_id": preview_execution_id,
+        "tool_execution_idempotency_key": idempotency_key,
+        "client_request_id": client_request_id,
+        "confirmation_token_hash": confirmation_token_hash,
+    })
     lead = _ensure_crm_lead(conn, organization_id=organization_id, bot_id=bot_id, contact_id=contact_id, conversation_id=conversation_id, defaults={"stage": "propuesta"})
     payment_id = new_id("pay")
     now = utcnow_iso()
@@ -148,8 +170,9 @@ def create_payment_request(
             cart_recovery_status, send_receipt_on_confirm, metadata_json, created_at, updated_at,
             provider, integration_id, provider_reference, external_payment_id, provider_status, provider_status_code, provider_response_json,
             checkout_expires_at, paid_at, appointment_id, reconciliation_status, reconciled_at, next_reconciliation_at,
-            reconciliation_attempts, last_reconciliation_error, locked_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            reconciliation_attempts, last_reconciliation_error, locked_at,
+            tool_execution_idempotency_key, client_request_id, preview_execution_id, confirmation_token_hash, operational_status, correlation_id, provider_request_id, provider_response_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             payment_id,
@@ -188,6 +211,14 @@ def create_payment_request(
             0,
             None,
             None,
+            idempotency_key,
+            client_request_id,
+            preview_execution_id,
+            confirmation_token_hash,
+            'provider_pending',
+            metadata.get('correlation_id') or metadata.get('trace_id') or payment_id,
+            idempotency_key,
+            None,
         ),
     )
     execute(
@@ -222,8 +253,40 @@ def create_payment_request(
     from ..payments_runtime import create_provider_checkout
 
     payment = fetch_one(conn, "SELECT * FROM commerce_payments WHERE id = ?", (payment_id,))
+    record_operational_event(
+        conn,
+        organization_id=organization_id,
+        bot_id=bot_id,
+        conversation_id=conversation_id,
+        correlation_id=metadata.get("correlation_id") or metadata.get("trace_id") or payment_id,
+        payment_id=payment_id,
+        tool_execution_id=preview_execution_id,
+        provider=metadata.get("provider") or "stripe",
+        provider_request_id=idempotency_key,
+        state="provider_pending",
+        event_type="payment.provider_request_created",
+        source="payments.create_payment_request",
+        request={"amount": amount, "currency": currency, "title": title},
+    )
     provider_result = create_provider_checkout(conn, payment)
     payment = provider_result.get("payment") or payment
+    if payment.get("external_payment_id") or payment.get("payment_link_url"):
+        record_operational_event(
+            conn,
+            organization_id=organization_id,
+            bot_id=bot_id,
+            conversation_id=conversation_id,
+            correlation_id=metadata.get("correlation_id") or metadata.get("trace_id") or payment_id,
+            payment_id=payment_id,
+            tool_execution_id=preview_execution_id,
+            provider=payment.get("provider") or metadata.get("provider") or "stripe",
+            provider_request_id=idempotency_key,
+            provider_message_id=payment.get("external_payment_id"),
+            state="provider_confirmed",
+            event_type="payment.provider_checkout_confirmed",
+            source="payments.create_payment_request",
+            response={"external_payment_id": payment.get("external_payment_id"), "payment_link_status": payment.get("payment_link_status")},
+        )
     reminder_body = f"Te comparto de nuevo tu link de pago para {title}: {payment.get('payment_link_url') or payment.get('payment_link_status') or 'revisa tu pago pendiente'}"
     execute(
         conn,
@@ -288,7 +351,21 @@ def send_payment_receipt(
             now,
         ),
     )
-    execute(conn, "UPDATE commerce_payments SET receipt_sent_at = ?, updated_at = ? WHERE id = ?", (now, now, payment_id))
+    execute(conn, "UPDATE commerce_payments SET receipt_sent_at = ?, updated_at = ?, operational_status = 'provider_pending' WHERE id = ?", (now, now, payment_id))
+    record_operational_event(
+        conn,
+        organization_id=payment["organization_id"],
+        bot_id=payment.get("bot_id"),
+        conversation_id=payment.get("conversation_id"),
+        correlation_id=payment.get("correlation_id") or payment_id,
+        message_id=message.get("id"),
+        payment_id=payment_id,
+        provider="whatsapp",
+        state="provider_pending",
+        event_type="payment.receipt_queued",
+        source="payments.send_payment_receipt",
+        request={"message_id": message.get("id")},
+    )
     updated = fetch_one(conn, "SELECT * FROM commerce_payments WHERE id = ?", (payment_id,)) or payment
     if actor_user:
         create_audit_log(conn, organization_id=payment["organization_id"], actor_user_id=actor_user.get("id"), actor_type="user", entity_type="commerce_payment", entity_id=payment_id, action="commerce.payment_receipt_sent", metadata={"message_id": message["id"]})

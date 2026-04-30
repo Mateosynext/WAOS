@@ -1,13 +1,12 @@
-from pathlib import Path
+from __future__ import annotations
+
 import json
 import sys
+from pathlib import Path
 
-root = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(root))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from app.main import app
 
-from backend.app.main import app  # noqa: E402
-
-output = root / "docs" / "openapi.json"
-output.parent.mkdir(parents=True, exist_ok=True)
-output.write_text(json.dumps(app.openapi(), indent=2, ensure_ascii=False), encoding="utf-8")
-print(f"Wrote {output}")
+out = Path(__file__).resolve().parents[1] / "openapi.json"
+out.write_text(json.dumps(app.openapi(), indent=2, sort_keys=True))
+print(f"exported {out}")

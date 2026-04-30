@@ -1,25 +1,43 @@
 import Link from "next/link";
-import { ContextTip, EmptyActionState } from "@/app/components/feedback";
+import { ContextTip, EmptyActionState, OperationalDegradedBanner, hasOperationalFailures } from "@/app/components/feedback";
 import { Shell } from "@/app/components/layout/shell";
 import { ModuleCard, Section, StatCard } from "@/app/components/primitives/cards";
 import { DataTable, TimelineList } from "@/app/components/primitives/data-display";
 import { Badge } from "@/app/components/primitives/shared";
 import { formatDateTime, formatNumber, humanizeToken, safeText } from "../lib/ui";
-import { getObservability, getQueue } from "@/app/lib/data/analytics";
-import { getHealth, getIntegrations, getSystemStatus } from "@/app/lib/data/integrations";
+import { getObservabilityState, getQueueState } from "@/app/lib/data/analytics";
+import { getHealthState, getIntegrationsState, getSystemStatusState } from "@/app/lib/data/integrations";
 
 function asArray(value: unknown): Array<Record<string, unknown>> {
   return Array.isArray(value) ? value.filter((item) => item && typeof item === "object") as Array<Record<string, unknown>> : [];
 }
 
 export default async function StatusPage() {
-  const [health, systemStatus, observability, integrations, queue] = await Promise.all([
-    getHealth(),
-    getSystemStatus(),
-    getObservability(),
-    getIntegrations(),
-    getQueue(),
+  const [healthState, systemStatusState, observabilityState, integrationsState, queueState] = await Promise.all([
+    getHealthState(),
+    getSystemStatusState(),
+    getObservabilityState(),
+    getIntegrationsState(),
+    getQueueState(),
   ]);
+  const criticalStates = [healthState, systemStatusState, observabilityState, integrationsState, queueState];
+  if (hasOperationalFailures(criticalStates)) {
+    return (
+      <Shell
+        title="Estado interno"
+        subtitle="Salud del sistema, señal operativa y checks de salida en una sola vista."
+        action={<Link href="/operations?view=observability" className="secondary-btn">Abrir operaciones</Link>}
+      >
+        <OperationalDegradedBanner states={criticalStates} block title="Estado interno bloqueado por backend degradado" description="No se muestran checks, KPIs ni tablas de salud con fallbacks vacíos. Corrige los endpoints fallidos o revisa observabilidad antes de usar esta pantalla para decidir un incidente." />
+      </Shell>
+    );
+  }
+
+  const health = healthState.data;
+  const systemStatus = systemStatusState.data;
+  const observability = observabilityState.data;
+  const integrations = integrationsState.data;
+  const queue = queueState.data;
 
   const checks = asArray((systemStatus as Record<string, unknown>).checks);
   const launchChecks = asArray((systemStatus as Record<string, unknown>).launch_checks);

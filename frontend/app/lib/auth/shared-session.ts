@@ -3,6 +3,22 @@ import { normalizeSessionUser, type SessionUser } from "../contracts/auth";
 export const AUTH_ME_PATH = "/api/v1/auth/me";
 export const AUTH_REFRESH_PATH = "/api/v1/auth/refresh";
 
+export class SessionFetchError extends Error {
+  status: number | null;
+  code: string;
+  constructor(message: string, options: { status?: number | null; code?: string } = {}) {
+    super(message);
+    this.name = "SessionFetchError";
+    this.status = options.status ?? null;
+    this.code = options.code || "session_fetch_failed";
+  }
+}
+
+function logSessionFetchFailure(error: unknown) {
+  // eslint-disable-next-line no-console
+  console.error("[session] failed to resolve /auth/me", error);
+}
+
 export function buildSessionUserHeaders(accessToken: string, selectedOrganizationId: string | null = null) {
   const headers = new Headers({ Authorization: `Bearer ${accessToken}` });
   if (selectedOrganizationId) {
@@ -31,9 +47,14 @@ export async function fetchSessionUserFromApi(apiBase: string | null, accessToke
       headers: buildSessionUserHeaders(accessToken, selectedOrganizationId),
       cache: "no-store",
     });
-    if (!response.ok) return null;
+    if (response.status === 401 || response.status === 403) return null;
+    if (!response.ok) {
+      throw new SessionFetchError(`auth_me_failed:${response.status}`, { status: response.status, code: "auth_me_failed" });
+    }
     return normalizeSessionUser(await response.json());
-  } catch {
-    return null;
+  } catch (error) {
+    logSessionFetchFailure(error);
+    if (error instanceof SessionFetchError) throw error;
+    throw new SessionFetchError(error instanceof Error ? error.message : "auth_me_network_error", { code: "auth_me_network_error" });
   }
 }

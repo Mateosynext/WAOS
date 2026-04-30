@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ContextTip, PermissionGate } from "@/app/components/feedback";
+import { ContextTip, PermissionGate, OperationalDegradedBanner, hasOperationalFailures } from "@/app/components/feedback";
 import { Shell } from "@/app/components/layout/shell";
 import { Section, StatCard } from "@/app/components/primitives/cards";
 import { DataTable } from "@/app/components/primitives/data-display";
@@ -7,10 +7,10 @@ import { Badge } from "@/app/components/primitives/shared";
 import { canUseSupportMode, canViewObservability, roleLabel } from "../lib/permissions";
 import { requireSession } from "../lib/session";
 import { formatNumber, safeText } from "../lib/ui";
-import { getObservability, getQueue } from "@/app/lib/data/analytics";
-import { getBots } from "@/app/lib/data/bots";
-import { getConversations } from "@/app/lib/data/inbox";
-import { getDeadLetters, getIntegrations, getIntegrationSyncRuns, getRuntimeCallbacks } from "@/app/lib/data/integrations";
+import { getObservabilityState, getQueueState } from "@/app/lib/data/analytics";
+import { getBotsState } from "@/app/lib/data/bots";
+import { getConversationsState } from "@/app/lib/data/inbox";
+import { getDeadLettersState, getIntegrationsState, getIntegrationSyncRunsState, getRuntimeCallbacksState } from "@/app/lib/data/integrations";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }
@@ -21,16 +21,33 @@ export default async function OperationsPage({ searchParams }: { searchParams?: 
   const session = await requireSession();
   const role = session?.user.global_role;
 
-  const [deadLetters, callbacks, syncRuns, bots, conversations, integrations, observability, queue] = await Promise.all([
-    getDeadLetters(),
-    getRuntimeCallbacks(),
-    getIntegrationSyncRuns(),
-    getBots(),
-    getConversations(),
-    getIntegrations(),
-    getObservability(),
-    getQueue(),
+  const [deadLettersState, callbacksState, syncRunsState, botsState, conversationsState, integrationsState, observabilityState, queueState] = await Promise.all([
+    getDeadLettersState(),
+    getRuntimeCallbacksState(),
+    getIntegrationSyncRunsState(),
+    getBotsState(),
+    getConversationsState(),
+    getIntegrationsState(),
+    getObservabilityState(),
+    getQueueState(),
   ]);
+  const criticalStates = [deadLettersState, callbacksState, syncRunsState, botsState, conversationsState, integrationsState, observabilityState, queueState];
+  if (hasOperationalFailures(criticalStates)) {
+    return (
+      <Shell title="Operaciones" subtitle="Estado, soporte y operación técnica viven en una sola capa." action={<Link href="/status" className="secondary-btn">Ver estado</Link>}>
+        <OperationalDegradedBanner states={criticalStates} block title="Operaciones bloqueado por backend degradado" description="No se muestran bots pausados, takeovers, integraciones ni colas desde fallbacks vacíos. Los operadores deben ver la degradación explícita antes de actuar." />
+      </Shell>
+    );
+  }
+
+  const deadLetters = deadLettersState.data;
+  const callbacks = callbacksState.data;
+  const syncRuns = syncRunsState.data;
+  const bots = botsState.data;
+  const conversations = conversationsState.data;
+  const integrations = integrationsState.data;
+  const observability = observabilityState.data;
+  const queue = queueState.data;
 
   const pausedBots = bots.filter((item) => String(item.status || "").toLowerCase() === "paused" || Number(item.ai_paused || 0) === 1);
   const humanCases = conversations.filter((item) => String(item.status || "").toLowerCase() === "human_takeover");

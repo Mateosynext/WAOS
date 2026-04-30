@@ -33,8 +33,10 @@ GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3"
 
 
 def _fake_providers_enabled() -> bool:
-    import os
-    return str(os.getenv("WAOS_E2E_FAKE_PROVIDERS", "")).strip().lower() in {"1", "true", "yes", "on"}
+    from .config import settings
+    if settings.is_production and settings.waos_e2e_fake_providers:
+        raise RuntimeError("WAOS_E2E_FAKE_PROVIDERS cannot be enabled in production")
+    return bool(settings.waos_e2e_fake_providers)
 DEFAULT_GOOGLE_SCOPES = [
     "openid",
     "email",
@@ -63,8 +65,29 @@ def _google_refresh_token(conn, integration: dict[str, Any]) -> str | None:
     return resolve_secret(conn, organization_id=integration["organization_id"], bot_id=integration.get("bot_id"), key_name="GOOGLE_REFRESH_TOKEN")
 
 
-def _update_integration_config(conn, integration_id: str, config: dict[str, Any], *, health_status: str | None = None, credential_status: str | None = None, last_error: str | None = None) -> dict[str, Any]:
-    return repo_update_integration_config(conn, integration_id, config, health_status=health_status, credential_status=credential_status, last_error=last_error)
+def _update_integration_config(
+    conn,
+    integration_id: str,
+    config: dict[str, Any],
+    *,
+    health_status: str | None = None,
+    credential_status: str | None = None,
+    last_error: str | None = None,
+    last_sync_status: str | None = None,
+    provider_verified_at: str | None = None,
+    last_provider_error: str | None = None,
+) -> dict[str, Any]:
+    return repo_update_integration_config(
+        conn,
+        integration_id,
+        config,
+        health_status=health_status,
+        credential_status=credential_status,
+        last_error=last_error,
+        last_sync_status=last_sync_status,
+        provider_verified_at=provider_verified_at,
+        last_provider_error=last_provider_error,
+    )
 
 
 def build_google_oauth_url(conn, integration: dict[str, Any]) -> dict[str, Any]:
@@ -142,14 +165,14 @@ def exchange_google_oauth_code(conn, *, state: str, code: str) -> dict[str, Any]
     config["token_expires_at"] = add_minutes(utcnow_iso(), max(1, expires_in // 60))
     config["oauth_connected_at"] = utcnow_iso()
     repo_mark_oauth_state_consumed(conn, oauth_state["id"], consumed_at=utcnow_iso())
-    updated = _update_integration_config(conn, integration["id"], config, health_status="healthy", credential_status="connected", last_error=None)
+    updated = _update_integration_config(conn, integration["id"], config, health_status="healthy", credential_status="authorized", last_error=None)
     if int((updated or {}).get("auto_sync_enabled") or 0) == 1:
         updated = repo_schedule_integration_sync_now(conn, integration["id"], timestamp=utcnow_iso())
     try:
         listing = list_google_calendars(conn, updated)
         if listing and not config.get("calendar_id"):
             config["calendar_id"] = listing[0].get("id")
-            updated = _update_integration_config(conn, integration["id"], config, health_status="healthy", credential_status="connected", last_error=None)
+            updated = _update_integration_config(conn, integration["id"], config, health_status="healthy", credential_status="authorized", last_error=None)
     except Exception:
         pass
     return {"integration": updated, "config": config, "token_response": {"expires_in": expires_in, "scope": data.get("scope")}}
@@ -181,7 +204,7 @@ def _refresh_google_access_token(conn, integration: dict[str, Any]) -> str:
 
     store_secret(conn, organization_id=integration["organization_id"], bot_id=integration.get("bot_id"), scope="bot" if integration.get("bot_id") else "tenant", key_name="GOOGLE_ACCESS_TOKEN", secret_value=access_token)
     config["token_expires_at"] = add_minutes(utcnow_iso(), max(1, expires_in // 60))
-    _update_integration_config(conn, integration["id"], config, health_status="healthy", credential_status="connected", last_error=None)
+    _update_integration_config(conn, integration["id"], config, health_status="healthy", credential_status="authorized", last_error=None)
     return access_token
 
 
@@ -237,6 +260,7 @@ def _google_request(conn, integration: dict[str, Any], method: str, path: str, *
             integration["id"],
             health_status="degraded",
             last_error=str(data),
+            last_provider_error=str(data),
             last_provider_event_at=utcnow_iso(),
             last_provider_status_code=response.status_code,
         )
@@ -246,6 +270,8 @@ def _google_request(conn, integration: dict[str, Any], method: str, path: str, *
         integration["id"],
         health_status="healthy",
         credential_status="connected",
+        provider_verified_at=utcnow_iso(),
+        last_provider_error=None,
         last_provider_event_at=utcnow_iso(),
         last_provider_status_code=response.status_code,
     )
@@ -343,7 +369,7 @@ def sync_google_calendar(conn, integration: dict[str, Any]) -> dict[str, Any]:
             raise
     if isinstance(data, dict) and data.get("error", {}).get("code") == 410:
         config.pop("sync_token", None)
-        _update_integration_config(conn, integration["id"], config, health_status="degraded", credential_status="connected", last_error="google_sync_token_expired")
+        _update_integration_config(conn, integration["id"], config, health_status="degraded", credential_status="authorized", last_error="google_sync_token_expired", last_sync_status="failed", last_provider_error="google_sync_token_expired")
         data = _google_request(conn, integration, "GET", f"/calendars/{_calendar_path(calendar_id)}/events", event_type="calendar.pull.reset", request_payload={"calendar_id": calendar_id}, params={"singleEvents": True, "showDeleted": True, "timeMin": utcnow_iso(), "maxResults": 100, "orderBy": "startTime"})
     for item in data.get("items") or []:
         start = (item.get("start") or {}).get("dateTime") or (item.get("start") or {}).get("date")
@@ -398,7 +424,7 @@ def sync_google_calendar(conn, integration: dict[str, Any]) -> dict[str, Any]:
     config["last_real_sync_at"] = utcnow_iso()
     if data.get('nextSyncToken'):
         config['sync_token'] = data.get('nextSyncToken')
-    _update_integration_config(conn, integration["id"], config, health_status="healthy", credential_status="connected", last_error=None)
+    _update_integration_config(conn, integration["id"], config, health_status="healthy", credential_status="connected", last_error=None, last_sync_status="completed", provider_verified_at=utcnow_iso(), last_provider_error=None)
     repo_mark_integration_sync_completed(conn, integration["id"], timestamp=utcnow_iso())
     _record_google_event(conn, integration, event_type="calendar.sync", status="ok" if not errors else "warning", summary="google calendar sync finished", response_payload={"calendar_id": calendar_id, "objects_pushed": pushed, "objects_pulled": pulled, "conflicts": conflicts, "errors": errors[:20], "sync_token_present": bool(config.get("sync_token"))})
     return {"provider": "google_calendar", "calendar_id": calendar_id, "objects_pushed": pushed, "objects_pulled": pulled, "conflicts": conflicts, "errors": errors[:20], "sync_state": "healthy" if not errors else "warning", "sync_token_present": bool(config.get("sync_token")), "last_real_sync_at": config.get("last_real_sync_at")}

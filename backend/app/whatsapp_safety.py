@@ -142,12 +142,15 @@ def evaluate_outbound_rate_limit(
     per_contact_current = 0
     if contact_id:
         since_contact = add_minutes(now_iso, -5)
+        message_id_expr = "json_extract(om.payload_json, '$.message_id')"
+        if getattr(conn, "backend", "sqlite") == "postgresql":
+            message_id_expr = "CAST(om.payload_json AS jsonb) ->> 'message_id'"
         joined = fetch_one(
             conn,
-            """
+            f"""
             SELECT COUNT(*) AS value
             FROM outbox_messages om
-            JOIN messages m ON m.id = json_extract(om.payload_json, '$.message_id')
+            JOIN messages m ON m.id = {message_id_expr}
             WHERE om.bot_id = ? AND om.channel = 'whatsapp'
               AND om.status IN ('running','sent','delivered','read')
               AND (? IS NULL OR om.id != ?)

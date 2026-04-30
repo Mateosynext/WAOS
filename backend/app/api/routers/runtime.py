@@ -1,14 +1,80 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from ...application.runtime_service import runtime_service
-from ...schemas import ApiEnvelope, DeadLetterRequeueRequest, FlexibleSchema
+from ...config import settings
+from ...schemas import ApiEnvelope, DeadLetterRequeueRequest, FlexibleSchema, FrontendTelemetryEvent
 from ..dependencies import CurrentUoW, CurrentUser
 
 router = APIRouter(tags=["runtime"])
+
+
+_FRONTEND_TELEMETRY_RATE_BUCKETS: dict[str, tuple[float, int]] = {}
+
+
+def _public_telemetry_client_key(request: Request) -> str:
+    client_host = request.client.host if request.client else "unknown"
+    origin = (request.headers.get("origin") or "no-origin").strip().lower()[:200]
+    token_hint = (request.headers.get("x-waos-frontend-telemetry-token") or request.headers.get("x-frontend-telemetry-token") or "no-token").strip()
+    token_suffix = str(abs(hash(token_hint)) % 100000) if token_hint != "no-token" else "no-token"
+    return f"frontend-telemetry:{client_host}:{origin}:{token_suffix}"
+
+
+def _consume_frontend_telemetry_rate_limit(request: Request) -> None:
+    now = time.monotonic()
+    window = max(1, int(settings.frontend_telemetry_rate_limit_window_seconds))
+    max_events = max(1, int(settings.frontend_telemetry_rate_limit_max_events))
+    key = _public_telemetry_client_key(request)
+    window_started_at, events = _FRONTEND_TELEMETRY_RATE_BUCKETS.get(key, (now, 0))
+    if now - window_started_at >= window:
+        window_started_at, events = now, 0
+    events += 1
+    _FRONTEND_TELEMETRY_RATE_BUCKETS[key] = (window_started_at, events)
+    if len(_FRONTEND_TELEMETRY_RATE_BUCKETS) > 5000:
+        stale_before = now - (window * 2)
+        for stale_key, (started_at, _) in list(_FRONTEND_TELEMETRY_RATE_BUCKETS.items())[:512]:
+            if started_at < stale_before:
+                _FRONTEND_TELEMETRY_RATE_BUCKETS.pop(stale_key, None)
+    if events > max_events:
+        raise HTTPException(status_code=429, detail="frontend_telemetry_rate_limited")
+
+
+def _enforce_frontend_telemetry_origin(request: Request) -> None:
+    origin = (request.headers.get("origin") or "").strip().rstrip("/")
+    if not origin:
+        return
+    allowed = [item.rstrip("/") for item in settings.frontend_telemetry_allowed_origins]
+    if "*" not in allowed and origin not in allowed:
+        raise HTTPException(status_code=403, detail="frontend_telemetry_origin_forbidden")
+
+
+def _enforce_frontend_telemetry_token(request: Request) -> None:
+    expected = settings.frontend_telemetry_public_token
+    provided = (request.headers.get("x-waos-frontend-telemetry-token") or request.headers.get("x-frontend-telemetry-token") or "").strip()
+    if expected:
+        if provided != expected:
+            raise HTTPException(status_code=403, detail="frontend_telemetry_token_invalid")
+        return
+    if settings.frontend_telemetry_require_token:
+        raise HTTPException(status_code=403, detail="frontend_telemetry_token_required")
+
+
+def _enforce_frontend_telemetry_controls(request: Request) -> None:
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > int(settings.frontend_telemetry_max_body_bytes):
+                raise HTTPException(status_code=413, detail="frontend_telemetry_payload_too_large")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="frontend_telemetry_invalid_content_length")
+    _enforce_frontend_telemetry_origin(request)
+    _enforce_frontend_telemetry_token(request)
+    _consume_frontend_telemetry_rate_limit(request)
+
 
 
 @router.get("/api/v1/runtime/overview", response_model=ApiEnvelope[FlexibleSchema])
@@ -42,8 +108,10 @@ def observability_overview(
 
 
 @router.post("/api/v1/observability/frontend-errors", response_model=FlexibleSchema)
-def frontend_errors(payload: dict[str, Any], request: Request) -> dict[str, Any]:
-    return runtime_service.frontend_errors(payload=payload, request=request)
+def frontend_errors(payload: FrontendTelemetryEvent, request: Request) -> dict[str, Any]:
+    _enforce_frontend_telemetry_controls(request)
+    sanitized_payload = payload.model_dump(exclude_none=True)
+    return runtime_service.frontend_errors(payload=sanitized_payload, request=request)
 
 
 @router.get("/api/v1/runtime/queue", response_model=FlexibleSchema)

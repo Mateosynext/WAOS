@@ -22,3 +22,19 @@ test("production build validates env before next build", () => {
   const pkg = JSON.parse(read("package.json"));
   assert.match(String(pkg.scripts.build), /validate-env\.mjs/);
 });
+
+test("production CSP script-src is locked down", () => {
+  const source = read("app/lib/http/cache-policy.ts");
+  assert.match(source, /const SCRIPT_SRC = "script-src 'self'"/);
+  assert.doesNotMatch(source, /script-src[^\n]*unsafe-inline/);
+  assert.doesNotMatch(source, /script-src[^\n]*unsafe-eval/);
+});
+
+test("backend dependencies are lock driven", () => {
+  const requirements = fs.readFileSync(path.join(root, "..", "backend", "requirements.txt"), "utf8");
+  const lock = fs.readFileSync(path.join(root, "..", "backend", "requirements.lock"), "utf8");
+  assert.match(requirements, /^-r requirements\.lock/m);
+  assert.doesNotMatch(lock, />=/);
+  assert.match(lock, /fastapi==/);
+  assert.match(lock, /cryptography==/);
+});

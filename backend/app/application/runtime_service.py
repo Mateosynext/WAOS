@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from fastapi import HTTPException, Request
@@ -7,7 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from ..contracts import dead_letter_row, ok
 from ..db import execute, fetch_all, fetch_one
-from ..observability import capture_message
+from ..observability import capture_message, log_event
 from ..platform import compute_observability_overview, list_runtime_callbacks, queue_overview, scheduler_overview
 from ..repositories import create_audit_log, get_bot, get_contact, get_contact_memory, get_conversation
 from ..security import ensure_bot_access, ensure_org_access
@@ -63,20 +64,47 @@ class RuntimeService:
             ensure_bot_access(user, bot)
         return compute_observability_overview(uow.conn, organization_id=organization_id, bot_id=bot_id)
 
-    def frontend_errors(self, *, payload: dict[str, Any], request: Request) -> dict[str, Any]:
-        message = str(payload.get("message") or "frontend error")
+    def frontend_errors(self, *, payload: Mapping[str, Any], request: Request) -> dict[str, Any]:
+        def clean_text(value: Any, limit: int) -> str | None:
+            if value is None:
+                return None
+            text = str(value).replace("\x00", "").strip()
+            if not text:
+                return None
+            return text[:limit]
+
+        source = clean_text(payload.get("source") or "frontend", 40) or "frontend"
+        kind = (clean_text(payload.get("kind") or "frontend_error", 40) or "frontend_error").lower()
+        request_id = getattr(request.state, "request_id", None)
+        common = {
+            "source": source,
+            "kind": kind,
+            "request_id": request_id,
+            "organization_id": getattr(request.state, "organization_id", None),
+            "bot_id": getattr(request.state, "bot_id", None),
+            "user_id": getattr(request.state, "user_id", None),
+            "path": clean_text(payload.get("path"), 300),
+            "digest": clean_text(payload.get("digest"), 128),
+            "label": clean_text(payload.get("label"), 120),
+            "frontend_ts": clean_text(payload.get("ts"), 64),
+        }
+        analytics_kinds = {"page_view", "ui_click", "form_error"}
+        if source == "frontend-analytics" or kind in analytics_kinds:
+            level = "warning" if kind == "form_error" else "info"
+            log_event("frontend_analytics", level=level, **common)
+            return {"ok": True, "request_id": request_id, "classified_as": "analytics"}
+
+        message = clean_text(payload.get("message") or payload.get("error") or "frontend error", 500) or "frontend error"
+        user_agent = clean_text(request.headers.get("x-waos-client-user-agent") or request.headers.get("user-agent"), 240)
         capture_message(
             message,
             level="error",
-            source=str(payload.get("source") or "frontend"),
-            request_id=getattr(request.state, "request_id", None),
-            organization_id=payload.get("organization_id") or getattr(request.state, "organization_id", None),
-            bot_id=payload.get("bot_id") or getattr(request.state, "bot_id", None),
-            user_id=payload.get("user_id") or getattr(request.state, "user_id", None),
-            path=payload.get("path"),
-            digest=payload.get("digest"),
+            **common,
+            component=clean_text(payload.get("component"), 120),
+            stack=clean_text(payload.get("stack"), 2000),
+            user_agent=user_agent,
         )
-        return {"ok": True, "request_id": getattr(request.state, "request_id", None)}
+        return {"ok": True, "request_id": request_id, "classified_as": "error"}
 
     def runtime_queue(self, uow: UnitOfWork, *, organization_id: str | None, user: dict) -> dict[str, Any]:
         if organization_id:

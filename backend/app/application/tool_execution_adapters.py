@@ -139,7 +139,17 @@ class StripePaymentsAdapter(BaseAdapter):
 
     def execute(self, conn, *, action: str, normalized_payload: dict[str, Any], context: dict[str, Any], actor_user: dict) -> dict[str, Any]:
         if action == "create_payment_link":
-            payment = create_payment_request(conn, actor_user=actor_user, **normalized_payload)
+            metadata = dict(normalized_payload.get("metadata") or {})
+            payment_payload = {**normalized_payload, "metadata": metadata}
+            payment = create_payment_request(
+                conn,
+                actor_user=actor_user,
+                preview_execution_id=metadata.get("preview_execution_id"),
+                confirmation_token=metadata.get("confirmation_token"),
+                idempotency_key=metadata.get("tool_execution_idempotency_key") or metadata.get("idempotency_key"),
+                client_request_id=metadata.get("client_request_id"),
+                **payment_payload,
+            )
             return {
                 "payment": payment,
                 "provider_ready": bool(payment.get("payment_link_url")),

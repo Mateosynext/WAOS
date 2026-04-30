@@ -11,6 +11,8 @@ from ..config import settings
 from ..repositories import get_bot, get_contact, get_contact_memory, get_conversation, get_whatsapp_number_for_bot, list_bot_versions
 from ..security import accessible_org_ids, create_access_token, ensure_org_access
 from ..utils import from_json
+from ..whatsapp import resolve_whatsapp_access_token
+from ..whatsapp_connection_state import decorate_whatsapp_number
 
 
 def org_filter_sql(user: dict, organization_id: str | None, column: str = "organization_id") -> tuple[str, list]:
@@ -29,10 +31,11 @@ def org_filter_sql(user: dict, organization_id: str | None, column: str = "organ
 
 def bot_payload(conn, bot: dict) -> dict:
     number = get_whatsapp_number_for_bot(conn, bot["id"])
+    access_token_present = bool(resolve_whatsapp_access_token(conn, organization_id=bot["organization_id"], bot_id=bot["id"])) if number else False
     versions = list_bot_versions(conn, bot["id"])
     payload = dict(bot)
     payload["config_draft"] = from_json(bot["config_draft_json"], {})
-    payload["whatsapp_number"] = number
+    payload["whatsapp_number"] = decorate_whatsapp_number(number, access_token_present=access_token_present)
     payload["versions"] = versions
     return payload
 

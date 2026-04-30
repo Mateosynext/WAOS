@@ -24,7 +24,10 @@ export function withActionError(redirectTo: string, error: unknown, fallback?: s
   return params.toString() ? `${pathname}?${params.toString()}` : pathname;
 }
 
-export async function postJson(path: string, body: unknown) { return apiFetch(path, { method: "POST", body: JSON.stringify(body) }); }
+export async function postJson(path: string, body: unknown, init: RequestInit = {}) {
+  const headers = new Headers(init.headers || {});
+  return apiFetch(path, { ...init, method: "POST", headers, body: JSON.stringify(body) });
+}
 export async function patchJson(path: string, body: unknown) { return apiFetch(path, { method: "PATCH", body: JSON.stringify(body) }); }
 export async function runAndRefresh<T = unknown>(pathToRevalidate: string, fn: () => Promise<T>): Promise<ActionRunResult<T>> {
   const { revalidatePath } = await import("next/cache");

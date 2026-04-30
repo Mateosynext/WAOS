@@ -28,6 +28,14 @@ export class ApiRequestError extends Error {
 
 export type ApiResult<T> = { ok: true; data: T; error: null } | { ok: false; data: null; error: ApiRequestError };
 export type ApiRequestInit = RequestInit & { timeoutMs?: number | null };
+export type ApiFallbackSeverity = "non_critical" | "operator_visible" | "critical";
+export type ApiFallbackInit = ApiRequestInit & {
+  fallbackReason?: string;
+  allowSilentFallback?: boolean;
+  fallbackSeverity?: ApiFallbackSeverity;
+  fallbackMetric?: string;
+  critical?: boolean;
+};
 
 function methodAllowsRetry(method: string | null | undefined) {
   return ["GET", "HEAD", "OPTIONS"].includes(String(method || "GET").toUpperCase());
@@ -175,9 +183,62 @@ export async function apiFetchResult<T>(path: string, init: ApiRequestInit = {})
   }
 }
 
-export async function apiFetchOrDefault<T>(path: string, fallback: T, init: ApiRequestInit = {}): Promise<T> {
-  const result = await apiFetchResult<T>(path, init);
-  return result.ok ? result.data : fallback;
+export async function recordApiFallback(path: string, error: ApiRequestError, options: { reason?: string; severity?: ApiFallbackSeverity; metric?: string } = {}): Promise<void> {
+  const severity = options.severity || "operator_visible";
+  const payload = {
+    source: "frontend-server-api",
+    kind: "api_fallback",
+    metric: options.metric || "frontend.api_fallback",
+    severity,
+    path,
+    reason: options.reason || "backend request failed and fallback data was considered",
+    status: error.status,
+    code: error.code,
+    retryable: error.retryable,
+    request_id: error.requestId,
+    correlation_id: error.correlationId,
+    message: error.message,
+    ts: new Date().toISOString(),
+  };
+  // eslint-disable-next-line no-console
+  console.warn("[apiFallbackTelemetry]", payload);
+  const base = getServerApiBase();
+  if (!base) return;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(new DOMException("fallback telemetry timeout", "AbortError")), 800);
+  try {
+    await fetch(`${base}/api/v1/observability/frontend-errors`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } catch {
+    // Telemetry must never turn an already degraded read into a render crash.
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function apiFetchOrDefault<T>(path: string, fallback: T, init: ApiFallbackInit = {}): Promise<T> {
+  const { fallbackReason, fallbackSeverity = "operator_visible", fallbackMetric, critical = false, allowSilentFallback: _allowSilentFallback, ...requestInit } = init;
+  const result = await apiFetchResult<T>(path, requestInit);
+  if (result.ok) return result.data;
+  const reason = fallbackReason || "legacy fallback path; operator-critical UI must use apiFetchResult/fetchArrayState/fetchRecordState and render degraded state";
+  const severity: ApiFallbackSeverity = critical ? "critical" : fallbackSeverity;
+  await recordApiFallback(path, result.error, { reason, severity, metric: fallbackMetric });
+  if (severity === "critical") {
+    throw new ApiRequestError(`Backend unavailable for critical frontend data: ${path}`, {
+      status: result.error.status,
+      code: `critical_${result.error.code}`,
+      retryable: result.error.retryable,
+      requestId: result.error.requestId,
+      correlationId: result.error.correlationId,
+      details: result.error.details,
+    });
+  }
+  return fallback;
 }
 
 export async function clientApiFetchResult<T>(path: string, init: ApiRequestInit = {}): Promise<ApiResult<T>> {

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from .common import *
 from ...application.inbound_service import inbound_service
 from ...contracts import ok
@@ -7,6 +9,8 @@ from ...errors import ForbiddenError, NotFoundError, ProviderError, ValidationAp
 from ...payments_runtime import handle_stripe_webhook
 from ...whatsapp_channel_runtime import apply_whatsapp_provider_error, apply_whatsapp_status_event, flatten_whatsapp_webhook_events, register_whatsapp_event_receipt
 from ...whatsapp_safety import apply_quality_rating_update
+from ...whatsapp import resolve_whatsapp_access_token
+from ...whatsapp_connection_state import update_whatsapp_metadata
 
 
 def simulate_inbound(payload: SimulateInboundRequest, user: dict = Depends(get_current_user)) -> dict:
@@ -29,6 +33,21 @@ def whatsapp_verify(number_id: str, hub_mode: str | None = Query(alias="hub.mode
         valid = hub_mode == "subscribe" and hub_verify_token == number["webhook_verify_token"]
         if not valid:
             raise ForbiddenError("Invalid verify token", code="webhook_verify_failed")
+        access_token = resolve_whatsapp_access_token(conn, organization_id=number["organization_id"], bot_id=number.get("bot_id"))
+        connection_status, metadata_json = update_whatsapp_metadata(
+            number.get("metadata_json"),
+            phone_number=number.get("phone_number"),
+            phone_number_id=number.get("phone_number_id"),
+            waba_id=number.get("waba_id"),
+            access_token_present=bool(access_token),
+            webhook_verified=True,
+            source="webhook_verify",
+        )
+        execute(
+            conn,
+            "UPDATE whatsapp_numbers SET connection_status = ?, metadata_json = ?, updated_at = ? WHERE id = ?",
+            (connection_status, metadata_json, utcnow_iso(), number["id"]),
+        )
         return HTMLResponse(content=hub_challenge or "", status_code=200)
 
 
@@ -57,8 +76,27 @@ async def whatsapp_webhook(number_id: str, request: Request) -> dict:
             bot_id=number.get("bot_id"),
         )
         signature = request.headers.get("x-hub-signature-256")
-        if app_secret and signature and not verify_hub_signature(app_secret, payload, signature):
+        if settings.require_signed_webhooks and not app_secret:
+            raise ForbiddenError("Webhook app secret is not configured", code="webhook_secret_missing")
+        if app_secret and not signature:
+            raise ForbiddenError("Missing signature", code="webhook_signature_missing")
+        if app_secret and not verify_hub_signature(app_secret, payload, signature):
             raise ForbiddenError("Invalid signature", code="webhook_signature_invalid")
+        access_token = resolve_whatsapp_access_token(conn, organization_id=number["organization_id"], bot_id=number.get("bot_id"))
+        connection_status, metadata_json = update_whatsapp_metadata(
+            number.get("metadata_json"),
+            phone_number=number.get("phone_number"),
+            phone_number_id=number.get("phone_number_id"),
+            waba_id=number.get("waba_id"),
+            access_token_present=bool(access_token),
+            webhook_verified=True,
+            source="webhook_delivery",
+        )
+        execute(
+            conn,
+            "UPDATE whatsapp_numbers SET connection_status = ?, metadata_json = ?, updated_at = ? WHERE id = ?",
+            (connection_status, metadata_json, utcnow_iso(), number["id"]),
+        )
         data = WhatsAppWebhookPayload.model_validate(await request.json())
         correlation_id = getattr(request.state, "correlation_id", None)
         inbound_processed: list[dict] = []
@@ -145,11 +183,24 @@ async def whatsapp_webhook(number_id: str, request: Request) -> dict:
 
 
 async def whatsapp_quality_webhook(number_id: str, request: Request) -> dict:
-    payload = await request.json()
+    raw_payload = await request.body()
+    payload = json.loads(raw_payload.decode("utf-8") or "{}")
     with get_connection() as conn:
         number = get_whatsapp_number_by_phone_id(conn, number_id)
         if not number:
             raise NotFoundError("Number not found")
+        app_secret = resolve_whatsapp_app_secret(
+            conn,
+            organization_id=number.get("organization_id"),
+            bot_id=number.get("bot_id"),
+        )
+        signature = request.headers.get("x-hub-signature-256")
+        if settings.require_signed_webhooks and not app_secret:
+            raise ForbiddenError("Webhook app secret is not configured", code="webhook_secret_missing")
+        if app_secret and not signature:
+            raise ForbiddenError("Missing signature", code="webhook_signature_missing")
+        if app_secret and not verify_hub_signature(app_secret, raw_payload, signature):
+            raise ForbiddenError("Invalid signature", code="webhook_signature_invalid")
         quality_rating = str(payload.get("quality_rating") or payload.get("event", {}).get("quality_rating") or payload.get("value", {}).get("quality_rating") or "").upper()
         if not quality_rating:
             raise ValidationAppError("Missing quality_rating")

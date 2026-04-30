@@ -1,19 +1,31 @@
 import Link from "next/link";
-import { ContextTip, EmptyActionState } from "@/app/components/feedback";
+import { ContextTip, EmptyActionState, OperationalDegradedBanner, hasOperationalFailures } from "@/app/components/feedback";
 import { Shell } from "@/app/components/layout/shell";
 import { SecondaryNav } from "@/app/components/navigation";
 import { Section, StatCard } from "@/app/components/primitives/cards";
 import { DataTable } from "@/app/components/primitives/data-display";
 import { formatNumber, safeText } from "../lib/ui";
-import { getQueue } from "@/app/lib/data/analytics";
-import { getDeadLetters, getRuntimeCallbacks, getScheduler } from "@/app/lib/data/integrations";
+import { getQueueState } from "@/app/lib/data/analytics";
+import { getDeadLettersState, getRuntimeCallbacksState, getSchedulerState } from "@/app/lib/data/integrations";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }
 export default async function SchedulerPage({ searchParams }: { searchParams?: Promise<SearchParams> }) {
   const params = (await searchParams) || {};
   const view = first(params.view) || "queue";
-  const [scheduler, queue, deadLetters, callbacks] = await Promise.all([getScheduler(), getQueue(), getDeadLetters(), getRuntimeCallbacks()]);
+  const [schedulerState, queueState, deadLettersState, callbacksState] = await Promise.all([getSchedulerState(), getQueueState(), getDeadLettersState(), getRuntimeCallbacksState()]);
+  const criticalStates = [schedulerState, queueState, deadLettersState, callbacksState];
+  if (hasOperationalFailures(criticalStates)) {
+    return (
+      <Shell title="Scheduler y colas" subtitle="Operación técnica con bloqueo explícito cuando el backend no responde." action={<><Link href="/status" className="secondary-btn">Estado</Link><Link href="/operations" className="primary-btn">Operacion</Link></>}>
+        <OperationalDegradedBanner states={criticalStates} block title="Scheduler bloqueado por backend degradado" description="No se muestran colas, dead letters ni callbacks desde fallbacks. Esta pantalla queda bloqueada para evitar que una cola rota parezca vacía." />
+      </Shell>
+    );
+  }
+  const scheduler = schedulerState.data;
+  const queue = queueState.data;
+  const deadLetters = deadLettersState.data;
+  const callbacks = callbacksState.data;
   const queueTotal = (queue.automation_jobs || []).reduce((acc: number, item) => acc + Number(item.count || 0), 0);
   const integrationQueueTotal = (queue.integration_sync || []).reduce((acc: number, item) => acc + Number(item.count || 0), 0);
   const deadTotal = Number((deadLetters.jobs || []).length) + Number((deadLetters.outbox || []).length);

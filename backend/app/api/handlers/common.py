@@ -507,17 +507,20 @@ def _compute_dashboard(conn, organization_id: str | None = None) -> dict:
     if organization_id:
         params = [organization_id]
 
-    def count(sql_all: str, sql_org: str) -> int:
-        row = fetch_one(conn, sql_org if organization_id else sql_all, params)
+    def count(sql_all: str, sql_org: str, extra_params: list[Any] | tuple[Any, ...] = ()) -> int:
+        query_params = [*params, *list(extra_params)] if organization_id else list(extra_params)
+        row = fetch_one(conn, sql_org if organization_id else sql_all, query_params)
         return int(row["value"]) if row else 0
 
     active_conversations = count(
         "SELECT COUNT(*) AS value FROM conversations WHERE status IN ('ai_active','human_takeover','waiting_followup')",
         "SELECT COUNT(*) AS value FROM conversations WHERE organization_id = ? AND status IN ('ai_active','human_takeover','waiting_followup')",
     )
+    new_leads_cutoff = add_minutes(utcnow_iso(), -24 * 60)
     new_leads = count(
-        "SELECT COUNT(*) AS value FROM contacts WHERE created_at >= datetime('now','-1 day')",
-        "SELECT COUNT(*) AS value FROM contacts WHERE organization_id = ? AND created_at >= datetime('now','-1 day')",
+        "SELECT COUNT(*) AS value FROM contacts WHERE created_at >= ?",
+        "SELECT COUNT(*) AS value FROM contacts WHERE organization_id = ? AND created_at >= ?",
+        [new_leads_cutoff],
     )
     hot_leads = count(
         "SELECT COUNT(*) AS value FROM contact_memory WHERE lead_score >= 80",

@@ -3,7 +3,7 @@ import { normalizeBot, normalizeBotTemplate, normalizeBuild, normalizeReleaseRea
 import type { TalentOverviewContract } from "../contracts/talent";
 import { normalizeTalentOverview } from "../contracts/talent";
 import { apiFetchOrDefault } from "../api";
-import { fetchArray, fetchRecord, orgQuery, selectedBotId, type LooseRecord } from "./shared";
+import { fetchArray, fetchArrayState, fetchRecord, orgQuery, selectedBotId, type LooseRecord, type PortalModuleState } from "./shared";
 
 export type BotValidationResponse = {
   bot_id: string;
@@ -14,9 +14,13 @@ export type BotValidationResponse = {
 export type TraceabilityResponse = TraceabilityContract;
 export type ReleaseReadinessResponse = ReleaseReadinessContract;
 
-export async function getBots(): Promise<BotContract[]> {
+export async function getBotsState(): Promise<PortalModuleState<BotContract[]>> {
   const query = await orgQuery();
-  return fetchArray(`/api/v1/bots?${query}`, [], normalizeBot);
+  return fetchArrayState(`/api/v1/bots?${query}`, [], normalizeBot);
+}
+
+export async function getBots(): Promise<BotContract[]> {
+  return (await getBotsState()).data;
 }
 
 export async function getBot(botId: string): Promise<BotContract> {

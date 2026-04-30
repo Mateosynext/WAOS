@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import type { SessionUser } from "./contracts/auth";
 import { getServerApiBase } from "./env";
 import { requestSessionRefresh } from "./auth/refresh";
-import { fetchSessionUserFromApi, resolveSessionOrganizationId } from "./auth/shared-session";
+import { SessionFetchError, fetchSessionUserFromApi, resolveSessionOrganizationId } from "./auth/shared-session";
 import { ACCESS_COOKIE, BOT_COOKIE, ORG_COOKIE, REFRESH_COOKIE, accessCookieOptions, refreshCookieOptions, sessionCookieOptions, sessionScopeCookieOptions } from "./auth/cookies";
 
 const API_BASE = getServerApiBase();
@@ -116,10 +116,20 @@ export async function getSession(): Promise<{ user: SessionUser; organizationId:
     const resolvedOrgId = resolveSessionOrganizationId(user, selectedOrgId);
     await keepScopeConsistent(store, resolvedOrgId, selectedOrgId);
     return { user, organizationId: resolvedOrgId };
-  } catch {
-    return null;
+  } catch (error) {
+    // Do not collapse upstream/session failures into an anonymous logged-out state.
+    // A 401/403 from /auth/me is represented by fetchSessionUserFromApi returning null;
+    // everything else is operationally visible and should fail closed.
+    // eslint-disable-next-line no-console
+    console.error("[session] getSession failed; clearing scope cookies", error);
+    await clearSessionCookies();
+    if (error instanceof SessionFetchError) {
+      throw error;
+    }
+    throw new SessionFetchError(error instanceof Error ? error.message : "get_session_failed", { code: "get_session_failed" });
   }
 }
+
 
 export async function requireSession(redirectTo = "/login") {
   const session = await getSession();

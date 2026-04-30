@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { ACCESS_COOKIE, refreshAccessToken } from "@/app/lib/session";
+import { ACCESS_COOKIE, getCurrentBotId, getCurrentOrganizationId, refreshAccessToken } from "@/app/lib/session";
 import { getServerApiBase } from "@/app/lib/env";
 
-const PROXY_TIMEOUT_MS = 60_000;
+const DEFAULT_PROXY_TIMEOUT_MS = 60_000;
+const LONG_RUNNING_PROXY_TIMEOUT_MS = 120_000;
+
+function proxyTimeoutFor(backendPath: string) {
+  return /\/(apply|prepare-apply|prepare-canary|go-live-readiness)$/.test(backendPath) ? LONG_RUNNING_PROXY_TIMEOUT_MS : DEFAULT_PROXY_TIMEOUT_MS;
+}
 
 export async function getBearerToken() {
   const store = await cookies();
@@ -33,6 +38,22 @@ function upstreamErrorPayload(status: number, backendPath: string, text: string)
   return { detail: { code, message, upstream_status: status, backend_path: backendPath } };
 }
 
+async function buildTenantProxyHeaders(request: Request, contentType: string, token: string) {
+  const requestId = request.headers.get("x-request-id") || `web-ai-${crypto.randomUUID()}`;
+  const correlationId = request.headers.get("x-correlation-id") || requestId;
+  const [organizationId, botId] = await Promise.all([getCurrentOrganizationId(), getCurrentBotId()]);
+  return {
+    "Content-Type": contentType,
+    "Accept": request.headers.get("accept") || "application/json",
+    "X-WAOS-Frontend-Proxy": "ai-workflows",
+    "X-Request-Id": requestId,
+    "X-Correlation-Id": correlationId,
+    ...(organizationId ? { "X-WAOS-Org-Id": organizationId, "X-Organization-Id": organizationId } : {}),
+    ...(botId ? { "X-WAOS-Bot-Id": botId, "X-Bot-Id": botId } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 export async function proxyJson(request: Request, backendPath: string, method = request.method) {
   const base = getServerApiBase();
   if (!base) return NextResponse.json({ detail: { message: "Backend API base missing", code: "missing_api_base" } }, { status: 500 });
@@ -41,18 +62,14 @@ export async function proxyJson(request: Request, backendPath: string, method = 
   const contentType = request.headers.get("content-type") || "application/json";
   const url = new URL(request.url);
   const upstreamPath = `${backendPath}${url.search || ""}`;
+  const proxyTimeoutMs = proxyTimeoutFor(backendPath);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), proxyTimeoutMs);
   try {
     const response = await fetch(`${base}${upstreamPath}`, {
       method,
       body,
-      headers: {
-        "Content-Type": contentType,
-        "Accept": request.headers.get("accept") || "application/json",
-        "X-WAOS-Frontend-Proxy": "ai-workflows",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: await buildTenantProxyHeaders(request, contentType, token),
       cache: "no-store",
       signal: controller.signal,
     });
@@ -64,11 +81,13 @@ export async function proxyJson(request: Request, backendPath: string, method = 
         "Content-Type": response.ok ? (response.headers.get("content-type") || "application/json") : "application/json",
         "Cache-Control": "no-store",
         "X-WAOS-Backend-Path": backendPath,
+        "X-Request-Id": response.headers.get("x-request-id") || response.headers.get("x-correlation-id") || "",
+        "X-Correlation-Id": response.headers.get("x-correlation-id") || response.headers.get("x-request-id") || "",
       },
     });
   } catch (error) {
     const aborted = error instanceof DOMException && error.name === "AbortError";
-    const message = aborted ? `Backend timeout despues de ${PROXY_TIMEOUT_MS / 1000}s` : error instanceof Error ? error.message : "Backend proxy failed";
+    const message = aborted ? `Backend timeout despues de ${proxyTimeoutMs / 1000}s` : error instanceof Error ? error.message : "Backend proxy failed";
     return NextResponse.json({ detail: { code: aborted ? "backend_timeout" : "backend_unreachable", message, backend_path: backendPath } }, { status: 502 });
   } finally {
     clearTimeout(timeout);

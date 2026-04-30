@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Any, Literal
 from pydantic import BaseModel, Field, ConfigDict
-WorkflowStatus = Literal["pending","running","waiting_for_provider","waiting_for_human_confirmation","waiting_for_integration","waiting_for_whatsapp_approval","paused_cost_limit","completed","completed_partial","failed","cancelled"]
+WorkflowStatus = Literal["pending","running","waiting_for_provider","waiting_for_human_confirmation","waiting_for_integration","waiting_for_whatsapp_approval","paused_cost_limit","completed","completed_partial","failed","retryable_failed","stale","cancelled"]
 StepStatus = Literal["pending","running","completed","skipped","failed","retrying","blocked","waiting_human","waiting_provider"]
 Intensity = Literal["conservative","balanced","aggressive","savage","godmode"]
 class WorkflowRunRecord(BaseModel):

@@ -1,12 +1,12 @@
 import { generateExecutiveReportAction } from "@/app/actions/reports";
-import { StatusPill } from "@/app/components/feedback";
+import { OperationalDegradedBanner, StatusPill, hasOperationalFailures } from "@/app/components/feedback";
 import { Shell } from "@/app/components/layout/shell";
 import { Section, StatCard } from "@/app/components/primitives/cards";
 import { DataTable } from "@/app/components/primitives/data-display";
 import { Badge } from "@/app/components/primitives/shared";
-import { getDirectorMode, getExecutiveReports, getWhatsappDeliveryTruth } from "@/app/lib/data/analytics";
-import { getBots } from "@/app/lib/data/bots";
-import { getConversationReviews } from "@/app/lib/data/inbox";
+import { getDirectorModeState, getExecutiveReportsState, getWhatsappDeliveryTruthState } from "@/app/lib/data/analytics";
+import { getBotsState } from "@/app/lib/data/bots";
+import { getConversationReviewsState } from "@/app/lib/data/inbox";
 import { getCurrentOrganizationId } from "../lib/session";
 import { formatDateTime, formatNumber, safeText } from "../lib/ui";
 
@@ -38,14 +38,27 @@ function asArray(value: unknown): Array<Record<string, unknown>> {
 }
 
 export default async function InsightsPage() {
-  const [director, reports, reviews, bots, organizationId, deliveryTruth] = await Promise.all([
-    getDirectorMode(),
-    getExecutiveReports(),
-    getConversationReviews(),
-    getBots(),
+  const [directorState, reportsState, reviewsState, botsState, organizationId, deliveryTruthState] = await Promise.all([
+    getDirectorModeState(),
+    getExecutiveReportsState(),
+    getConversationReviewsState(),
+    getBotsState(),
     getCurrentOrganizationId(),
-    getWhatsappDeliveryTruth(undefined, { windowHours: 24 * 7, limit: 20 }),
+    getWhatsappDeliveryTruthState(undefined, { windowHours: 24 * 7, limit: 20 }),
   ]);
+  const criticalStates = [directorState, reportsState, reviewsState, botsState, deliveryTruthState];
+  if (hasOperationalFailures(criticalStates)) {
+    return (
+      <Shell title="Resultados y salud del servicio" subtitle="Resumen ejecutivo y verdad real de delivery sobre WhatsApp.">
+        <OperationalDegradedBanner states={criticalStates} block title="Insights bloqueado por backend degradado" description="No se muestran KPIs ejecutivos, delivery truth ni reportes con datos fallback. Esta vista puede guiar decisiones comerciales y queda bloqueada si una fuente crítica falla." />
+      </Shell>
+    );
+  }
+  const director = directorState.data;
+  const reports = reportsState.data;
+  const reviews = reviewsState.data;
+  const bots = botsState.data;
+  const deliveryTruth = deliveryTruthState.data;
   const summary = director.summary || {};
   const range = defaultRange();
   const truthSummary = (deliveryTruth.summary || {}) as Record<string, unknown>;

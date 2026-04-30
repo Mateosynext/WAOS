@@ -63,6 +63,10 @@ async function loadRawProfile(entry: VerticalFallbackIndexEntry): Promise<unknow
   return JSON.parse(raw) as unknown;
 }
 
+const profileLoaders: Record<string, () => Promise<unknown>> = Object.fromEntries(
+  FALLBACK_INDEX.map((entry) => [entry.id, () => loadRawProfile(entry)]),
+);
+
 async function loadProfileById(id: string): Promise<VerticalProfileContract> {
   const cached = profileCache.get(id);
   if (cached) return cached;
@@ -70,7 +74,11 @@ async function loadProfileById(id: string): Promise<VerticalProfileContract> {
   if (!entry) {
     throw new Error(`Unknown fallback vertical profile: ${id}`);
   }
-  const normalized = normalizeVerticalProfile(await loadRawProfile(entry));
+  const loader = profileLoaders[id];
+  if (!loader) {
+    throw new Error(`Missing fallback vertical profile loader: `);
+  }
+  const normalized = normalizeVerticalProfile(await loader());
   if (!normalized.id) {
     throw new Error(`Fallback vertical profile ${id} did not normalize into a valid profile`);
   }

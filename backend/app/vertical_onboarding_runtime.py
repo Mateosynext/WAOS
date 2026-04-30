@@ -1893,16 +1893,16 @@ def _happened_after(value: Any, reference: Any) -> bool:
 
 
 def _connected_state(value: Any) -> bool:
-    return _safe_text(value).lower() in {"connected", "active", "ready", "live", "verified", "ok", "published", "synced"}
+    return _safe_text(value).lower() in {"send_ready", "connected", "active", "ready", "live", "verified", "ok", "published", "synced"}
 
 
 def _has_connected_operational_channel(bot_row: dict[str, Any] | None, bot_config: dict[str, Any]) -> bool:
     if not bot_row:
         return False
-    if _connected_state(bot_row.get("connection_status")):
+    if _safe_text(bot_row.get("connection_status")).lower() == "send_ready":
         return True
-    if _safe_text(bot_row.get("phone_number")) or _safe_text(bot_row.get("phone_number_id")):
-        return True
+    # A captured WhatsApp number or provider id alone is not an operational channel.
+    # It must reach send_ready through provider credentials + webhook verification.
     if _safe_text(bot_row.get("primary_channel")):
         return True
     channels = list(bot_config.get("channels") or [])
@@ -1976,7 +1976,7 @@ def _bot_is_live_or_ready(bot_row: dict[str, Any] | None) -> bool:
     ]
     if _safe_text(row.get("published_version_id")):
         signals.append("published")
-    return any(value in {"published", "live", "active", "ready", "operating", "released", "connected"} for value in signals if value)
+    return any(value in {"published", "live", "active", "ready", "operating", "released", "connected", "send_ready"} for value in signals if value)
 
 
 def _next_cta_for_snapshot(*, bot_id: str | None, bot_row: dict[str, Any] | None, has_connected_channel: bool, simulation_approved: bool, has_release_request: bool, has_published_release: bool) -> dict[str, Any]:

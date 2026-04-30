@@ -50,6 +50,18 @@ def _column_exists(conn, table: str, column: str) -> bool:
 
 
 def _ensure_column(conn, table: str, column: str, definition: str) -> None:
+    if not _table_exists(conn, table):
+        conn.execute(
+            f"CREATE TABLE IF NOT EXISTS {table} ("
+            "id TEXT PRIMARY KEY, "
+            "organization_id TEXT, "
+            "bot_id TEXT, "
+            "status TEXT, "
+            "metadata_json TEXT NOT NULL DEFAULT '{}', "
+            "created_at TEXT, "
+            "updated_at TEXT"
+            ")"
+        )
     if not _column_exists(conn, table, column):
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
@@ -551,7 +563,204 @@ def _migration_phase32_ai_workflow_engine(conn):
     from .ai_workflows.persistence import ensure_ai_workflow_schema
     ensure_ai_workflow_schema(conn)
 
+
+
+def _migration_phase34_automation_job_outbox_lifecycle(conn) -> None:
+    _ensure_column(conn, "automation_jobs", "outbox_message_id", "TEXT")
+    _ensure_column(conn, "automation_jobs", "scheduled_for", "TEXT")
+    conn.executescript(
+        """
+        CREATE INDEX IF NOT EXISTS idx_automation_jobs_outbox_message ON automation_jobs(outbox_message_id);
+        CREATE INDEX IF NOT EXISTS idx_automation_jobs_provider_lifecycle ON automation_jobs(status, scheduled_for, outbox_message_id);
+        """
+    )
+
+
+def _migration_phase35_bot_creation_workflow(conn) -> None:
+    _ensure_column(conn, "bots", "client_request_id", "TEXT")
+    for column, definition in [
+        ("failed_phase", "TEXT"),
+        ("vertical", "TEXT NOT NULL DEFAULT 'general'"),
+        ("subvertical", "TEXT"),
+        ("publish_now", "INTEGER NOT NULL DEFAULT 1"),
+        ("attempts", "INTEGER NOT NULL DEFAULT 0"),
+        ("max_attempts", "INTEGER NOT NULL DEFAULT 8"),
+        ("phase_attempts_json", "TEXT NOT NULL DEFAULT '{}'"),
+        ("last_error", "TEXT"),
+        ("metadata_json", "TEXT NOT NULL DEFAULT '{}'"),
+        ("locked_by", "TEXT"),
+        ("locked_until", "TEXT"),
+        ("last_phase_started_at", "TEXT"),
+        ("version", "INTEGER NOT NULL DEFAULT 0"),
+        ("created_by_user_id", "TEXT"),
+        ("completed_at", "TEXT"),
+    ]:
+        _ensure_column(conn, "bot_creation_workflows", column, definition)
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS bot_creation_workflows (
+            id TEXT PRIMARY KEY,
+            organization_id TEXT NOT NULL,
+            bot_id TEXT,
+            client_request_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            failed_phase TEXT,
+            vertical TEXT NOT NULL,
+            subvertical TEXT,
+            publish_now INTEGER NOT NULL DEFAULT 1,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            max_attempts INTEGER NOT NULL DEFAULT 8,
+            phase_attempts_json TEXT NOT NULL DEFAULT '{}',
+            last_error TEXT,
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            metadata_json TEXT NOT NULL DEFAULT '{}',
+            locked_by TEXT,
+            locked_until TEXT,
+            last_phase_started_at TEXT,
+            version INTEGER NOT NULL DEFAULT 0,
+            created_by_user_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT,
+            FOREIGN KEY (organization_id) REFERENCES organizations(id),
+            FOREIGN KEY (bot_id) REFERENCES bots(id)
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_bot_creation_workflows_org_request
+          ON bot_creation_workflows(organization_id, client_request_id);
+        CREATE INDEX IF NOT EXISTS idx_bot_creation_workflows_status
+          ON bot_creation_workflows(status, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_bot_creation_workflows_bot
+          ON bot_creation_workflows(bot_id, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_bot_creation_workflows_lease
+          ON bot_creation_workflows(locked_until, status);
+        """
+    )
+    conn.executescript(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_bots_org_client_request
+          ON bots(organization_id, client_request_id) WHERE client_request_id IS NOT NULL;
+        """
+    )
+    for column, definition in [
+        ("max_attempts", "INTEGER NOT NULL DEFAULT 8"),
+        ("phase_attempts_json", "TEXT NOT NULL DEFAULT '{}'"),
+        ("locked_by", "TEXT"),
+        ("locked_until", "TEXT"),
+        ("last_phase_started_at", "TEXT"),
+        ("version", "INTEGER NOT NULL DEFAULT 0"),
+    ]:
+        _ensure_column(conn, "bot_creation_workflows", column, definition)
+
+
+def _migration_phase36_tenant_scoped_idempotency_and_integrations(conn) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS job_idempotency_keys (
+            id TEXT PRIMARY KEY,
+            organization_id TEXT NOT NULL DEFAULT 'global',
+            action_type TEXT NOT NULL DEFAULT 'unknown',
+            dedupe_key TEXT NOT NULL,
+            status TEXT NOT NULL,
+            payload_hash TEXT,
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            result_json TEXT NOT NULL DEFAULT '{}',
+            error_text TEXT,
+            started_at TEXT,
+            completed_at TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        """
+    )
+    for column, definition in [
+        ("organization_id", "TEXT NOT NULL DEFAULT 'global'"),
+        ("action_type", "TEXT NOT NULL DEFAULT 'unknown'"),
+        ("payload_hash", "TEXT"),
+        ("payload_json", "TEXT NOT NULL DEFAULT '{}'"),
+        ("result_json", "TEXT NOT NULL DEFAULT '{}'"),
+        ("error_text", "TEXT"),
+        ("started_at", "TEXT"),
+        ("completed_at", "TEXT"),
+        ("created_at", "TEXT"),
+        ("updated_at", "TEXT"),
+    ]:
+        _ensure_column(conn, "job_idempotency_keys", column, definition)
+    for column, definition in [
+        ("last_sync_status", "TEXT NOT NULL DEFAULT 'never'"),
+        ("provider_verified_at", "TEXT"),
+        ("last_provider_error", "TEXT"),
+    ]:
+        _ensure_column(conn, "integration_connections", column, definition)
+    conn.executescript(
+        """
+        UPDATE job_idempotency_keys
+        SET organization_id = COALESCE(NULLIF(organization_id, ''), 'global'),
+            action_type = COALESCE(NULLIF(action_type, ''), 'unknown');
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_job_idempotency_org_action_key
+          ON job_idempotency_keys(organization_id, action_type, dedupe_key);
+        CREATE INDEX IF NOT EXISTS idx_job_idempotency_lookup
+          ON job_idempotency_keys(organization_id, action_type, status, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_integrations_sync_status
+          ON integration_connections(organization_id, last_sync_status, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_integrations_provider_verified
+          ON integration_connections(organization_id, provider_verified_at);
+        """
+    )
+
+
+def _migration_phase37_payments_observability_release_gate(conn) -> None:
+    from .operational_events import ensure_operational_events_schema
+
+    for table, column, definition in [
+        ("outbox_messages", "operational_status", "TEXT NOT NULL DEFAULT 'local_created'"),
+        ("outbox_messages", "correlation_id", "TEXT"),
+        ("outbox_messages", "job_id", "TEXT"),
+        ("outbox_messages", "message_id", "TEXT"),
+        ("outbox_messages", "provider_request_id", "TEXT"),
+        ("automation_jobs", "operational_status", "TEXT NOT NULL DEFAULT 'local_created'"),
+        ("automation_jobs", "correlation_id", "TEXT"),
+        ("automation_jobs", "message_id", "TEXT"),
+        ("messages", "operational_status", "TEXT NOT NULL DEFAULT 'local_created'"),
+        ("messages", "outbox_message_id", "TEXT"),
+        ("messages", "provider_message_id", "TEXT"),
+        ("tool_execution_runs", "operational_status", "TEXT NOT NULL DEFAULT 'local_created'"),
+        ("tool_execution_runs", "correlation_id", "TEXT"),
+        ("tool_execution_runs", "provider_request_id", "TEXT"),
+        ("tool_execution_runs", "provider_response_id", "TEXT"),
+        ("commerce_payments", "tool_execution_idempotency_key", "TEXT"),
+        ("commerce_payments", "client_request_id", "TEXT"),
+        ("commerce_payments", "preview_execution_id", "TEXT"),
+        ("commerce_payments", "confirmation_token_hash", "TEXT"),
+        ("commerce_payments", "operational_status", "TEXT NOT NULL DEFAULT 'local_created'"),
+        ("commerce_payments", "correlation_id", "TEXT"),
+        ("commerce_payments", "provider_request_id", "TEXT"),
+        ("commerce_payments", "provider_response_id", "TEXT"),
+        ("commerce_payments", "external_payment_id", "TEXT"),
+        ("commerce_payments", "provider", "TEXT"),
+        ("commerce_payments", "provider_status", "TEXT"),
+        ("commerce_payments", "provider_status_code", "INTEGER"),
+        ("commerce_payments", "provider_response_json", "TEXT NOT NULL DEFAULT '{}'"),
+    ]:
+        _ensure_column(conn, table, column, definition)
+    ensure_operational_events_schema(conn)
+    conn.executescript(
+        """
+        CREATE INDEX IF NOT EXISTS idx_outbox_correlation ON outbox_messages(correlation_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_outbox_job_message ON outbox_messages(job_id, message_id, created_at DESC);
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_payments_external_provider ON commerce_payments(organization_id, provider, external_payment_id) WHERE external_payment_id IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_payments_tool_idempotency ON commerce_payments(organization_id, tool_execution_idempotency_key) WHERE tool_execution_idempotency_key IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS idx_payments_operational_status ON commerce_payments(organization_id, operational_status, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_tool_runs_operational_status ON tool_execution_runs(organization_id, operational_status, updated_at DESC);
+        """
+    )
+
+
 MIGRATIONS = [
+    Migration(version="2026-04-27-phase37-payments-observability-release-gate-v1", description="payments tool safety, provider-truth operational states, release gate and E2E observability", apply=_migration_phase37_payments_observability_release_gate),
+    Migration(version="2026-04-27-phase36-tenant-scoped-idempotency-integrations-v1", description="tenant-scoped job idempotency and separated integration credential/sync/provider verification states", apply=_migration_phase36_tenant_scoped_idempotency_and_integrations),
+    Migration(version="2026-04-27-phase35-bot-creation-workflow-v1", description="durable retryable bot creation workflow phases", apply=_migration_phase35_bot_creation_workflow),
+    Migration(version="2026-04-27-phase34-automation-job-outbox-lifecycle-v1", description="automation job lifecycle follows outbox/provider delivery truth", apply=_migration_phase34_automation_job_outbox_lifecycle),
     Migration(version="2026-04-24-phase32-ai-workflow-engine-v1", description="WAOS AI workflow engine, bot autopilot, simulation, readiness, cost ledger and AI Ops tables", apply=_migration_phase32_ai_workflow_engine),
     Migration(version="2026-04-25-phase33-commercial-documents-v1", description="commercial smart docs: branded quotes, work orders, receipts, PDFs and approval workflow", apply=_migration_phase33_commercial_documents),
     Migration(

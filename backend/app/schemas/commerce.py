@@ -16,6 +16,11 @@ class PaymentRequestCreate(BaseModel):
     send_receipt_on_confirm: bool = True
     appointment_id: str | None = None
     provider: str | None = None
+    preview_execution_id: str | None = None
+    confirmation_token: str | None = None
+    idempotency_key: str | None = None
+    client_request_id: str | None = None
+    confirm: bool = True
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

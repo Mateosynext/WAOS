@@ -3,6 +3,7 @@ import { Shell } from "@/app/components/layout/shell";
 import { getSession } from "../lib/session";
 import type { PortalModuleState } from "@/app/lib/data/shared";
 import { getClientPortalData } from "../lib/data/client-portal";
+import { getClientOperationsData } from "../lib/data/client-operations";
 import { buildClientPortalTimeline, clientSectionMeta, type ClientSection } from "./clientPortalViewModel";
 import { renderAgenda, renderBot, renderConversations, renderModuleErrors, renderOperations, renderPromotions, renderRequests, renderSummary } from "./ClientPortalSections";
 

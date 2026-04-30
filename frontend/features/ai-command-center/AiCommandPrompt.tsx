@@ -127,7 +127,7 @@ export function AiCommandPrompt({ organizations, bots, verticals, payload, busy,
       </div>
 
       <p className={`mt-5 text-xs ${missingOrganization || missingDescription ? "text-amber-200" : "text-[color:var(--text-secondary)]"}`}>{submitHint}</p>
-      <button type="button" className="primary-btn mt-2 w-full" disabled={busy} onClick={onSubmit}>{busy ? "Construyendo agente..." : "Construir agente con IA"}</button>
+      <button type="button" className="primary-btn mt-2 w-full" disabled={busy || missingOrganization || missingDescription} title={busy || (!missingOrganization && !missingDescription) ? "" : submitHint} onClick={onSubmit}>{busy ? "Construyendo agente..." : "Construir agente con IA"}</button>
     </section>
   );
 }

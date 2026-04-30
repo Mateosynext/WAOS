@@ -17,6 +17,7 @@ from app.platform import append_technical_log, create_integration_sync_run, crea
 from app.repositories import create_audit_log, create_message, get_bot, get_conversation, publish_version  # noqa: E402
 from app.integrations_runtime import sync_google_calendar  # noqa: E402
 from app.payments_runtime import reconcile_pending_provider_payments  # noqa: E402
+from app.operational_events import record_operational_event  # noqa: E402
 from app.utils import RetryableProviderError, add_minutes, add_seconds, from_json, new_id, parse_iso, to_json, utcnow_iso  # noqa: E402
 from app.whatsapp import send_whatsapp_message  # noqa: E402
 from app.whatsapp_channel_runtime import build_whatsapp_outbound_payload  # noqa: E402
@@ -137,7 +138,7 @@ def process_due_integrations() -> list[dict]:
                 finish_integration_sync_run(conn, sync_id=sync_run['id'], status='completed', summary=summary)
                 execute(
                     conn,
-                    "UPDATE integration_connections SET health_status = ?, credential_status = CASE WHEN provider = 'google_calendar' THEN 'connected' ELSE credential_status END, last_error = NULL, last_sync_at = ?, last_success_at = ?, retry_count = 0, next_sync_at = ?, locked_at = NULL, updated_at = ? WHERE id = ?",
+                    "UPDATE integration_connections SET health_status = ?, last_sync_status = 'completed', last_error = NULL, last_sync_at = ?, last_success_at = ?, retry_count = 0, next_sync_at = ?, locked_at = NULL, updated_at = ? WHERE id = ?",
                     (
                         'healthy' if not (summary.get('errors') or []) else 'degraded',
                         utcnow_iso(),
@@ -181,8 +182,8 @@ def process_due_integrations() -> list[dict]:
                 finish_integration_sync_run(conn, sync_id=sync_run['id'], status='failed', summary={}, error={'error': str(exc), 'retry_status': status})
                 execute(
                     conn,
-                    "UPDATE integration_connections SET health_status = 'degraded', last_error = ?, retry_count = ?, next_sync_at = ?, locked_at = NULL, updated_at = ? WHERE id = ?",
-                    (str(exc), attempts, next_sync_at, utcnow_iso(), row['id']),
+                    "UPDATE integration_connections SET health_status = 'degraded', last_sync_status = 'failed', last_provider_error = ?, last_error = ?, retry_count = ?, next_sync_at = ?, locked_at = NULL, updated_at = ? WHERE id = ?",
+                    (str(exc), str(exc), attempts, next_sync_at, utcnow_iso(), row['id']),
                 )
                 create_runtime_callback(
                     conn,
@@ -216,6 +217,140 @@ def _job_max_attempts(job: dict) -> int:
     return int(payload.get("max_attempts") or 3)
 
 
+def _automation_job_dedupe_key(job: dict) -> str:
+    return job.get("dedupe_key") or f"automation:{job['id']}"
+
+
+def _safe_mark_automation_job_completed(conn, *, job: dict, outbox: dict) -> None:
+    try:
+        mark_job_completed(
+            conn,
+            dedupe_key=_automation_job_dedupe_key(job),
+            result={
+                "job_id": job.get("id"),
+                "outbox_id": outbox.get("id"),
+                "provider_message_id": outbox.get("provider_message_id"),
+                "provider_status_code": outbox.get("provider_status_code"),
+            },
+        )
+    except Exception:
+        # Idempotency is a safety ledger, not the source of truth. The authoritative
+        # state for proactive sends is automation_jobs.outbox_message_id -> outbox.
+        pass
+
+
+def _safe_mark_automation_job_failed(conn, *, job: dict, error_text: str | None) -> None:
+    try:
+        mark_job_failed(conn, dedupe_key=_automation_job_dedupe_key(job), error_text=error_text or "provider_delivery_pending")
+    except Exception:
+        pass
+
+
+def _find_automation_job_for_outbox(conn, *, outbox: dict, payload: dict | None = None) -> dict | None:
+    payload = payload or {}
+    if has_column(conn, "automation_jobs", "outbox_message_id"):
+        job = fetch_one(conn, "SELECT * FROM automation_jobs WHERE outbox_message_id = ?", (outbox.get("id"),))
+        if job:
+            return job
+    job_id = payload.get("automation_job_id")
+    if job_id:
+        job = fetch_one(conn, "SELECT * FROM automation_jobs WHERE id = ?", (job_id,))
+        if job and has_column(conn, "automation_jobs", "outbox_message_id") and not job.get("outbox_message_id"):
+            execute(conn, "UPDATE automation_jobs SET outbox_message_id = ? WHERE id = ?", (outbox.get("id"), job["id"]))
+            job = fetch_one(conn, "SELECT * FROM automation_jobs WHERE id = ?", (job["id"],)) or job
+        return job
+    return None
+
+
+def _set_automation_job_dispatch_state(conn, *, job_id: str, outbox_id: str, status: str, last_error: str | None = None, increment_attempt: bool = False) -> None:
+    if has_column(conn, "automation_jobs", "outbox_message_id"):
+        if increment_attempt:
+            execute(
+                conn,
+                """
+                UPDATE automation_jobs
+                SET status = ?, outbox_message_id = ?, attempts = attempts + 1, last_error = ?, locked_at = NULL
+                WHERE id = ?
+                """,
+                (status, outbox_id, last_error, job_id),
+            )
+        else:
+            execute(
+                conn,
+                """
+                UPDATE automation_jobs
+                SET status = ?, outbox_message_id = ?, last_error = ?, locked_at = NULL
+                WHERE id = ?
+                """,
+                (status, outbox_id, last_error, job_id),
+            )
+        return
+    if increment_attempt:
+        execute(conn, "UPDATE automation_jobs SET status = ?, attempts = attempts + 1, last_error = ?, locked_at = NULL WHERE id = ?", (status, last_error, job_id))
+    else:
+        execute(conn, "UPDATE automation_jobs SET status = ?, last_error = ?, locked_at = NULL WHERE id = ?", (status, last_error, job_id))
+
+
+def _sync_automation_job_from_outbox(conn, *, outbox: dict, payload: dict | None = None) -> dict | None:
+    """Project outbox/provider truth back to the originating automation job."""
+    payload = payload or from_json(outbox.get("payload_json"), {})
+    job = _find_automation_job_for_outbox(conn, outbox=outbox, payload=payload)
+    if not job:
+        return None
+
+    outbox_status = outbox.get("status")
+    now = utcnow_iso()
+    if outbox_status == "sent":
+        provider_confirmed_at = outbox.get("sent_at") or now
+        execute(
+            conn,
+            """
+            UPDATE automation_jobs
+            SET status = 'provider_sent', executed_at = COALESCE(executed_at, ?), last_error = NULL, locked_at = NULL
+            WHERE id = ?
+            """,
+            (provider_confirmed_at, job["id"]),
+        )
+        _safe_mark_automation_job_completed(conn, job=job, outbox=outbox)
+        return fetch_one(conn, "SELECT * FROM automation_jobs WHERE id = ?", (job["id"],))
+
+    if outbox_status == "dead_letter":
+        execute(
+            conn,
+            """
+            UPDATE automation_jobs
+            SET status = 'dead_letter', last_error = ?, scheduled_for = ?, locked_at = NULL
+            WHERE id = ?
+            """,
+            (outbox.get("last_error"), outbox.get("scheduled_for") or now, job["id"]),
+        )
+        _safe_mark_automation_job_failed(conn, job=job, error_text=outbox.get("last_error"))
+        return fetch_one(conn, "SELECT * FROM automation_jobs WHERE id = ?", (job["id"],))
+
+    if outbox_status == "retry":
+        execute(
+            conn,
+            """
+            UPDATE automation_jobs
+            SET status = 'provider_failed', last_error = ?, scheduled_for = ?, locked_at = NULL
+            WHERE id = ?
+            """,
+            (outbox.get("last_error"), outbox.get("next_attempt_at") or outbox.get("scheduled_for") or now, job["id"]),
+        )
+        _safe_mark_automation_job_failed(conn, job=job, error_text=outbox.get("last_error"))
+        return fetch_one(conn, "SELECT * FROM automation_jobs WHERE id = ?", (job["id"],))
+
+    if outbox_status == "running":
+        execute(conn, "UPDATE automation_jobs SET status = 'provider_sending', locked_at = NULL WHERE id = ?", (job["id"],))
+        return fetch_one(conn, "SELECT * FROM automation_jobs WHERE id = ?", (job["id"],))
+
+    if outbox_status == "queued":
+        _set_automation_job_dispatch_state(conn, job_id=job["id"], outbox_id=outbox["id"], status="dispatch_queued", last_error=None)
+        return fetch_one(conn, "SELECT * FROM automation_jobs WHERE id = ?", (job["id"],))
+
+    return job
+
+
 def process_due_jobs() -> list[dict]:
     processed: list[dict] = []
     with get_connection() as conn:
@@ -239,11 +374,19 @@ def process_due_jobs() -> list[dict]:
             )
             payload = json.loads(job.get("payload_json") or "{}")
             max_attempts = _job_max_attempts(job)
-            dedupe_key = job.get("dedupe_key") or f"automation:{job["id"]}"
+            dedupe_key = _automation_job_dedupe_key(job)
             execution = begin_job_execution(conn, job_type=job.get("job_type") or "automation", dedupe_key=dedupe_key, payload=payload)
             if execution.get("status") == "completed":
-                execute(conn, "UPDATE automation_jobs SET status = 'executed', locked_at = NULL, last_error = NULL WHERE id = ?", (job["id"],))
-                processed.append({"id": job["id"], "status": "duplicate_skipped"})
+                result = from_json(execution.get("result_json"), {})
+                outbox_id = job.get("outbox_message_id") or result.get("outbox_id")
+                if outbox_id:
+                    outbox = fetch_one(conn, "SELECT * FROM outbox_messages WHERE id = ?", (outbox_id,))
+                    synced_job = _sync_automation_job_from_outbox(conn, outbox=outbox, payload=payload) if outbox else None
+                    processed.append({"id": job["id"], "status": (synced_job or job).get("status"), "duplicate_skipped": True})
+                else:
+                    execute(conn, "UPDATE automation_jobs SET status = 'provider_sent', locked_at = NULL, last_error = NULL WHERE id = ?", (job["id"],))
+                    processed.append({"id": job["id"], "status": "provider_sent", "duplicate_skipped": True})
+                finish_execution_run(conn, run_id=run["id"], status="completed", output_payload={"status": "duplicate_skipped"})
                 continue
             try:
                 operational_result = _process_operational_job(conn, job=job, payload=payload)
@@ -279,21 +422,30 @@ def process_due_jobs() -> list[dict]:
                     status="queued",
                     metadata={"automation_job_id": job["id"], "trace_id": run["trace_id"], "execution_id": run["execution_id"]},
                 )
+                outbox_id = new_id("out")
+                outbox_payload = {
+                    "body": body,
+                    "message_id": message["id"],
+                    "contact_id": job.get("contact_id"),
+                    "automation_job_id": job["id"],
+                    "simulate_fail": bool(payload.get("simulate_outbox_fail")),
+                }
                 execute(
                     conn,
                     """
                     INSERT INTO outbox_messages
-                    (id, organization_id, bot_id, execution_run_id, conversation_id, channel, payload_json, status, attempts, last_error, scheduled_for, sent_at, created_at, provider_response_json, priority)
-                    VALUES (?, ?, ?, ?, ?, 'whatsapp', ?, 'queued', 0, NULL, ?, NULL, ?, '{}', ?)
+                    (id, organization_id, bot_id, execution_run_id, conversation_id, channel, payload_json, status, operational_status, attempts, last_error, scheduled_for, sent_at, created_at, provider_response_json, priority, correlation_id, job_id, message_id)
+                    VALUES (?, ?, ?, ?, ?, 'whatsapp', ?, 'queued', 'local_created', 0, NULL, ?, NULL, ?, '{}', ?, ?, ?, ?)
                     """,
-                    (new_id("out"), job["organization_id"], job["bot_id"], run["id"], job.get("conversation_id"), to_json({"body": body, "message_id": message["id"], "contact_id": job.get("contact_id"), "simulate_fail": bool(payload.get("simulate_outbox_fail"))}), utcnow_iso(), utcnow_iso(), int(job.get("priority") or 50)),
+                    (outbox_id, job["organization_id"], job["bot_id"], run["id"], job.get("conversation_id"), to_json(outbox_payload), utcnow_iso(), utcnow_iso(), int(job.get("priority") or 50), run["trace_id"], job["id"], message["id"]),
                 )
-                execute(conn, "UPDATE automation_jobs SET status = 'executed', attempts = attempts + 1, executed_at = ?, last_error = NULL WHERE id = ?", (utcnow_iso(), job["id"]))
-                append_technical_log(conn, organization_id=job["organization_id"], bot_id=job["bot_id"], execution_run_id=run["id"], conversation_id=job.get("conversation_id"), level="info", category="worker", message="Automation job executed", trace_id=run["trace_id"], execution_id=run["execution_id"], details={"job_id": job["id"], "message_id": message["id"]})
-                create_runtime_callback(conn, organization_id=job["organization_id"], bot_id=job["bot_id"], execution_run_id=run["id"], callback_type="job.executed", target="api://runtime/jobs", status="delivered", payload={"job_id": job["id"], "message_id": message["id"]}, response={"accepted": True})
-                mark_job_completed(conn, dedupe_key=dedupe_key, result={"message_id": message["id"], "job_id": job["id"]})
-                finish_execution_run(conn, run_id=run["id"], status="completed", output_payload={"status": "executed", "message_id": message["id"]})
-                processed.append({"id": job["id"], "status": "executed"})
+                execute(conn, "UPDATE messages SET outbox_message_id = ?, operational_status = 'local_created', correlation_id = ? WHERE id = ?", (outbox_id, run["trace_id"], message["id"]))
+                execute(conn, "UPDATE automation_jobs SET correlation_id = ?, message_id = ?, operational_status = 'local_created' WHERE id = ?", (run["trace_id"], message["id"], job["id"]))
+                record_operational_event(conn, organization_id=job["organization_id"], bot_id=job["bot_id"], conversation_id=job.get("conversation_id"), correlation_id=run["trace_id"], job_id=job["id"], message_id=message["id"], outbox_message_id=outbox_id, provider="whatsapp", state="local_created", event_type="automation.outbox.local_created", source="worker.process_due_jobs", request={"job_type": job.get("job_type")})
+                _set_automation_job_dispatch_state(conn, job_id=job["id"], outbox_id=outbox_id, status="dispatch_queued", last_error=None, increment_attempt=True)
+                append_technical_log(conn, organization_id=job["organization_id"], bot_id=job["bot_id"], execution_run_id=run["id"], conversation_id=job.get("conversation_id"), level="info", category="worker", message="Automation job dispatch queued", trace_id=run["trace_id"], execution_id=run["execution_id"], details={"job_id": job["id"], "message_id": message["id"], "outbox_id": outbox_id})
+                create_runtime_callback(conn, organization_id=job["organization_id"], bot_id=job["bot_id"], execution_run_id=run["id"], callback_type="job.dispatch_queued", target="api://runtime/jobs", status="accepted", payload={"job_id": job["id"], "message_id": message["id"], "outbox_id": outbox_id}, response={"accepted": True})
+                processed.append({"id": job["id"], "status": "dispatch_queued", "outbox_id": outbox_id})
             except Exception as exc:
                 attempts = int(job.get("attempts") or 0) + 1
                 outcome = resolve_failure_outcome(
@@ -602,6 +754,7 @@ def process_outbox() -> list[dict]:
         for row in outbox_rows:
             payload = json.loads(row.get("payload_json") or "{}")
             attempts = int(row.get("attempts") or 0) + 1
+            _sync_automation_job_from_outbox(conn, outbox={**row, "status": "running"}, payload=payload)
             phone, message_id, message = _resolve_delivery_target(conn, row, payload)
             trace_id, correlation_id = _trace_context_from_payload(row, payload, message)
             delivery_started = time.perf_counter()
@@ -660,15 +813,21 @@ def process_outbox() -> list[dict]:
                 now_sent_at = utcnow_iso()
                 execute(
                     conn,
-                    "UPDATE outbox_messages SET status = 'sent', attempts = ?, sent_at = ?, last_error = NULL, provider_message_id = ?, provider_status_code = ?, provider_response_json = ?, next_attempt_at = NULL, locked_at = NULL, governance_json = ? WHERE id = ?",
+                    "UPDATE outbox_messages SET status = 'sent', operational_status = 'provider_confirmed', attempts = ?, sent_at = ?, last_error = NULL, provider_message_id = ?, provider_status_code = ?, provider_response_json = ?, next_attempt_at = NULL, locked_at = NULL, governance_json = ? WHERE id = ?",
                     (attempts, now_sent_at, result.get("external_id"), result.get("status_code"), to_json(result.get("response") or {}), to_json(governance), row["id"]),
                 )
-                updated_outbox = fetch_one(conn, "SELECT * FROM outbox_messages WHERE id = ?", (row["id"],)) or {**row, "provider_message_id": result.get("external_id"), "sent_at": now_sent_at}
+                updated_outbox = fetch_one(conn, "SELECT * FROM outbox_messages WHERE id = ?", (row["id"],)) or {**row, "status": "sent", "provider_message_id": result.get("external_id"), "sent_at": now_sent_at}
+                synced_job = _sync_automation_job_from_outbox(conn, outbox=updated_outbox, payload=payload)
+                if row.get("execution_run_id"):
+                    finish_execution_run(conn, run_id=row["execution_run_id"], status="completed", output_payload={"status": "provider_sent", "outbox_id": row["id"], "job_id": (synced_job or {}).get("id"), "provider_message_id": result.get("external_id")})
+                if synced_job:
+                    create_runtime_callback(conn, organization_id=row["organization_id"], bot_id=row["bot_id"], execution_run_id=row.get("execution_run_id"), callback_type="job.provider_sent", target="api://runtime/jobs", status="delivered", payload={"job_id": synced_job["id"], "outbox_id": row["id"], "provider_message_id": result.get("external_id")}, response=result)
                 if message_id:
                     metadata = from_json((message or {}).get("metadata_json"), {})
                     metadata.update({"provider": result.get("provider"), "provider_response": result.get("response"), "whatsapp_governance": governance})
-                    execute(conn, "UPDATE messages SET status = 'sent', external_id = ?, metadata_json = ? WHERE id = ?", (result.get("external_id"), to_json(metadata), message_id))
+                    execute(conn, "UPDATE messages SET status = 'sent', operational_status = 'provider_confirmed', external_id = ?, provider_message_id = ?, metadata_json = ? WHERE id = ?", (result.get("external_id"), result.get("external_id"), to_json(metadata), message_id))
                     message = fetch_one(conn, "SELECT * FROM messages WHERE id = ?", (message_id,)) or message
+                record_operational_event(conn, organization_id=row["organization_id"], bot_id=row["bot_id"], conversation_id=row.get("conversation_id"), correlation_id=correlation_id, job_id=(payload or {}).get("automation_job_id") or row.get("job_id"), message_id=message_id, outbox_message_id=row["id"], provider="whatsapp", provider_request_id=row.get("provider_request_id") or row["id"], provider_message_id=result.get("external_id"), state="provider_confirmed", event_type="outbox.provider_confirmed", source="worker.process_outbox", response=result.get("response") or {})
                 seed_whatsapp_delivery_projection(conn, outbox=updated_outbox, message=message)
                 _update_delivery_attempt(conn, delivery_attempt_id, status="accepted", provider=result.get("provider"), attempt_number=attempts, metadata_patch={"external_id": result.get("external_id"), "response": result.get("response"), "governance": governance, "delivery_truth_status": "accepted"}, delivered=False)
                 create_runtime_callback(conn, organization_id=row["organization_id"], bot_id=row["bot_id"], execution_run_id=row.get("execution_run_id"), callback_type="outbox.sent", target="provider://whatsapp", status="delivered", payload={"outbox_id": row["id"], "message_id": message_id, "governance": governance}, response=result)
@@ -720,6 +879,8 @@ def process_outbox() -> list[dict]:
                             row['id'],
                         ),
                     )
+                    retry_outbox = fetch_one(conn, "SELECT * FROM outbox_messages WHERE id = ?", (row["id"],)) or {**row, "status": "retry", "last_error": f"{str(exc)}:auto_template_failover", "next_attempt_at": retry_at, "scheduled_for": retry_at}
+                    _sync_automation_job_from_outbox(conn, outbox=retry_outbox, payload=recovery_payload)
                     if message_id:
                         metadata = from_json((message or {}).get('metadata_json'), {})
                         metadata['template_failover'] = recovery
@@ -747,12 +908,19 @@ def process_outbox() -> list[dict]:
                 status = outcome['status']
                 retry_state = outcome['retry_budget']
                 next_schedule = utcnow_iso() if status == "dead_letter" else _retry_schedule(attempts, exc.status_code, (exc.details or {}).get('retry_after_seconds'))
-                execute(conn, "UPDATE outbox_messages SET status = ?, attempts = ?, last_error = ?, scheduled_for = ?, next_attempt_at = ?, provider_status_code = ?, provider_response_json = ?, governance_json = COALESCE(governance_json, '{}'), locked_at = NULL WHERE id = ?", (status, attempts, str(exc), next_schedule, next_schedule if status == 'retry' else None, exc.status_code, to_json(exc.details), row["id"]))
+                execute(conn, "UPDATE outbox_messages SET status = ?, operational_status = CASE WHEN ? = 'dead_letter' THEN 'dead_letter' WHEN ? = 'retry' THEN 'retrying' ELSE 'provider_failed' END, attempts = ?, last_error = ?, scheduled_for = ?, next_attempt_at = ?, provider_status_code = ?, provider_response_json = ?, governance_json = COALESCE(governance_json, '{}'), locked_at = NULL WHERE id = ?", (status, status, status, attempts, str(exc), next_schedule, next_schedule if status == 'retry' else None, exc.status_code, to_json(exc.details), row["id"]))
+                failed_outbox = fetch_one(conn, "SELECT * FROM outbox_messages WHERE id = ?", (row["id"],)) or {**row, "status": status, "last_error": str(exc), "scheduled_for": next_schedule, "next_attempt_at": next_schedule if status == 'retry' else None}
+                record_operational_event(conn, organization_id=row["organization_id"], bot_id=row["bot_id"], conversation_id=row.get("conversation_id"), correlation_id=correlation_id, job_id=(payload or {}).get("automation_job_id") or row.get("job_id"), message_id=message_id, outbox_message_id=row["id"], provider="whatsapp", provider_request_id=row.get("provider_request_id") or row["id"], state="dead_letter" if status == "dead_letter" else ("retrying" if status == "retry" else "provider_failed"), event_type="outbox.provider_failed", source="worker.process_outbox", error={"error": str(exc), "status_code": getattr(exc, "status_code", None), "status": status})
+                synced_job = _sync_automation_job_from_outbox(conn, outbox=failed_outbox, payload=payload)
+                if status == "dead_letter" and row.get("execution_run_id"):
+                    finish_execution_run(conn, run_id=row["execution_run_id"], status="failed", error_payload={"status": "dead_letter", "outbox_id": row["id"], "job_id": (synced_job or {}).get("id"), "error": str(exc)})
+                if synced_job:
+                    create_runtime_callback(conn, organization_id=row["organization_id"], bot_id=row["bot_id"], execution_run_id=row.get("execution_run_id"), callback_type="job.provider_failed", target="api://runtime/jobs", status="failed" if status == "dead_letter" else "retry", payload={"job_id": synced_job["id"], "outbox_id": row["id"], "status": synced_job.get("status")}, response=exc.details, last_error=str(exc))
                 if message_id:
                     metadata = from_json((message or {}).get('metadata_json'), {})
                     if exc.details:
                         metadata['whatsapp_governance_error'] = exc.details
-                    execute(conn, "UPDATE messages SET status = ?, metadata_json = ? WHERE id = ?", (status, to_json(metadata), message_id))
+                    execute(conn, "UPDATE messages SET status = ?, operational_status = CASE WHEN ? = 'dead_letter' THEN 'dead_letter' WHEN ? = 'retry' THEN 'retrying' ELSE 'provider_failed' END, metadata_json = ? WHERE id = ?", (status, status, status, to_json(metadata), message_id))
                 _update_delivery_attempt(conn, delivery_attempt_id, status=status, provider="whatsapp", attempt_number=attempts, metadata_patch={"error": str(exc), "details": exc.details})
                 create_runtime_callback(conn, organization_id=row["organization_id"], bot_id=row["bot_id"], execution_run_id=row.get("execution_run_id"), callback_type="outbox.failed", target="provider://whatsapp", status="failed" if status == "dead_letter" else "retry", payload={"outbox_id": row["id"], "status": status}, response=exc.details, last_error=str(exc))
                 delivery_duration_ms = int((time.perf_counter() - delivery_started) * 1000)
@@ -792,9 +960,16 @@ def process_outbox() -> list[dict]:
                 status = outcome['status']
                 retry_state = outcome['retry_budget']
                 next_schedule = utcnow_iso() if status == "dead_letter" else _retry_schedule(attempts)
-                execute(conn, "UPDATE outbox_messages SET status = ?, attempts = ?, last_error = ?, scheduled_for = ?, next_attempt_at = ?, provider_response_json = ?, locked_at = NULL WHERE id = ?", (status, attempts, str(exc), next_schedule, next_schedule if status == 'retry' else None, to_json({"error": str(exc)}), row["id"]))
+                execute(conn, "UPDATE outbox_messages SET status = ?, operational_status = CASE WHEN ? = 'dead_letter' THEN 'dead_letter' WHEN ? = 'retry' THEN 'retrying' ELSE 'provider_failed' END, attempts = ?, last_error = ?, scheduled_for = ?, next_attempt_at = ?, provider_response_json = ?, locked_at = NULL WHERE id = ?", (status, status, status, attempts, str(exc), next_schedule, next_schedule if status == 'retry' else None, to_json({"error": str(exc)}), row["id"]))
+                failed_outbox = fetch_one(conn, "SELECT * FROM outbox_messages WHERE id = ?", (row["id"],)) or {**row, "status": status, "last_error": str(exc), "scheduled_for": next_schedule, "next_attempt_at": next_schedule if status == 'retry' else None}
+                record_operational_event(conn, organization_id=row["organization_id"], bot_id=row["bot_id"], conversation_id=row.get("conversation_id"), correlation_id=correlation_id, job_id=(payload or {}).get("automation_job_id") or row.get("job_id"), message_id=message_id, outbox_message_id=row["id"], provider="whatsapp", provider_request_id=row.get("provider_request_id") or row["id"], state="dead_letter" if status == "dead_letter" else ("retrying" if status == "retry" else "provider_failed"), event_type="outbox.provider_failed", source="worker.process_outbox", error={"error": str(exc), "status_code": getattr(exc, "status_code", None), "status": status})
+                synced_job = _sync_automation_job_from_outbox(conn, outbox=failed_outbox, payload=payload)
+                if status == "dead_letter" and row.get("execution_run_id"):
+                    finish_execution_run(conn, run_id=row["execution_run_id"], status="failed", error_payload={"status": "dead_letter", "outbox_id": row["id"], "job_id": (synced_job or {}).get("id"), "error": str(exc)})
+                if synced_job:
+                    create_runtime_callback(conn, organization_id=row["organization_id"], bot_id=row["bot_id"], execution_run_id=row.get("execution_run_id"), callback_type="job.provider_failed", target="api://runtime/jobs", status="failed" if status == "dead_letter" else "retry", payload={"job_id": synced_job["id"], "outbox_id": row["id"], "status": synced_job.get("status")}, response={}, last_error=str(exc))
                 if message_id:
-                    execute(conn, "UPDATE messages SET status = ? WHERE id = ?", (status, message_id))
+                    execute(conn, "UPDATE messages SET status = ?, operational_status = CASE WHEN ? = 'dead_letter' THEN 'dead_letter' WHEN ? = 'retry' THEN 'retrying' ELSE 'provider_failed' END WHERE id = ?", (status, status, status, message_id))
                 _update_delivery_attempt(conn, delivery_attempt_id, status=status, provider="whatsapp", attempt_number=attempts, metadata_patch={"error": str(exc)})
                 create_runtime_callback(conn, organization_id=row["organization_id"], bot_id=row["bot_id"], execution_run_id=row.get("execution_run_id"), callback_type="outbox.failed", target="provider://whatsapp", status="failed" if status == "dead_letter" else "retry", payload={"outbox_id": row["id"], "status": status}, response={}, last_error=str(exc))
                 delivery_duration_ms = int((time.perf_counter() - delivery_started) * 1000)

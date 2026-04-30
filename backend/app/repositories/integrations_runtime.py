@@ -15,6 +15,9 @@ def update_integration_config(
     health_status: str | None = None,
     credential_status: str | None = None,
     last_error: str | None = None,
+    last_sync_status: str | None = None,
+    provider_verified_at: str | None = None,
+    last_provider_error: str | None = None,
 ) -> dict[str, Any]:
     updates = ["config_json = ?", "updated_at = ?"]
     params: list[Any] = [to_json(config), utcnow_iso()]
@@ -27,6 +30,17 @@ def update_integration_config(
     if last_error is not None:
         updates.append("last_error = ?")
         params.append(last_error)
+    if last_sync_status is not None:
+        updates.append("last_sync_status = ?")
+        params.append(last_sync_status)
+    if provider_verified_at is not None:
+        updates.append("provider_verified_at = ?")
+        params.append(provider_verified_at)
+    if last_provider_error is not None:
+        updates.append("last_provider_error = ?")
+        params.append(last_provider_error)
+    elif last_provider_error is None and provider_verified_at is not None:
+        updates.append("last_provider_error = NULL")
     params.append(integration_id)
     execute(conn, f"UPDATE integration_connections SET {', '.join(updates)} WHERE id = ?", params)
     return fetch_one(conn, "SELECT * FROM integration_connections WHERE id = ?", (integration_id,)) or {}
@@ -80,6 +94,9 @@ def mark_integration_health(
     last_error: str | None = None,
     last_provider_event_at: str | None = None,
     last_provider_status_code: int | None = None,
+    provider_verified_at: str | None = None,
+    last_provider_error: str | None = None,
+    last_sync_status: str | None = None,
 ) -> dict[str, Any] | None:
     updates = ["health_status = ?", "updated_at = ?"]
     params: list[Any] = [health_status, utcnow_iso()]
@@ -97,6 +114,17 @@ def mark_integration_health(
     if last_provider_status_code is not None:
         updates.append("last_provider_status_code = ?")
         params.append(last_provider_status_code)
+    if provider_verified_at is not None:
+        updates.append("provider_verified_at = ?")
+        params.append(provider_verified_at)
+    if last_provider_error is not None:
+        updates.append("last_provider_error = ?")
+        params.append(last_provider_error)
+    elif last_provider_error is None and provider_verified_at is not None:
+        updates.append("last_provider_error = NULL")
+    if last_sync_status is not None:
+        updates.append("last_sync_status = ?")
+        params.append(last_sync_status)
     params.append(integration_id)
     execute(conn, f"UPDATE integration_connections SET {', '.join(updates)} WHERE id = ?", params)
     return fetch_one(conn, "SELECT * FROM integration_connections WHERE id = ?", (integration_id,))
@@ -228,7 +256,7 @@ def create_appointment_from_provider(
     return fetch_one(conn, "SELECT * FROM appointments WHERE id = ?", (row_id,))
 
 
-def mark_integration_sync_completed(conn: ConnectionLike, integration_id: str, *, timestamp: str | None = None) -> dict[str, Any] | None:
+def mark_integration_sync_completed(conn: ConnectionLike, integration_id: str, *, timestamp: str | None = None, status: str = "completed") -> dict[str, Any] | None:
     now = timestamp or utcnow_iso()
-    execute(conn, "UPDATE integration_connections SET last_sync_at = ?, last_provider_event_at = ?, updated_at = ? WHERE id = ?", (now, now, now, integration_id))
+    execute(conn, "UPDATE integration_connections SET last_sync_at = ?, last_sync_status = ?, last_provider_event_at = ?, updated_at = ? WHERE id = ?", (now, status, now, now, integration_id))
     return fetch_one(conn, "SELECT * FROM integration_connections WHERE id = ?", (integration_id,))

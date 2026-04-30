@@ -5,7 +5,7 @@ from typing import Any
 from ..config import settings
 from ..repositories import create_audit_log
 from ..repositories.base import execute, fetch_all, fetch_one
-from ..utils import from_json, new_id, slugify, to_json, utcnow_iso
+from ..utils import add_minutes, from_json, new_id, next_day_iso, slugify, to_json, utcnow_iso
 
 def _parse_row(row: dict, mapping: dict[str, Any]) -> dict:
     parsed = dict(row)
@@ -393,9 +393,13 @@ def business_hub_overview(conn, organization_id: str, bot_id: str | None = None)
     no_stock = _count("SELECT COUNT(*) AS value FROM catalog_inventory WHERE organization_id = ? AND status = 'agotado'", (organization_id,))
     low_stock = _count("SELECT COUNT(*) AS value FROM catalog_inventory WHERE organization_id = ? AND status = 'bajo_stock'", (organization_id,))
     conversations = _count("SELECT COUNT(*) AS value FROM conversations WHERE organization_id = ? AND status IN ('ai_active','human_takeover','waiting_followup')", (organization_id,))
-    leads = _count("SELECT COUNT(*) AS value FROM contacts WHERE organization_id = ? AND created_at >= datetime('now','-7 day')", (organization_id,))
+    lead_cutoff_7d = add_minutes(utcnow_iso(), -7 * 24 * 60)
+    today = utcnow_iso()[:10]
+    today_start = f"{today}T00:00:00Z"
+    tomorrow_start = next_day_iso(today)
+    leads = _count("SELECT COUNT(*) AS value FROM contacts WHERE organization_id = ? AND created_at >= ?", (organization_id, lead_cutoff_7d))
     handoffs = _count("SELECT COUNT(*) AS value FROM conversations WHERE organization_id = ? AND human_takeover = 1", (organization_id,))
-    appointments_today = _count("SELECT COUNT(*) AS value FROM appointments WHERE organization_id = ? AND substr(scheduled_for, 1, 10) = substr(datetime('now'), 1, 10)", (organization_id,))
+    appointments_today = _count("SELECT COUNT(*) AS value FROM appointments WHERE organization_id = ? AND scheduled_for >= ? AND scheduled_for < ?", (organization_id, today_start, tomorrow_start))
     payments_row = fetch_one(conn, "SELECT COALESCE(SUM(amount), 0) AS value FROM commerce_payments WHERE organization_id = ? AND status = 'paid'", (organization_id,))
     top_products_rows = fetch_all(
         conn,

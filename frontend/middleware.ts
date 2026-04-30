@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { ACCESS_COOKIE, BOT_COOKIE, ORG_COOKIE, REFRESH_COOKIE, sessionCookieOptions } from "./app/lib/auth/cookies";
 import { verifyRequestSession } from "./app/lib/auth/edge-session";
+import type { VerifiedSession } from "./app/lib/auth/edge-session";
 import { describeRouteAccess, MIDDLEWARE_MATCHER } from "./app/lib/auth/route-policy";
 
 function normalizeRole(role: string | null | undefined) {
@@ -43,7 +44,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const session = await verifyRequestSession(request);
+  let session: VerifiedSession | null = null;
+  try {
+    session = await verifyRequestSession(request);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("[middleware] session verification failed", error);
+    if (routeAccess.isAuthPage) return NextResponse.next();
+    const redirect = NextResponse.redirect(buildLoginRedirect(request));
+    redirect.headers.set("x-waos-session-error", "verification_failed");
+    redirect.cookies.delete(ACCESS_COOKIE);
+    redirect.cookies.delete(REFRESH_COOKIE);
+    redirect.cookies.delete(ORG_COOKIE);
+    redirect.cookies.delete(BOT_COOKIE);
+    return redirect;
+  }
 
   if (routeAccess.isAuthPage) {
     if (!session) return NextResponse.next();
@@ -80,6 +95,7 @@ export async function middleware(request: NextRequest) {
 
   if (selectedOrgId !== session.selectedOrganizationId) {
     syncSessionCookies(response, request, { clearScope: true });
+    response.headers.set("x-waos-scope-repair", "invalid-selected-org-cleared");
   }
   syncSessionCookies(response, request, {
     accessToken: session.accessToken,
@@ -102,6 +118,7 @@ export async function middleware(request: NextRequest) {
     if (resolvedOrganizationId !== session.selectedOrganizationId) {
       syncSessionCookies(response, request, { organizationId: resolvedOrganizationId });
       response.cookies.delete(BOT_COOKIE);
+      response.headers.set("x-waos-scope-repair", "organization-auto-selected");
     }
   }
 

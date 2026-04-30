@@ -5,3 +5,5 @@ for (const [command, args] of steps) {
   if (result.status !== 0) process.exit(result.status || 1);
 }
 console.log('Critical frontend suite passed: smoke + node + real browser e2e.');
+
+if (!process.exitCode) process.exit(0);

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from typing import Any
+import uuid
 
 from ...db import DBConnection, get_connection
 from ...vertical_onboarding_ai_prefill import generate_ai_wizard_autopilot
 from ...ai_platform.model_router import model_router
 from ..persistence import (
     create_run,
+    _workflow_idempotency_key,
     get_run,
+    claim_workflow_run_execution,
     list_human_confirmations,
     patch_run_result,
     record_cost,
@@ -16,6 +19,7 @@ from ..persistence import (
     save_go_live_readiness,
     save_json_artifact,
     save_simulation_report,
+    touch_run_heartbeat,
     update_run,
     upsert_human_confirmation,
     upsert_step,
@@ -33,7 +37,7 @@ from ..go_live.readiness import evaluate_go_live_readiness
 from ..go_live.release import prepare_release_plan
 from ..learning.service import generate_learning_recommendations
 
-TERMINAL_STATUSES = {"completed", "completed_partial", "failed", "cancelled", "paused_cost_limit"}
+TERMINAL_STATUSES = {"completed", "completed_partial", "failed", "retryable_failed", "cancelled", "paused_cost_limit"}
 
 
 def _commit_best_effort(conn: DBConnection) -> None:
@@ -97,7 +101,7 @@ def _charge(conn: DBConnection, governor: CostGovernor, run: dict, operation: st
     )
 
 
-def _record_step(conn: DBConnection, run_id: str, key: str, label: str, progress: int, output: dict, *, task: str | None = None) -> None:
+def _record_step(conn: DBConnection, run_id: str, key: str, label: str, progress: int, output: dict, *, task: str | None = None, worker_id: str | None = None) -> None:
     payload = dict(output or {})
     if task:
         payload.setdefault("ai_meta", _artifact_meta(task))
@@ -105,41 +109,66 @@ def _record_step(conn: DBConnection, run_id: str, key: str, label: str, progress
     record_event(conn, run_id, key if "." in key else f"{key}.completed", label, progress, payload_json=payload)
     patch_run_result(conn, run_id, key, payload)
     update_run(conn, run_id, current_step=key, progress=progress)
+    touch_run_heartbeat(conn, run_id, worker_id=worker_id)
     _commit_best_effort(conn)
 
 
 def start_bot_autopilot_run(conn: DBConnection, payload: BotAutopilotRequest, user: Any = None) -> dict:
+    payload = payload.enforce_actor_godmode(user)
+    user_id = _user_id(user)
+    payload_dump = payload.model_dump()
+    idempotency_key = _workflow_idempotency_key(
+        organization_id=payload.organization_id,
+        user_id=user_id,
+        payload=payload_dump,
+        explicit_key=payload.client_request_id,
+    )
     run = create_run(
         conn,
         organization_id=payload.organization_id,
         bot_id=payload.bot_id,
-        user_id=_user_id(user),
+        user_id=user_id,
         prompt=payload.user_description,
         intensity=payload.effective_intensity,
-        config=payload.model_dump(),
+        config=payload_dump,
+        idempotency_key=idempotency_key,
     )
-    record_event(
-        conn,
-        run["id"],
-        "workflow.started",
-        "WAOS AI Production Autopilot v3 blindado iniciado",
-        1,
-        payload_json={"requested_intensity": payload.requested_intensity or payload.effective_intensity, "effective_intensity": payload.effective_intensity, "safety_warnings": payload.safety_warnings, "streaming": "real_sse"},
-    )
-    update_run(conn, run["id"], status="running", current_step="workflow.started", progress=1)
-    _commit_best_effort(conn)
+    replay = bool(run.get("_idempotent_replay"))
+    if replay:
+        record_event(
+            conn,
+            run["id"],
+            "workflow.start.replayed",
+            "Autopilot start replay idempotente; no se encola un worker duplicado",
+            int(run.get("progress") or 1),
+            payload_json={"idempotency_key": idempotency_key, "status": run.get("status")},
+        )
+        _commit_best_effort(conn)
+    else:
+        record_event(
+            conn,
+            run["id"],
+            "workflow.started",
+            "WAOS AI Production Autopilot v3 blindado iniciado",
+            1,
+            payload_json={"requested_intensity": payload.requested_intensity or payload.effective_intensity, "effective_intensity": payload.effective_intensity, "safety_warnings": payload.safety_warnings, "streaming": "real_sse", "idempotency_key": idempotency_key},
+        )
+        update_run(conn, run["id"], status="running", current_step="workflow.started", progress=1, completed_at=None)
+        _commit_best_effort(conn)
     return {
         "run_id": run["id"],
         "wizard_id": run.get("wizard_id"),
         "bot_id": run.get("bot_id"),
-        "status": "running",
-        "progress": 1,
+        "status": run.get("status") or "running",
+        "progress": run.get("progress") or 1,
         "requested_intensity": payload.requested_intensity or payload.effective_intensity,
         "effective_intensity": payload.effective_intensity,
         "safety_warnings": payload.safety_warnings,
+        "idempotency_key": idempotency_key,
+        "idempotent_replay": replay,
+        "enqueue_worker": not replay,
         "next_action": {"type": "stream_events", "events_url": f"/api/v1/ai/workflows/{run['id']}/events"},
     }
-
 
 def run_bot_autopilot(conn: DBConnection, payload: BotAutopilotRequest, user: Any = None) -> dict:
     starter = start_bot_autopilot_run(conn, payload, user=user)
@@ -162,23 +191,31 @@ def run_bot_autopilot_background(run_id: str, user: Any = None) -> None:
 
 
 def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None) -> dict:
+    worker_id = f"bot_autopilot:{uuid.uuid4()}"
+    claimed = claim_workflow_run_execution(conn, run_id, worker_id=worker_id)
+    _commit_best_effort(conn)
+    if not claimed.get("_worker_claimed"):
+        record_event(conn, run_id, "workflow.worker_claim_rejected", "Worker duplicado rechazado; otro worker conserva el lease", int(claimed.get("progress") or 0), payload_json={"worker_id": worker_id, "current_worker_id": claimed.get("worker_id"), "status": claimed.get("status"), "dedupe_key": f"worker_claim_rejected:{run_id}:{worker_id}"})
+        _commit_best_effort(conn)
+        return {"run_id": run_id, "status": claimed.get("status"), "worker_claimed": False, "next_action": {"type": "poll_existing_run"}}
     run = require_run(conn, run_id)
-    payload = BotAutopilotRequest.model_validate(run.get("config_json") or {})
+    payload = BotAutopilotRequest.model_validate(run.get("config_json") or {}).enforce_actor_godmode(user)
     effective_intensity = payload.effective_intensity
     profile = get_intensity_profile(effective_intensity)
     governor = CostGovernor(effective_intensity, payload.max_cost_usd)
-    update_run(conn, run_id, status="running")
+    update_run(conn, run_id, status="running", worker_id=worker_id)
+    touch_run_heartbeat(conn, run_id, worker_id=worker_id)
     try:
         _check_cancelled(conn, run_id)
         _charge(conn, governor, run, "intent_normalization", 0.02)
         normalized = {"description": payload.user_description.strip(), "language": payload.language, "timezone": payload.timezone}
-        _record_step(conn, run_id, "intent.normalized", "Descripcion normalizada", 5, normalized, task="intent_normalization")
+        _record_step(conn, run_id, "intent.normalized", "Descripcion normalizada", 5, normalized, task="intent_normalization", worker_id=worker_id)
 
         _check_cancelled(conn, run_id)
         _charge(conn, governor, run, "vertical_detection", 0.03)
         vertical = detect_vertical(payload.user_description, payload.vertical_id)
         vertical.update({"subvertical": payload.subvertical or vertical.get("subvertical"), "primary_objective": payload.primary_objective or vertical.get("primary_objective")})
-        _record_step(conn, run_id, "vertical.detected", "Vertical detectada", 10, vertical, task="vertical_detection")
+        _record_step(conn, run_id, "vertical.detected", "Vertical detectada", 10, vertical, task="vertical_detection", worker_id=worker_id)
 
         _check_cancelled(conn, run_id)
         _charge(conn, governor, run, "business_profile", 0.04)
@@ -192,7 +229,7 @@ def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None)
             constraints=["no inventar precios", "no inventar horarios", "no inventar promociones"],
             facts_to_confirm=["precios reales", "horarios reales", "destino humano", "politicas legales"],
         ).model_dump()
-        _record_step(conn, run_id, "business_profile.generated", "Business profile generado", 15, business, task="business_profile")
+        _record_step(conn, run_id, "business_profile.generated", "Business profile generado", 15, business, task="business_profile", worker_id=worker_id)
 
         _check_cancelled(conn, run_id)
         _charge(conn, governor, run, "wizard_generation", 0.18)
@@ -221,44 +258,60 @@ def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None)
             upsert_step(conn, run_id, "wizard_generation.failed_partial", "Wizard legacy fallo; fallback seguro creado", "failed", error_json={"message": str(exc)})
             record_event(conn, run_id, "wizard.failed_partial", "Wizard legacy fallo; se creo fallback seguro", 24, payload_json={"error": str(exc)})
         wizard = legacy.get("wizard") or {}
-        wizard_id = str(legacy.get("wizard_id") or wizard.get("id") or "")
+        wizard_id = str(legacy.get("wizard_id") or wizard.get("id") or "").strip()
         bot_id = payload.bot_id or wizard.get("bot_id")
         update_run(conn, run_id, wizard_id=wizard_id, bot_id=bot_id)
-        _record_step(conn, run_id, "wizard.created", "Wizard generado y guardado", 25, {"wizard_id": wizard_id, "wizard": wizard}, task="wizard_generation")
+        if not wizard_id:
+            reason = str(wizard.get("reason") or legacy.get("error") or "wizard generation returned no wizard_id")
+            failure = {
+                "run_id": run_id,
+                "wizard_id": None,
+                "bot_id": bot_id,
+                "status": "failed",
+                "progress": 25,
+                "error": {"code": "wizard_required", "message": reason},
+                "next_action": {"type": "retry_bot_autopilot", "reason": "wizard_required"},
+            }
+            upsert_step(conn, run_id, "wizard_generation.blocked", "Wizard no aplicable; falta wizard_id", "failed", output_json={"wizard": wizard}, error_json=failure["error"])
+            update_run(conn, run_id, status="failed", progress=25, current_step="wizard_generation.blocked", result_json=failure, error_json=failure["error"])
+            record_event(conn, run_id, "workflow.failed", "Wizard no aplicable; falta wizard_id", 25, payload_json=failure)
+            _commit_best_effort(conn)
+            return failure
+        _record_step(conn, run_id, "wizard.created", "Wizard generado y guardado", 25, {"wizard_id": wizard_id, "wizard": wizard}, task="wizard_generation", worker_id=worker_id)
 
         _check_cancelled(conn, run_id)
         vertical_pack = build_vertical_intelligence_pack({**business, **vertical}, effective_intensity)
-        _record_step(conn, run_id, "vertical_pack.generated", "Vertical Intelligence Pack generado", 32, vertical_pack, task="vertical_intelligence_pack")
+        _record_step(conn, run_id, "vertical_pack.generated", "Vertical Intelligence Pack generado", 32, vertical_pack, task="vertical_intelligence_pack", worker_id=worker_id)
 
         _check_cancelled(conn, run_id)
         policy_pack = generate_agent_policy_pack(vertical_pack, effective_intensity)
         save_json_artifact(conn, table="agent_policy_packs", json_column="pack_json", run_id=run_id, bot_id=bot_id, payload=policy_pack)
-        _record_step(conn, run_id, "policy_pack.generated", "Agent Policy Pack generado", 40, policy_pack, task="policy_generation")
+        _record_step(conn, run_id, "policy_pack.generated", "Agent Policy Pack generado", 40, policy_pack, task="policy_generation", worker_id=worker_id)
 
         specialist = {"specialists": [agent["agent_key"] for agent in policy_pack.get("agents", [])], "routing": "multi_agent_runtime", "default_agent": "general"}
-        _record_step(conn, run_id, "specialist_agents_config.generated", "Specialist agents config generado", 46, specialist, task="policy_generation")
+        _record_step(conn, run_id, "specialist_agents_config.generated", "Specialist agents config generado", 46, specialist, task="policy_generation", worker_id=worker_id)
 
         _check_cancelled(conn, run_id)
         knowledge = generate_knowledge_plan(vertical_pack, business) if payload.auto_generate_knowledge else {}
         if knowledge:
             save_json_artifact(conn, table="knowledge_grounding_plans", json_column="plan_json", run_id=run_id, bot_id=bot_id, payload=knowledge)
-        _record_step(conn, run_id, "knowledge_plan.generated", "Knowledge plan generado", 52, knowledge, task="knowledge_plan")
+        _record_step(conn, run_id, "knowledge_plan.generated", "Knowledge plan generado", 52, knowledge, task="knowledge_plan", worker_id=worker_id)
 
         _check_cancelled(conn, run_id)
         whatsapp = generate_whatsapp_production_pack(vertical_pack, business) if payload.auto_generate_templates else {}
         if whatsapp:
             save_json_artifact(conn, table="whatsapp_production_packs", json_column="pack_json", run_id=run_id, bot_id=bot_id, payload=whatsapp)
-        _record_step(conn, run_id, "whatsapp_pack.generated", "WhatsApp Production Pack generado", 58, whatsapp, task="whatsapp_template_generation")
+        _record_step(conn, run_id, "whatsapp_pack.generated", "WhatsApp Production Pack generado", 58, whatsapp, task="whatsapp_template_generation", worker_id=worker_id)
 
         _check_cancelled(conn, run_id)
         tool_plan = generate_tool_execution_plan(vertical_pack, effective_intensity) if payload.auto_generate_tools else {}
         if tool_plan:
             save_json_artifact(conn, table="tool_execution_plans", json_column="plan_json", run_id=run_id, bot_id=bot_id, payload=tool_plan)
-        _record_step(conn, run_id, "tool_plan.generated", "Tool execution plan generado", 64, tool_plan, task="tool_execution_plan")
+        _record_step(conn, run_id, "tool_plan.generated", "Tool execution plan generado", 64, tool_plan, task="tool_execution_plan", worker_id=worker_id)
 
         dry = legacy.get("dry_run_result") or {}
         validation = legacy.get("validation_snapshot") or {}
-        _record_step(conn, run_id, "dry_run.completed", "Dry run completado", 70, {"dry_run_result": dry, "validation_snapshot": validation})
+        _record_step(conn, run_id, "dry_run.completed", "Dry run completado", 70, {"dry_run_result": dry, "validation_snapshot": validation}, worker_id=worker_id)
 
         autofix = legacy.get("autofix") or {"rounds": [], "blocked_items": knowledge.get("missing_facts", [])}
         record_event(conn, run_id, "autofix.started", "Autofix iniciado", 72, payload_json={"max_rounds": profile.autofix_rounds})
@@ -266,13 +319,14 @@ def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None)
         patch_run_result(conn, run_id, "autofix", autofix)
         record_event(conn, run_id, "autofix.round_completed", "Autofix legacy/seguro completado", 76, payload_json=autofix)
         update_run(conn, run_id, current_step="autofix.round_completed", progress=76)
+        touch_run_heartbeat(conn, run_id, worker_id=worker_id)
         _commit_best_effort(conn)
 
         _check_cancelled(conn, run_id)
         simulation = run_simulation_suite(vertical_pack, wizard, profile.simulations) if payload.auto_run_simulations else {}
         if simulation:
             save_simulation_report(conn, run_id=run_id, wizard_id=wizard_id, bot_id=bot_id, report=simulation)
-        _record_step(conn, run_id, "simulation.completed", "Simulation suite completada", 84, simulation, task="simulation_judge")
+        _record_step(conn, run_id, "simulation.completed", "Simulation suite completada", 84, simulation, task="simulation_judge", worker_id=worker_id)
 
         _check_cancelled(conn, run_id)
         readiness = evaluate_go_live_readiness(
@@ -286,7 +340,7 @@ def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None)
             human_handoff_config=None,
         )
         save_go_live_readiness(conn, run_id=run_id, wizard_id=wizard_id, bot_id=bot_id, report=readiness)
-        _record_step(conn, run_id, "go_live_readiness.completed", "Go-live readiness evaluado", 90, readiness, task="go_live_readiness")
+        _record_step(conn, run_id, "go_live_readiness.completed", "Go-live readiness evaluado", 90, readiness, task="go_live_readiness", worker_id=worker_id)
         for item in readiness.get("human_confirmations_required", []):
             saved = upsert_human_confirmation(conn, run_id=run_id, wizard_id=wizard_id, bot_id=bot_id, field_key=item.get("field_key", "confirmation"), label=item.get("label"), reason=item.get("reason"), status=item.get("status", "pending"), suggested_value=str(item.get("suggested_value") or "") or None)
             record_event(conn, run_id, "human_confirmation.required", saved.get("label", "Confirmacion humana requerida"), 91, payload_json=dict(saved))
@@ -294,6 +348,7 @@ def execute_bot_autopilot_run(conn: DBConnection, run_id: str, user: Any = None)
         apply_plan = prepare_release_plan(readiness) if payload.auto_prepare_go_live else {}
         record_event(conn, run_id, "apply.prepared", "Apply/canary plan preparado", 94, payload_json=apply_plan)
         patch_run_result(conn, run_id, "apply_plan", apply_plan)
+        touch_run_heartbeat(conn, run_id, worker_id=worker_id)
         _commit_best_effort(conn)
         learning = generate_learning_recommendations([])
         confirmations = list_human_confirmations(conn, run_id)

@@ -244,6 +244,28 @@ function badge(text, cls = '') {
   return `<span class="badge ${cls}">${escapeHtml(text)}</span>`;
 }
 
+function whatsappNumberText(bot) {
+  const wa = bot.whatsapp_number || {};
+  return bot.phone_number || wa.phone_number || wa.number || 'sin número';
+}
+
+function whatsappStatusText(bot) {
+  const wa = bot.whatsapp_number || {};
+  const status = String(bot.whatsapp_ui_status || wa.ui_status || wa.connection_status || bot.connection_status || '').toLowerCase();
+  if (bot.whatsapp_send_ready === true || wa.send_ready === true || status === 'send_ready') {
+    return 'WhatsApp listo para enviar';
+  }
+  if (whatsappNumberText(bot) !== 'sin número') {
+    return 'WhatsApp pendiente de conexión';
+  }
+  return 'WhatsApp no configurado';
+}
+
+function whatsappStatusBadge(bot) {
+  const ready = bot.whatsapp_send_ready === true || (bot.whatsapp_number || {}).send_ready === true;
+  return badge(whatsappStatusText(bot), ready ? 'success' : 'warning');
+}
+
 function emptyState(title, body) {
   return `
     <div class="empty-state">
@@ -852,7 +874,7 @@ function renderBots() {
       ${state.bots.map((bot) => `
         <div class="list-item">
           <div class="list-item-title">${escapeHtml(bot.name)}</div>
-          <div class="list-item-meta">${escapeHtml(bot.business_name || 'Negocio')} · ${escapeHtml(bot.phone_number || bot.whatsapp_number?.number || 'sin número')} · ${escapeHtml(bot.status || 'draft')}</div>
+          <div class="list-item-meta">${escapeHtml(bot.business_name || 'Negocio')} · ${escapeHtml(whatsappNumberText(bot))} · ${whatsappStatusBadge(bot)} · ${escapeHtml(bot.status || 'draft')}</div>
           <div class="list-item-actions">
             <button class="small secondary" data-bot-action="pause-resume" data-bot-id="${escapeHtml(bot.id)}" data-bot-next="${bot.ai_paused ? 'resume' : 'pause'}">${bot.ai_paused ? 'Reanudar IA' : 'Pausar IA'}</button>
             <button class="small secondary" data-bot-action="clone" data-bot-id="${escapeHtml(bot.id)}">Clonar</button>
@@ -1920,8 +1942,8 @@ async function createBotFromForm() {
       publish_now: $('#bot-publish').value === 'true',
     }),
   });
-  setStatus($('#bot-form-result'), 'Bot creado correctamente.', 'success');
-  showToast('Bot creado.');
+  setStatus($('#bot-form-result'), 'Bot creado. WhatsApp queda pendiente de conexión hasta validar Meta y webhook.', 'success');
+  showToast('Bot creado. WhatsApp pendiente de conexión.');
   await refreshAll();
 }
 

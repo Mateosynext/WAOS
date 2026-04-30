@@ -77,10 +77,10 @@ test("Bot Studio route loader keeps RSC work scoped to the active step", () => {
   assert.match(loader, /loadBotList: isReconfigureSelect/);
   assert.match(loader, /loadSelectedBot: isReconfigureDetail/);
   assert.match(loader, /loadBlueprintAndProfile: isCreatePrefill \|\| isReconfigureDetail/);
-  assert.match(loader, /loadPlan\.loadBotList \? safeOptional\(\(\) => getBots\(\), \[\]\) : Promise\.resolve\(\[\]\)/);
-  assert.match(loader, /loadPlan\.loadSelectedBot \? getSelectedBotOrNull\(selectedBotIdFromRouteOrWizard\) : Promise\.resolve\(null\)/);
-  assert.match(loader, /async function safeOptional<T>\(loader: \(\) => Promise<T>, fallback: T\): Promise<T>/);
-  assert.match(loader, /safeOptional\(\(\) => getWizardBlueprint/);
+    assert.match(loader, /loadPlan\.loadBotList \? safeOptional\("bot_list", loadWarnings, \(\) => getBots\(\), \[\]\) : Promise\.resolve\(\[\]\)/);
+  assert.match(loader, /loadPlan\.loadSelectedBot \? getSelectedBotOrNull\(selectedBotIdFromRouteOrWizard, loadWarnings\) : Promise\.resolve\(null\)/);
+    assert.match(loader, /async function safeOptional<T>\(source: string, warnings: BotStudioLoadWarning\[\], loader: \(\) => Promise<T>, fallback: T\): Promise<T>/);
+  assert.match(loader, /safeOptional\("wizard_blueprint", loadWarnings, \(\) => getWizardBlueprint/);
   assert.match(page, /mode === "create" && normalizedStep === "context" && !model\.verticals\.length/);
   assert.doesNotMatch(loader, /Promise\.all\(\[\s*getVerticalCatalog\(\),\s*getStrongestVerticals\(\),\s*getBots\(\),\s*routeWizardId/);
 });

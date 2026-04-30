@@ -3,11 +3,15 @@ import { normalizeDeadLetters, normalizeIntegration, normalizeIntegrationCenter,
 import type { RateLimitPolicyContract, SecurityPolicyContract, SSOProviderContract } from "../contracts/auth";
 import { normalizeRateLimitPolicy, normalizeSecurityPolicy, normalizeSSOProvider } from "../contracts/auth";
 import { apiFetchOrDefault } from "../api";
-import { fetchArray, fetchRecord, orgQuery } from "./shared";
+import { fetchArray, fetchArrayState, fetchRecord, fetchRecordState, orgQuery, type PortalModuleState } from "./shared";
+
+export async function getIntegrationsState(): Promise<PortalModuleState<IntegrationContract[]>> {
+  const query = await orgQuery();
+  return fetchArrayState(`/api/v1/integrations?${query}`, [], normalizeIntegration);
+}
 
 export async function getIntegrations(): Promise<IntegrationContract[]> {
-  const query = await orgQuery();
-  return fetchArray(`/api/v1/integrations?${query}`, [], normalizeIntegration);
+  return (await getIntegrationsState()).data;
 }
 
 export async function getSecrets(): Promise<SecretContract[]> {
@@ -20,9 +24,13 @@ export async function getIntegrationCenter(): Promise<IntegrationCenterContract>
   return fetchRecord(`/api/v1/integrations/center?${query}`, { summary: {}, integrations: [], observability: {}, recent_sync_runs: [], failed_receipts: [], retry_hotspots: [], dependency_map: [] }, normalizeIntegrationCenter);
 }
 
-export async function getScheduler(): Promise<SchedulerOverviewContract> {
+export async function getSchedulerState(): Promise<PortalModuleState<SchedulerOverviewContract>> {
   const query = await orgQuery();
-  return fetchRecord(`/api/v1/runtime/scheduler?${query}`, { due_now: 0, next_job: null, counts: [], stale_locks: 0, integration_due_now: 0, next_integration: null, integration_retries: 0 }, normalizeSchedulerOverview);
+  return fetchRecordState(`/api/v1/runtime/scheduler?${query}`, { due_now: 0, next_job: null, counts: [], stale_locks: 0, integration_due_now: 0, next_integration: null, integration_retries: 0 }, normalizeSchedulerOverview);
+}
+
+export async function getScheduler(): Promise<SchedulerOverviewContract> {
+  return (await getSchedulerState()).data;
 }
 
 export async function getRateLimits(): Promise<RateLimitPolicyContract[]> {
@@ -44,19 +52,31 @@ export async function getSSOProviders(): Promise<SSOProviderContract[]> {
   return fetchArray(`/api/v1/security/sso?${query}`, [], normalizeSSOProvider);
 }
 
-export async function getRuntimeCallbacks(): Promise<RuntimeCallbackContract[]> {
+export async function getRuntimeCallbacksState(): Promise<PortalModuleState<RuntimeCallbackContract[]>> {
   const query = await orgQuery();
-  return fetchArray(`/api/v1/runtime/callbacks?${query}`, [], normalizeRuntimeCallback);
+  return fetchArrayState(`/api/v1/runtime/callbacks?${query}`, [], normalizeRuntimeCallback);
+}
+
+export async function getRuntimeCallbacks(): Promise<RuntimeCallbackContract[]> {
+  return (await getRuntimeCallbacksState()).data;
+}
+
+export async function getDeadLettersState(): Promise<PortalModuleState<DeadLettersContract>> {
+  const query = await orgQuery();
+  return fetchRecordState(`/api/v1/operations/dead-letters?${query}`, { jobs: [], outbox: [] }, normalizeDeadLetters);
 }
 
 export async function getDeadLetters(): Promise<DeadLettersContract> {
+  return (await getDeadLettersState()).data;
+}
+
+export async function getIntegrationSyncRunsState(): Promise<PortalModuleState<SyncRunContract[]>> {
   const query = await orgQuery();
-  return fetchRecord(`/api/v1/operations/dead-letters?${query}`, { jobs: [], outbox: [] }, normalizeDeadLetters);
+  return fetchArrayState(`/api/v1/integrations/sync-runs?${query}`, [], normalizeSyncRun);
 }
 
 export async function getIntegrationSyncRuns(): Promise<SyncRunContract[]> {
-  const query = await orgQuery();
-  return fetchArray(`/api/v1/integrations/sync-runs?${query}`, [], normalizeSyncRun);
+  return (await getIntegrationSyncRunsState()).data;
 }
 
 export async function getIntegrationEvents(): Promise<IntegrationEventContract[]> {
@@ -74,22 +94,30 @@ export async function getGoogleCalendars(integrationId: string | null | undefine
   return apiFetchOrDefault<Array<Record<string, unknown>>>(`/api/v1/integrations/${integrationId}/oauth/google/calendars`, []);
 }
 
-export async function getSystemStatus() {
-  return apiFetchOrDefault<Record<string, unknown>>(`/api/v1/system/status`, {
+export async function getSystemStatusState(): Promise<PortalModuleState<Record<string, unknown>>> {
+  return fetchRecordState(`/api/v1/system/status`, {
     status: "unknown",
     environment: "development",
     version: "-",
     checks: [],
     launch_checks: [],
     config: {},
-  });
+  }, (value) => (value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}));
 }
 
-export async function getHealth() {
-  return apiFetchOrDefault<Record<string, unknown>>(`/healthz`, {
+export async function getSystemStatus() {
+  return (await getSystemStatusState()).data;
+}
+
+export async function getHealthState(): Promise<PortalModuleState<Record<string, unknown>>> {
+  return fetchRecordState(`/healthz`, {
     status: "unknown",
     service: "WAOS",
     version: "-",
     environment: "development",
-  });
+  }, (value) => (value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}));
+}
+
+export async function getHealth() {
+  return (await getHealthState()).data;
 }

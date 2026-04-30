@@ -24,3 +24,5 @@ for (const item of checks) {
 }
 
 console.log(JSON.stringify({ ok: true, baseUrl, checks: checks.map((item) => item.path) }, null, 2));
+
+if (!process.exitCode) process.exit(0);

@@ -19,7 +19,10 @@ STRIPE_API_BASE = "https://api.stripe.com/v1"
 
 
 def _fake_providers_enabled() -> bool:
-    return str(os.getenv("WAOS_E2E_FAKE_PROVIDERS", "")).strip().lower() in {"1", "true", "yes", "on"}
+    from ..config import settings
+    if settings.is_production and settings.waos_e2e_fake_providers:
+        raise RuntimeError("WAOS_E2E_FAKE_PROVIDERS cannot be enabled in production")
+    return bool(settings.waos_e2e_fake_providers)
 
 
 def _payment_metadata(payment: dict[str, Any]) -> dict[str, Any]:
@@ -75,14 +78,17 @@ def _stripe_webhook_secret(conn, integration: dict[str, Any]) -> str | None:
     return config.get("webhook_secret") or resolve_secret(conn, organization_id=integration["organization_id"], bot_id=integration.get("bot_id"), key_name="STRIPE_WEBHOOK_SECRET")
 
 
-def _stripe_headers(conn, integration: dict[str, Any]) -> dict[str, str]:
+def _stripe_headers(conn, integration: dict[str, Any], *, idempotency_key: str | None = None) -> dict[str, str]:
     secret = _stripe_secret_key(conn, integration)
     if not secret:
         raise RetryableProviderError("missing_stripe_secret_key", retryable=False)
-    return {
+    headers = {
         "Authorization": f"Bearer {secret}",
         "Content-Type": "application/x-www-form-urlencoded",
     }
+    if idempotency_key:
+        headers["Idempotency-Key"] = str(idempotency_key)[:255]
+    return headers
 
 
 def _flatten(prefix: str, value: Any, out: dict[str, str]) -> None:
@@ -156,6 +162,8 @@ def _reconcile_payment_with_appointments(conn, payment: dict[str, Any]) -> dict[
 
 
 def create_provider_checkout(conn, payment: dict[str, Any]) -> dict[str, Any]:
+    if payment.get("payment_link_status") == "ready" and payment.get("payment_link_url") and payment.get("external_payment_id"):
+        return {"payment": payment, "provider_ready": True, "provider": payment.get("provider") or "existing", "idempotent": True}
     integration = _payment_integration(conn, organization_id=payment["organization_id"], bot_id=payment.get("bot_id"))
     if not integration:
         updated = _update_payment(
@@ -164,6 +172,7 @@ def create_provider_checkout(conn, payment: dict[str, Any]) -> dict[str, Any]:
             provider="unconfigured",
             payment_link_status="provider_required",
             status="pending_provider",
+            operational_status="provider_pending",
             provider_status="missing_provider",
             provider_response_json=to_json({"error": "missing_payment_integration"}),
             next_reconciliation_at=add_minutes(utcnow_iso(), 10),
@@ -173,6 +182,8 @@ def create_provider_checkout(conn, payment: dict[str, Any]) -> dict[str, Any]:
     if integration.get("provider") != "stripe":
         raise RetryableProviderError("unsupported_payment_provider", retryable=False, details={"provider": integration.get("provider")})
     config = _integration_config(integration)
+    metadata = _payment_metadata(payment)
+    provider_idempotency_key = str(metadata.get("tool_execution_idempotency_key") or metadata.get("idempotency_key") or f"payment:{payment['id']}").strip()
     if _fake_providers_enabled():
         fake_session_id = f"cs_fake_{payment['id']}"
         fake_intent = f"pi_fake_{payment['id']}"
@@ -194,6 +205,7 @@ def create_provider_checkout(conn, payment: dict[str, Any]) -> dict[str, Any]:
             reconciliation_attempts=0,
             last_reconciliation_error=None,
             status="pending",
+            operational_status="provider_confirmed",
         )
         record_integration_event(
             conn,
@@ -204,7 +216,7 @@ def create_provider_checkout(conn, payment: dict[str, Any]) -> dict[str, Any]:
             event_type="checkout.create",
             status="ok",
             summary="fake stripe checkout created for browser e2e",
-            request_payload={"payment_id": payment["id"], "amount": payment.get("amount")},
+            request_payload={"payment_id": payment["id"], "amount": payment.get("amount"), "idempotency_key": provider_idempotency_key},
             response_payload={"session_id": fake_session_id, "payment_intent": fake_intent, "url": fake_url},
             external_reference=fake_session_id,
             provider_status_code=200,
@@ -245,7 +257,12 @@ def create_provider_checkout(conn, payment: dict[str, Any]) -> dict[str, Any]:
     }
     body = _encode_form(form)
     try:
-        response = httpx.post(f"{STRIPE_API_BASE}/checkout/sessions", headers=_stripe_headers(conn, integration), content=body, timeout=30.0)
+        response = httpx.post(
+            f"{STRIPE_API_BASE}/checkout/sessions",
+            headers=_stripe_headers(conn, integration, idempotency_key=provider_idempotency_key),
+            content=body,
+            timeout=30.0,
+        )
         data = response.json()
     except Exception as exc:
         record_integration_event(
@@ -260,7 +277,20 @@ def create_provider_checkout(conn, payment: dict[str, Any]) -> dict[str, Any]:
             summary="stripe checkout request failed",
             error_payload={"message": str(exc)},
         )
-        raise
+        updated = _update_payment(
+            conn,
+            payment["id"],
+            provider="stripe",
+            integration_id=integration["id"],
+            payment_link_status="provider_timeout",
+            provider_status="timeout",
+            provider_response_json=to_json({"error": str(exc)}),
+            status="pending_provider",
+            operational_status="retrying",
+            next_reconciliation_at=add_minutes(utcnow_iso(), 5),
+            last_reconciliation_error=str(exc),
+        )
+        return {"payment": updated, "provider_ready": False, "reason": "provider_timeout", "retryable": True}
     if response.status_code >= 400:
         record_integration_event(
             conn,
@@ -272,7 +302,7 @@ def create_provider_checkout(conn, payment: dict[str, Any]) -> dict[str, Any]:
             status="failed",
             severity="error",
             summary="stripe checkout rejected",
-            request_payload={"payment_id": payment["id"], "amount": payment.get("amount")},
+            request_payload={"payment_id": payment["id"], "amount": payment.get("amount"), "idempotency_key": provider_idempotency_key},
             response_payload=data,
             error_payload=data,
             provider_status_code=response.status_code,
@@ -287,6 +317,7 @@ def create_provider_checkout(conn, payment: dict[str, Any]) -> dict[str, Any]:
             provider_status_code=response.status_code,
             provider_response_json=to_json(data),
             status="pending_provider",
+            operational_status="provider_failed",
             next_reconciliation_at=add_minutes(utcnow_iso(), 15),
             last_reconciliation_error=str(data),
         )
@@ -308,6 +339,7 @@ def create_provider_checkout(conn, payment: dict[str, Any]) -> dict[str, Any]:
         reconciliation_attempts=0,
         last_reconciliation_error=None,
         status="pending",
+        operational_status="provider_confirmed",
     )
     execute(
         conn,
@@ -323,7 +355,7 @@ def create_provider_checkout(conn, payment: dict[str, Any]) -> dict[str, Any]:
         event_type="checkout.create",
         status="ok",
         summary="stripe checkout created",
-        request_payload={"payment_id": payment["id"], "amount": payment.get("amount")},
+        request_payload={"payment_id": payment["id"], "amount": payment.get("amount"), "idempotency_key": provider_idempotency_key},
         response_payload={"session_id": data.get("id"), "payment_intent": data.get("payment_intent"), "url": data.get("url")},
         external_reference=data.get("id"),
         provider_status_code=response.status_code,
@@ -338,6 +370,7 @@ def _mark_payment_paid(conn, payment: dict[str, Any], *, provider_reference: str
         conn,
         payment["id"],
         status="paid",
+        operational_status="provider_confirmed",
         payment_link_status="paid",
         provider_status=provider_status,
         provider_reference=provider_reference,

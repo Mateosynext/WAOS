@@ -20,6 +20,7 @@ class ToolExecutionRequest(BaseModel):
     action: ToolAction
     payload: dict[str, Any] = Field(default_factory=dict)
     idempotency_key: str | None = None
+    client_request_id: str | None = None
     preview_execution_id: str | None = None
     confirmation_token: str | None = None
     confirm: bool = False

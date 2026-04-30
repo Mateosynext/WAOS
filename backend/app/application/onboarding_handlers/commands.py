@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
-from app.config import settings
+from ...config import settings
 
 from ...contracts import ok
 from ...db import execute, table_exists

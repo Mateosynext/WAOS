@@ -1,10 +1,12 @@
+# Render is a backend deploy gate only, not full-stack certification.
+# Production deploys must be promoted only from CI-certified tags/build artifacts that passed scripts/validate_release_in_ci.sh.
 services:
   - type: web
     name: waos-api
     runtime: python
     plan: standard
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && python scripts/validate_render_env.py && python scripts/validate_release_candidate.py && python scripts/check_repo_hygiene.py && python scripts/release_gate.py
     startCommand: bash scripts/bootstrap.sh
     healthCheckPath: /livez
     envVars:
@@ -16,6 +18,8 @@ services:
           property: connectionString
       - key: APP_ENV
         value: production
+      - key: ENABLE_API_DOCS
+        value: false
       - key: RUN_BOOTSTRAP_SEED
         value: false
       - key: AUTO_RUN_MIGRATIONS
@@ -32,6 +36,52 @@ services:
         value: true
       - key: TRUSTED_PROXY_IPS
         value: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1/32,::1/128
+      - key: SECURITY_HARDENING_ENABLED
+        value: true
+      - key: ENFORCE_HTTPS
+        value: true
+      - key: REJECT_UNTRUSTED_PROXY_HEADERS
+        value: true
+      - key: REQUIRE_SIGNED_WEBHOOKS
+        value: true
+      - key: SECURITY_RATE_LIMIT_ENABLED
+        value: true
+      - key: RATE_LIMIT_BACKEND
+        value: redis
+      - key: RATE_LIMIT_REDIS_URL
+        sync: false
+      - key: RATE_LIMIT_REDIS_TIMEOUT_SECONDS
+        value: 0.5
+      - key: RATE_LIMIT_KEY_PREFIX
+        value: waos:rate-limit
+      - key: RATE_LIMIT_MEMORY_MAX_BUCKETS
+        value: 10000
+      - key: RATE_LIMIT_MEMORY_EVICTION_BATCH
+        value: 128
+      - key: GLOBAL_RATE_LIMIT_WINDOW_SECONDS
+        value: 60
+      - key: GLOBAL_RATE_LIMIT_MAX_REQUESTS
+        value: 600
+      - key: AUTH_RATE_LIMIT_WINDOW_SECONDS
+        value: 900
+      - key: AUTH_RATE_LIMIT_MAX_REQUESTS
+        value: 5
+      - key: WEBHOOK_RATE_LIMIT_WINDOW_SECONDS
+        value: 60
+      - key: WEBHOOK_RATE_LIMIT_MAX_REQUESTS
+        value: 120
+      - key: MAX_REQUEST_BODY_BYTES
+        value: 2097152
+      - key: MAX_WEBHOOK_BODY_BYTES
+        value: 1048576
+      - key: HSTS_MAX_AGE_SECONDS
+        value: 63072000
+      - key: HSTS_INCLUDE_SUBDOMAINS
+        value: true
+      - key: HSTS_PRELOAD
+        value: true
+      - key: CONTENT_SECURITY_POLICY
+        value: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
       - key: APP_SECRET
         generateValue: true
       - key: SECRET_ENCRYPTION_KEY
@@ -60,6 +110,8 @@ services:
         sync: false
       - key: SENTRY_DSN
         sync: false
+      - key: WAOS_REQUIRE_OBSERVABILITY
+        value: true
       - key: MAX_PAGE_SIZE
         value: 100
       - key: RUNTIME_CACHE_TTL_SECONDS
@@ -75,7 +127,7 @@ services:
       - key: STARTUP_INIT_DB
         value: false
       - key: STARTUP_DB_REQUIRED
-        value: false
+        value: true
       - key: META_GRAPH_API_BASE
         value: https://graph.facebook.com/v23.0
       - key: INBOUND_SPAM_WINDOW_SECONDS
@@ -103,7 +155,7 @@ services:
     runtime: python
     plan: starter
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && python scripts/validate_render_env.py && python scripts/validate_release_candidate.py && python scripts/check_repo_hygiene.py && python scripts/release_gate.py
     startCommand: bash scripts/worker_bootstrap.sh
     envVars:
       - key: PYTHON_VERSION
@@ -114,6 +166,8 @@ services:
           property: connectionString
       - key: APP_ENV
         value: production
+      - key: ENABLE_API_DOCS
+        value: false
       - key: AUTO_RUN_MIGRATIONS
         value: false
       - key: RUN_BOOTSTRAP_SEED
@@ -164,6 +218,141 @@ services:
           name: waos-api
           type: web
           envVarKey: META_GRAPH_API_BASE
+      - key: META_VERIFY_TOKEN
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: META_VERIFY_TOKEN
+      - key: META_APP_SECRET
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: META_APP_SECRET
+      - key: PUBLIC_APP_URL
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: PUBLIC_APP_URL
+      - key: API_BASE_URL
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: API_BASE_URL
+      - key: CORS_ALLOWED_ORIGINS
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: CORS_ALLOWED_ORIGINS
+      - key: ALLOWED_HOSTS
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: ALLOWED_HOSTS
+      - key: SECURE_COOKIES
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: SECURE_COOKIES
+      - key: TRUST_PROXY_HEADERS
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: TRUST_PROXY_HEADERS
+      - key: TRUSTED_PROXY_IPS
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: TRUSTED_PROXY_IPS
+      - key: SECURITY_HARDENING_ENABLED
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: SECURITY_HARDENING_ENABLED
+      - key: ENFORCE_HTTPS
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: ENFORCE_HTTPS
+      - key: REJECT_UNTRUSTED_PROXY_HEADERS
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: REJECT_UNTRUSTED_PROXY_HEADERS
+      - key: REQUIRE_SIGNED_WEBHOOKS
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: REQUIRE_SIGNED_WEBHOOKS
+      - key: SECURITY_RATE_LIMIT_ENABLED
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: SECURITY_RATE_LIMIT_ENABLED
+      - key: RATE_LIMIT_BACKEND
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: RATE_LIMIT_BACKEND
+      - key: RATE_LIMIT_REDIS_URL
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: RATE_LIMIT_REDIS_URL
+      - key: RATE_LIMIT_REDIS_TIMEOUT_SECONDS
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: RATE_LIMIT_REDIS_TIMEOUT_SECONDS
+      - key: RATE_LIMIT_MEMORY_MAX_BUCKETS
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: RATE_LIMIT_MEMORY_MAX_BUCKETS
+      - key: GLOBAL_RATE_LIMIT_MAX_REQUESTS
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: GLOBAL_RATE_LIMIT_MAX_REQUESTS
+      - key: AUTH_RATE_LIMIT_MAX_REQUESTS
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: AUTH_RATE_LIMIT_MAX_REQUESTS
+      - key: WEBHOOK_RATE_LIMIT_MAX_REQUESTS
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: WEBHOOK_RATE_LIMIT_MAX_REQUESTS
+      - key: MAX_REQUEST_BODY_BYTES
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: MAX_REQUEST_BODY_BYTES
+      - key: MAX_WEBHOOK_BODY_BYTES
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: MAX_WEBHOOK_BODY_BYTES
+      - key: HSTS_MAX_AGE_SECONDS
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: HSTS_MAX_AGE_SECONDS
+      - key: CONTENT_SECURITY_POLICY
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: CONTENT_SECURITY_POLICY
+      - key: SENTRY_DSN
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: SENTRY_DSN
+      - key: WAOS_REQUIRE_OBSERVABILITY
+        fromService:
+          name: waos-api
+          type: web
+          envVarKey: WAOS_REQUIRE_OBSERVABILITY
       - key: WORKER_MODE
         value: loop
       - key: WORKER_POLL_SECONDS

@@ -8,6 +8,7 @@ from ..config import settings
 from ..db import execute, fetch_all, fetch_one
 from ..contracts import count_row, runtime_callback_row, integration_sync_run_row
 from ..verticals import get_vertical_profile
+from ..whatsapp_connection_state import WHATSAPP_STATUS_SEND_READY, decorate_whatsapp_number
 
 from .runtime import compute_observability_overview
 from .secrets import _canonical_json, resolve_secret
@@ -361,15 +362,31 @@ def release_readiness(conn, *, organization_id: str, bot_id: str) -> dict[str, A
 
     whatsapp_row = fetch_one(conn, "SELECT * FROM whatsapp_numbers WHERE organization_id = ? AND bot_id = ? ORDER BY updated_at DESC LIMIT 1", (organization_id, bot_id)) or {}
     whatsapp_token = resolve_secret(conn, organization_id=organization_id, bot_id=bot_id, key_name='META_ACCESS_TOKEN') or resolve_secret(conn, organization_id=organization_id, bot_id=bot_id, key_name='WHATSAPP_ACCESS_TOKEN')
-    whatsapp_connected = bool(whatsapp_row.get('phone_number_id') and whatsapp_row.get('connection_status') == 'connected' and whatsapp_token)
+    whatsapp_view = decorate_whatsapp_number(whatsapp_row, access_token_present=bool(whatsapp_token)) if whatsapp_row else {}
+    whatsapp_status = (whatsapp_view or {}).get('connection_status') or ('missing' if not whatsapp_row else 'pending_setup')
+    whatsapp_connected = bool((whatsapp_view or {}).get('send_ready') and whatsapp_status == WHATSAPP_STATUS_SEND_READY and whatsapp_token)
 
     google_row = _best_integration(conn, organization_id=organization_id, bot_id=bot_id, expected='google_calendar') or {}
     google_config = from_json(google_row.get('config_json'), {}) if google_row else {}
-    google_connected = bool(google_row.get('id') and google_row.get('status') in {'active', 'configured'} and (google_row.get('credential_status') in {'connected', 'configured'} or google_config.get('calendar_id')))
+    google_connected = bool(
+        google_row.get('id')
+        and google_row.get('status') in {'active', 'configured'}
+        and google_row.get('credential_status') == 'connected'
+        and google_row.get('provider_verified_at')
+        and google_config.get('calendar_id')
+    )
 
     payments_row = _best_integration(conn, organization_id=organization_id, bot_id=bot_id, expected='payments') or {}
     payments_config = from_json(payments_row.get('config_json'), {}) if payments_row else {}
-    payments_connected = bool(payments_row.get('id') and (payments_row.get('status') in {'active', 'configured'} or payments_row.get('credential_status') in {'connected', 'configured'}) and (payments_config.get('success_url') and payments_config.get('cancel_url')))
+    payments_connected = bool(
+        payments_row.get('id')
+        and payments_row.get('status') in {'active', 'configured'}
+        and payments_row.get('credential_status') == 'connected'
+        and payments_row.get('provider_verified_at')
+        and payments_config.get('success_url')
+        and payments_config.get('cancel_url')
+    )
+    fake_providers_disabled = not settings.waos_e2e_fake_providers
 
     crm_row = _best_integration(conn, organization_id=organization_id, bot_id=bot_id, expected='crm') or {}
     crm_connected = bool(crm_row.get('id') and crm_row.get('status') in {'active', 'configured', 'connected'})
@@ -394,7 +411,7 @@ def release_readiness(conn, *, organization_id: str, bot_id: str) -> dict[str, A
     checklist_items = [
         _release_item('org_vertical', 'Vertical en organización', has_org_vertical, 'La organización activa ya tiene vertical definida.' if has_org_vertical else 'Define la vertical del tenant para cargar lenguaje y defaults.', href='/onboarding?step=cuenta'),
         _release_item('bot_vertical', 'Vertical en bot', has_bot_vertical, 'El bot ya quedó alineado a una vertical.' if has_bot_vertical else 'Aplica la vertical al bot antes de salir.', href='/onboarding?step=bot'),
-        _release_item('whatsapp', 'WhatsApp conectado', whatsapp_connected, 'Ya existe número conectado con token operativo.' if whatsapp_connected else 'Falta conectar WhatsApp Cloud API para operar en producción.', href='/integrations?section=configuracion'),
+        _release_item('whatsapp', 'WhatsApp listo para enviar', whatsapp_connected, 'Provider, webhook y credenciales están listos para envío.' if whatsapp_connected else f'WhatsApp pendiente de conexión ({whatsapp_status}). Falta provider, token o webhook verificado.', href='/integrations?section=configuracion'),
         _release_item('calendar', 'Calendar listo', google_connected, 'Calendar ya puede sincronizar agenda.' if google_connected else 'Configura Google Calendar para citas y disponibilidad.', href='/integrations?section=configuracion', required=requires_calendar),
         _release_item('payments', 'Payments listos', payments_connected, 'Stripe ya tiene URLs y credenciales base.' if payments_connected else 'Configura pagos para cobrar o apartar desde el flujo.', href='/integrations?section=configuracion', required=requires_payments),
         _release_item('crm', 'CRM alineado', crm_connected, 'Ya hay frente CRM visible para seguimiento.' if crm_connected else 'El CRM sigue siendo opcional, pero ayuda a no perder continuidad.', href='/integrations?section=configuracion', required=False),
@@ -409,6 +426,7 @@ def release_readiness(conn, *, organization_id: str, bot_id: str) -> dict[str, A
         _release_item('rollback', 'Rollback disponible', rollback_ready, 'Ya existe al menos una versión sobre la cual apoyarte.' if rollback_ready else 'Todavía no hay historia suficiente de versiones para rollback.', href=f'/bots/{bot_id}/versions'),
         _release_item('diff', 'Diff revisable', diff_reviewed, 'El draft tiene diff o historia publicada para revisar.' if diff_reviewed else 'Todavía no hay diff útil contra publicado.', href=f'/bots/{bot_id}/versions'),
         _release_item('authz', 'Autorización y política', authz_ready, 'La política organizacional ya puede respaldar aprobación y publish.' if authz_ready else 'Falta política organizacional para sostener el release flow.', href='/security'),
+        _release_item('fake_providers_disabled', 'Fake providers desactivados', fake_providers_disabled, 'WAOS_E2E_FAKE_PROVIDERS está desactivado para release.' if fake_providers_disabled else 'Bloqueado: WAOS_E2E_FAKE_PROVIDERS no puede estar activo en release/producción.', href='/status'),
     ]
 
     blockers = [
@@ -425,9 +443,9 @@ def release_readiness(conn, *, organization_id: str, bot_id: str) -> dict[str, A
     status = 'green' if not blockers and score >= 85 else 'amber' if len(blockers) <= 2 and score >= 65 else 'red'
 
     integrations = [
-        {"key": 'whatsapp', "label": 'WhatsApp', "required": True, "connected": whatsapp_connected, "status": 'connected' if whatsapp_connected else ('configured' if whatsapp_row.get('id') else 'missing'), "detail": 'Cloud API y número listos.' if whatsapp_connected else 'Falta terminar número, token o webhook.', "href": '/integrations?section=configuracion'},
-        {"key": 'google_calendar', "label": 'Google Calendar', "required": requires_calendar, "connected": google_connected, "status": 'connected' if google_connected else ('configured' if google_row.get('id') else 'missing'), "detail": 'Agenda lista para disponibilidad real.' if google_connected else 'Falta OAuth o calendar_id.', "href": '/integrations?section=configuracion'},
-        {"key": 'payments', "label": 'Payments', "required": requires_payments, "connected": payments_connected, "status": 'connected' if payments_connected else ('configured' if payments_row.get('id') else 'missing'), "detail": 'Cobro y reconciliación listos.' if payments_connected else 'Faltan URLs o credenciales.', "href": '/integrations?section=configuracion'},
+        {"key": 'whatsapp', "label": 'WhatsApp', "required": True, "connected": whatsapp_connected, "status": whatsapp_status, "detail": 'Cloud API, webhook y número listos para envío.' if whatsapp_connected else 'WhatsApp pendiente de conexión: falta terminar provider, token o webhook.', "href": '/integrations?section=configuracion'},
+        {"key": 'google_calendar', "label": 'Google Calendar', "required": requires_calendar, "connected": google_connected, "status": 'connected' if google_connected else ('configured' if google_row.get('id') else 'missing'), "detail": 'Agenda lista con credencial verificada por provider.' if google_connected else 'Falta OAuth, calendar_id o verificación real del provider.', "href": '/integrations?section=configuracion'},
+        {"key": 'payments', "label": 'Payments', "required": requires_payments, "connected": payments_connected, "status": 'connected' if payments_connected else ('configured' if payments_row.get('id') else 'missing'), "detail": 'Cobro y reconciliación con provider verificado.' if payments_connected else 'Faltan URLs, credenciales o verificación real del provider.', "href": '/integrations?section=configuracion'},
         {"key": 'crm', "label": 'CRM', "required": requires_crm, "connected": crm_connected, "status": 'connected' if crm_connected else ('configured' if crm_row.get('id') else 'missing'), "detail": 'Seguimiento comercial ya aterrizado.' if crm_connected else 'Sigue siendo un frente opcional o pendiente.', "href": '/integrations?section=configuracion'},
     ]
 
@@ -448,6 +466,7 @@ def release_readiness(conn, *, organization_id: str, bot_id: str) -> dict[str, A
         'content_ready': has_content,
         'vertical_ready': has_org_vertical and has_bot_vertical,
         'requires_approval': True,
+        'fake_providers_disabled': fake_providers_disabled,
     }
 
     return {

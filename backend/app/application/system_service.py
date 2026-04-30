@@ -93,7 +93,15 @@ class SystemService:
     def readyz(self, uow: UnitOfWork) -> JSONResponse:
         payload = self.system_status_payload(uow)
         status_code = 503 if payload["status"] == "error" else 200
-        return JSONResponse(status_code=status_code, content=payload)
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "status": payload["status"],
+                "service": settings.app_name,
+                "version": settings.app_version,
+                "environment": settings.app_env,
+            },
+        )
 
     def whatsapp_governance_panel(self, uow: UnitOfWork, *, user: dict, bot_id: str | None = None) -> dict[str, Any]:
         organization_id = None

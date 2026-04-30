@@ -1,5 +1,6 @@
 "use server";
 
+import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getBot } from "@/app/lib/data/bots";
@@ -16,8 +17,22 @@ export type BotStudioActionState = {
   snapshotCreated?: boolean;
 };
 
+
+function stableBotCreateRequestId(parts: Record<string, unknown>) {
+  return `botcreate_${crypto.createHash("sha256").update(JSON.stringify(parts)).digest("hex").slice(0, 48)}`;
+}
+
+const stableClientRequestId = stableBotCreateRequestId;
+
 function readBoolean(formData: FormData, key: string) {
   const value = String(formData.get(key) || "").toLowerCase();
+  return ["on", "true", "1", "yes"].includes(value);
+}
+
+function readOptionalBoolean(formData: FormData, key: string) {
+  if (!formData.has(key)) return undefined;
+  const value = String(formData.get(key) || "").toLowerCase();
+  if (!value) return undefined;
   return ["on", "true", "1", "yes"].includes(value);
 }
 
@@ -94,15 +109,30 @@ export async function createBotAction(
   const whatsappNumber = readString(formData, "whatsapp_number");
   const hours = readString(formData, "hours");
   const redirectTo = readString(formData, "redirect_to") || "/bot-studio";
-  const publishNow = readBoolean(formData, "publish_now");
+  const publishNow = readOptionalBoolean(formData, "publish_now");
+  const clientRequestId = readString(formData, "client_request_id") || stableBotCreateRequestId({
+    organizationId,
+    businessName,
+    botName,
+    vertical,
+    subvertical,
+    primaryObjective,
+    tone,
+    language,
+    timezone,
+    whatsappNumber,
+    hours,
+    publishNow: publishNow ?? true,
+  });
   let createdBotId = "";
 
   try {
     await setScopeCookies(organizationId);
-    const created = await postJson(`/api/v1/bots`, {
+    const createPayload: Record<string, unknown> = {
       organization_id: organizationId,
       business_name: businessName,
       vertical,
+      subvertical: subvertical || null,
       bot_name: botName,
       primary_objective: primaryObjective,
       tone,
@@ -112,13 +142,25 @@ export async function createBotAction(
       hours,
       faqs: [],
       whatsapp_number: whatsappNumber,
-      publish_now: publishNow,
-    }) as Record<string, unknown>;
+      client_request_id: clientRequestId,
+    };
+    if (publishNow !== undefined) createPayload.publish_now = publishNow;
 
-    createdBotId = String(created.id || "");
+    const created = await postJson("/api/v1/bots/creation-workflows", createPayload, { headers: { "Idempotency-Key": clientRequestId } }) as Record<string, unknown>;
+
+    const createdBot = asRecord(created.bot);
+    createdBotId = String(created.bot_id || created.id || createdBot.id || "");
+    const workflowStatus = String(created.workflow_status || "");
+    if (workflowStatus !== "ready") {
+      const failedPhase = String(created.failed_phase || "");
+      const workflowId = String(created.workflow_id || "");
+      throw new Error(`El workflow de creación del bot no terminó listo: ${workflowStatus || "sin estado"}${failedPhase ? ` en ${failedPhase}` : ""}${workflowId ? ` (${workflowId})` : ""}.`);
+    }
+    if (!createdBotId) {
+      throw new Error("El workflow de creación terminó listo, pero no devolvió bot_id.");
+    }
+    const workflowPublishNow = typeof created.publish_now === "boolean" ? created.publish_now : publishNow ?? true;
     await setScopeCookies(organizationId, createdBotId);
-    await syncOrganizationVertical(organizationId, vertical, subvertical);
-    await applySubverticalPack(organizationId, createdBotId, vertical, subvertical);
 
     const successTarget = buildRedirectTarget(redirectTo, createdBotId);
     refreshWorkspace([
@@ -135,7 +177,7 @@ export async function createBotAction(
 
     const result: BotStudioActionState = {
       ok: true,
-      success: publishNow
+      success: workflowPublishNow
         ? "Bot creado y draft inicial publicado sin salir del wizard."
         : "Bot creado dentro del wizard. Ahora puedes conectar canal, revisar o publicar.",
       botId: createdBotId,
@@ -151,7 +193,7 @@ export async function createBotAction(
       error: normalizeActionError(
         error,
         createdBotId
-          ? "Se creó el bot, pero no se pudo terminar de conectar la vertical."
+          ? "El workflow de creación del bot no quedó listo; no se tratará como creación exitosa."
           : "No se pudo crear el bot.",
       ),
       botId: createdBotId || undefined,

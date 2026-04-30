@@ -89,7 +89,8 @@ class AuthService:
             active_sso = fetch_all(conn, f"SELECT * FROM sso_providers WHERE organization_id IN ({placeholders}) AND status = 'active'", org_ids)
             if active_sso:
                 raise ForbiddenError("Password login disabled because SSO is required for this organization", code="sso_required")
-        user_payload = serialize_authenticated_user(user, organizations)
+        user_for_token = {**user, "memberships": memberships, "organization_ids": org_ids}
+        user_payload = serialize_authenticated_user(user_for_token, organizations)
         if require_mfa:
             if not factors:
                 if not getattr(payload, "mfa_setup_code", None):
@@ -126,7 +127,7 @@ class AuthService:
             if not verify_mfa_challenge(conn, user_id=user["id"], challenge_id=payload.challenge_id, code=payload.otp_code):
                 create_audit_log(conn, organization_id=None, actor_user_id=user["id"], actor_type="user", entity_type="mfa", entity_id=payload.challenge_id, action="auth.mfa_failed", metadata={"email": payload.email}, severity="warning", **self._audit_context(request))
                 raise UnauthorizedError("Invalid MFA code")
-        token_bundle = issue_tokens(conn, user=user, request=request, ttl_minutes=session_ttl_minutes, idle_timeout_minutes=session_idle_timeout_minutes, max_sessions=max_sessions)
+        token_bundle = issue_tokens(conn, user=user_for_token, request=request, ttl_minutes=session_ttl_minutes, idle_timeout_minutes=session_idle_timeout_minutes, max_sessions=max_sessions)
         record_login_attempt(conn, scope_key=scope_key, success=True, ip_address=client_ip(request), user_agent=request.headers.get("user-agent"))
         create_audit_log(conn, organization_id=None, actor_user_id=user["id"], actor_type="user", entity_type="session", entity_id=token_bundle["session"]["id"], action="auth.login_succeeded", metadata={"organization_ids": org_ids, "max_sessions": max_sessions}, **self._audit_context(request))
         return self._response({**token_bundle, "user": user_payload})
@@ -141,10 +142,12 @@ class AuthService:
         user = fetch_one(conn, "SELECT * FROM users WHERE id = ? AND is_active = 1", (session["user_id"],))
         if not user:
             raise UnauthorizedError("User not found")
-        access_token = create_access_token(user, session_id=session["id"])
         memberships = fetch_all(conn, "SELECT organization_id, role FROM organization_members WHERE user_id = ? AND is_active = 1", (user["id"],))
-        organizations = self._load_organizations(conn, [m["organization_id"] for m in memberships])
-        user_payload = serialize_authenticated_user({**user, "memberships": memberships, "organization_ids": [m["organization_id"] for m in memberships]}, organizations)
+        org_ids = [m["organization_id"] for m in memberships]
+        user_for_token = {**user, "memberships": memberships, "organization_ids": org_ids}
+        access_token = create_access_token(user_for_token, session_id=session["id"])
+        organizations = self._load_organizations(conn, org_ids)
+        user_payload = serialize_authenticated_user(user_for_token, organizations)
         create_audit_log(conn, organization_id=None, actor_user_id=user["id"], actor_type="user", entity_type="session", entity_id=session["id"], action="auth.refresh_succeeded", metadata={"expires_at": session["expires_at"]}, **self._audit_context(request, {"session_id": session["id"]}))
         return self._response(
             {

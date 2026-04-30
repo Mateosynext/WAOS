@@ -4,6 +4,7 @@ from fastapi import HTTPException
 
 from ..db import fetch_all, fetch_one
 from ..security import accessible_org_ids, ensure_org_access
+from ..job_idempotency import begin_job_execution, mark_job_completed, mark_job_failed
 from ..domains.appointments import (
     appointment_dashboard,
     cancel_appointment,
@@ -15,7 +16,7 @@ from ..domains.appointments import (
 )
 from .support import org_filter_sql, require_permission
 from .uow import UnitOfWork
-from ..utils import new_id, utcnow_iso
+from ..utils import canonical_hash, from_json, new_id, utcnow_iso
 
 
 class AppointmentService:
@@ -27,18 +28,83 @@ class AppointmentService:
         where_sql, params = org_filter_sql(user, organization_id, "organization_id")
         return fetch_all(conn, f"SELECT * FROM appointments {where_sql} ORDER BY scheduled_for ASC", params)
 
-    def create(self, uow: UnitOfWork, *, user: dict, payload) -> dict:
+    def _require_client_request_id(self, client_request_id: str | None, *, detail_prefix: str) -> str:
+        key = str(client_request_id or "").strip()
+        if not key:
+            raise HTTPException(status_code=400, detail=f"{detail_prefix}_requires_client_request_id")
+        if len(key) < 8 or len(key) > 180:
+            raise HTTPException(status_code=400, detail=f"{detail_prefix}_invalid_client_request_id")
+        return key
+
+    def _job_key(self, *, organization_id: str, action_type: str, target_id: str, client_request_id: str) -> str:
+        key_material = {
+            "organization_id": organization_id,
+            "action_type": action_type,
+            "target_id": target_id,
+            "client_request_id": client_request_id,
+        }
+        return f"appointment:{action_type}:v2:{canonical_hash(key_material)}"
+
+    def create(self, uow: UnitOfWork, *, user: dict, payload, client_request_id: str | None = None) -> dict:
         ensure_org_access(user, payload.organization_id)
         require_permission(user, payload.organization_id, "appointment.manage")
-        return create_appointment_bundle(uow.conn, actor_user=user, **payload.model_dump())
+        values = payload.model_dump(exclude={"client_request_id"})
+        request_id = self._require_client_request_id(client_request_id or payload.client_request_id, detail_prefix="appointment_create")
+        target_id = str(values.get("conversation_id") or values.get("contact_id") or values.get("bot_id") or "").strip()
+        if not target_id:
+            raise HTTPException(status_code=400, detail="appointment_create_requires_target_id")
+        job_key = self._job_key(organization_id=payload.organization_id, action_type="book_appointment", target_id=target_id, client_request_id=request_id)
+        job_payload = {"organization_id": payload.organization_id, "action_type": "book_appointment", "target_id": target_id, "client_request_id": request_id, "payload": values}
+        claim = begin_job_execution(uow.conn, job_type="appointment:create", dedupe_key=job_key, payload=job_payload)
+        if claim.get("_payload_mismatch"):
+            raise HTTPException(status_code=409, detail="appointment_create_idempotency_key_payload_mismatch")
+        if claim.get("_already_existing") and claim.get("status") == "running":
+            raise HTTPException(status_code=409, detail="appointment_create_already_running")
+        if claim.get("status") == "completed":
+            appointment_id = (from_json(claim.get("result_json"), {}) or {}).get("appointment_id")
+            existing = fetch_one(uow.conn, "SELECT * FROM appointments WHERE id = ? AND organization_id = ?", (appointment_id, payload.organization_id)) if appointment_id else None
+            if existing:
+                return existing
+        try:
+            appointment = create_appointment_bundle(uow.conn, actor_user=user, **values)
+            mark_job_completed(uow.conn, dedupe_key=job_key, result={"appointment_id": appointment.get("id")})
+            return appointment
+        except Exception as exc:
+            mark_job_failed(uow.conn, dedupe_key=job_key, error_text=str(exc))
+            raise
 
     def confirm(self, uow: UnitOfWork, *, user: dict, appointment_id: str) -> dict:
         appointment = self._get_accessible_appointment(uow, user=user, appointment_id=appointment_id)
         return confirm_appointment(uow.conn, appointment["id"], actor_user=user)
 
-    def reschedule(self, uow: UnitOfWork, *, user: dict, appointment_id: str, scheduled_for: str) -> dict:
+    def reschedule(self, uow: UnitOfWork, *, user: dict, appointment_id: str, scheduled_for: str, client_request_id: str | None = None) -> dict:
         appointment = self._get_accessible_appointment(uow, user=user, appointment_id=appointment_id)
-        return reschedule_appointment(uow.conn, appointment["id"], scheduled_for=scheduled_for, actor_user=user)
+        request_id = self._require_client_request_id(client_request_id, detail_prefix="appointment_reschedule")
+        job_key = self._job_key(organization_id=appointment["organization_id"], action_type="reschedule", target_id=appointment["id"], client_request_id=request_id)
+        job_payload = {
+            "organization_id": appointment["organization_id"],
+            "action_type": "reschedule",
+            "target_id": appointment["id"],
+            "client_request_id": request_id,
+            "payload": {"appointment_id": appointment["id"], "scheduled_for": scheduled_for},
+        }
+        claim = begin_job_execution(uow.conn, job_type="appointment:reschedule", dedupe_key=job_key, payload=job_payload)
+        if claim.get("_payload_mismatch"):
+            raise HTTPException(status_code=409, detail="appointment_reschedule_idempotency_key_payload_mismatch")
+        if claim.get("_already_existing") and claim.get("status") == "running":
+            raise HTTPException(status_code=409, detail="appointment_reschedule_already_running")
+        if claim.get("status") == "completed":
+            existing_id = (from_json(claim.get("result_json"), {}) or {}).get("appointment_id")
+            existing = fetch_one(uow.conn, "SELECT * FROM appointments WHERE id = ? AND organization_id = ?", (existing_id, appointment["organization_id"])) if existing_id else None
+            if existing:
+                return existing
+        try:
+            updated = reschedule_appointment(uow.conn, appointment["id"], scheduled_for=scheduled_for, actor_user=user)
+            mark_job_completed(uow.conn, dedupe_key=job_key, result={"appointment_id": updated.get("id")})
+            return updated
+        except Exception as exc:
+            mark_job_failed(uow.conn, dedupe_key=job_key, error_text=str(exc))
+            raise
 
     def cancel(self, uow: UnitOfWork, *, user: dict, appointment_id: str, reason: str) -> dict:
         appointment = self._get_accessible_appointment(uow, user=user, appointment_id=appointment_id)

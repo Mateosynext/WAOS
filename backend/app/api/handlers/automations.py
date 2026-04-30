@@ -66,41 +66,11 @@ def list_automation_jobs(
         return fetch_all(conn, f"SELECT * FROM automation_jobs {where_sql} ORDER BY scheduled_for ASC", params)
 
 def process_due_jobs(user: dict = Depends(get_current_user)) -> dict:
-    with get_connection() as conn:
-        if user["global_role"] != "super_admin":
-            raise HTTPException(status_code=403, detail="Only super admin can process due jobs")
-        jobs = fetch_all(
-            conn,
-            """
-            SELECT * FROM automation_jobs
-            WHERE status = 'queued' AND scheduled_for <= ?
-            ORDER BY scheduled_for ASC
-            LIMIT 50
-            """,
-            (utcnow_iso(),),
-        )
-        processed = []
-        for job in jobs:
-            conversation = get_conversation(conn, job["conversation_id"]) if job.get("conversation_id") else None
-            if not conversation or int(conversation.get("human_takeover", 0)) == 1:
-                execute(conn, "UPDATE automation_jobs SET status = 'skipped', executed_at = ?, last_error = ? WHERE id = ?", (utcnow_iso(), "human_takeover_or_missing_conversation", job["id"]))
-                processed.append({"id": job["id"], "status": "skipped"})
-                continue
-            payload = from_json(job.get("payload_json"), {})
-            body = payload.get("message_template") or "Solo dando seguimiento a tu consulta."
-            create_message(
-                conn,
-                organization_id=job["organization_id"],
-                conversation_id=job["conversation_id"],
-                contact_id=job.get("contact_id"),
-                bot_id=job["bot_id"],
-                direction="outbound",
-                kind="text",
-                source="ai",
-                body=body,
-                status="simulated",
-                metadata={"automation_job_id": job["id"]},
-            )
-            execute(conn, "UPDATE automation_jobs SET status = 'executed', executed_at = ? WHERE id = ?", (utcnow_iso(), job["id"]))
-            processed.append({"id": job["id"], "status": "executed"})
-        return {"processed": processed, "count": len(processed)}
+    if user["global_role"] != "super_admin":
+        raise HTTPException(status_code=403, detail="Only super admin can process due jobs")
+    # Delegate to the worker lifecycle so manual API-triggered runs cannot mark
+    # automation_jobs as successful before the outbox/provider confirms delivery.
+    from worker import process_due_jobs as worker_process_due_jobs
+
+    processed = worker_process_due_jobs()
+    return {"processed": processed, "count": len(processed)}

@@ -57,3 +57,5 @@ if (errors.length) {
   process.exit(1);
 }
 console.log('[env:ok] frontend env validation passed');
+
+if (!process.exitCode) process.exit(0);

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -14,7 +15,9 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .api import api_router
 from .config import settings
 from .db import close_connection_pool, get_connection, init_db
+from .ai_workflows.persistence import recover_stale_running_runs
 from .errors import AppError, InternalServerAppError, app_error_from_http_exception, app_error_from_validation, error_response
+from .hardening import waos_security_gate
 from .http_runtime import extract_bot_id, extract_org_id, extract_request_user_id, organization_origin_policy
 from .platform.observability import capture_exception, log_event, setup_observability
 from .repositories import ensure_seed_data
@@ -41,6 +44,8 @@ _SKIP_TRACE_EXACT = {"/", "/app", "/favicon.ico"}
 
 def _validate_startup_security() -> None:
     settings.validate_runtime()
+    if settings.is_production and settings.waos_e2e_fake_providers:
+        raise RuntimeError("WAOS_E2E_FAKE_PROVIDERS cannot be enabled in production")
     if not settings.strict_security_startup:
         return
     if settings.is_production and settings.app_secret_is_default:
@@ -125,6 +130,16 @@ async def lifespan(app: FastAPI):
                 with get_connection() as conn:
                     ensure_seed_data(conn)
                 state["seeded"] = True
+            if settings.ai_workflow_recovery_on_startup:
+                try:
+                    with get_connection() as conn:
+                        recovered = recover_stale_running_runs(conn, stale_after_minutes=settings.ai_workflow_recovery_stale_after_minutes, limit=100)
+                    if recovered:
+                        log_event("ai_workflow_startup_recovery_completed", recovered_count=len(recovered))
+                except Exception as exc:
+                    log_event("ai_workflow_startup_recovery_failed", error=str(exc))
+                    if settings.startup_db_required:
+                        raise
         except Exception as exc:
             db_error = exc
             state["db_ready"] = False
@@ -143,11 +158,16 @@ async def lifespan(app: FastAPI):
     close_connection_pool()
 
 
+_api_docs_enabled = os.getenv("ENABLE_API_DOCS", "false" if settings.is_production else "true").strip().lower() in {"1", "true", "yes", "on"}
+
 app = FastAPI(
     title="WAOS API",
     version=settings.app_version,
     description="WAOS v13.1 API production-ready: PostgreSQL, Business Hub, catalog, media, promotions, Bot Studio, launch readiness and enriched customer experience.",
     lifespan=lifespan,
+    docs_url="/docs" if _api_docs_enabled else None,
+    redoc_url="/redoc" if _api_docs_enabled else None,
+    openapi_url="/openapi.json" if _api_docs_enabled else None,
 )
 
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
@@ -184,6 +204,9 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
 @app.exception_handler(Exception)
 async def handle_unexpected_exception(request: Request, exc: Exception):
     return error_response(InternalServerAppError(), request=request)
+
+
+app.middleware("http")(waos_security_gate)
 
 
 @app.middleware("http")

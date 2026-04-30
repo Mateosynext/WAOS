@@ -5,12 +5,16 @@ import { normalizeAgendaOverview, normalizeAppointment } from "../contracts/onbo
 import type { FeedbackItemContract, PortalRequestContract } from "../contracts/portal";
 import { normalizeFeedbackItem, normalizePortalRequest } from "../contracts/portal";
 import { apiFetchOrDefault } from "../api";
-import { fetchArray, fetchRecord, orgQuery, selectedBotId } from "./shared";
+import { fetchArray, fetchArrayState, fetchRecord, orgQuery, selectedBotId, type PortalModuleState } from "./shared";
 
-export async function getConversations(sort?: string): Promise<ConversationItem[]> {
+export async function getConversationsState(sort?: string): Promise<PortalModuleState<ConversationItem[]>> {
   const query = await orgQuery();
   const sortSuffix = sort ? `&sort=${encodeURIComponent(sort)}` : "";
-  return fetchArray(`/api/v1/conversations?${query}${sortSuffix}`, [], normalizeConversation);
+  return fetchArrayState(`/api/v1/conversations?${query}${sortSuffix}`, [], normalizeConversation);
+}
+
+export async function getConversations(sort?: string): Promise<ConversationItem[]> {
+  return (await getConversationsState(sort)).data;
 }
 
 export async function getInboxSavedViews(): Promise<InboxSavedViewContract[]> {
@@ -31,9 +35,13 @@ export async function getConversationDecisionSupport(conversationId: string): Pr
   return fetchRecord(`/api/v1/conversations/${conversationId}/decision-support`, { conversation_id: conversationId, queue: {}, sla: {}, explanation: {}, risk_flags: [] }, normalizeConversationDecisionSupport);
 }
 
-export async function getConversationReviews() {
+export async function getConversationReviewsState(): Promise<PortalModuleState<Array<Record<string, unknown>>>> {
   const query = await orgQuery();
-  return apiFetchOrDefault<Array<Record<string, unknown>>>(`/api/v1/conversations/reviews?${query}`, []);
+  return fetchArrayState(`/api/v1/conversations/reviews?${query}`, [], (value) => (value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}));
+}
+
+export async function getConversationReviews() {
+  return (await getConversationReviewsState()).data;
 }
 
 export async function getVoiceNotes() {
