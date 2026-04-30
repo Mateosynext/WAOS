@@ -5,6 +5,58 @@ import { verifyRequestSession } from "./app/lib/auth/edge-session";
 import type { VerifiedSession } from "./app/lib/auth/edge-session";
 import { describeRouteAccess, MIDDLEWARE_MATCHER } from "./app/lib/auth/route-policy";
 
+const CSP_HEADER = "Content-Security-Policy";
+const NONCE_HEADER = "x-nonce";
+
+function createNonce() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let value = "";
+  for (const byte of bytes) value += String.fromCharCode(byte);
+  return btoa(value);
+}
+
+function buildDocumentCsp(nonce: string) {
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "form-action 'self'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    `style-src 'self' 'nonce-${nonce}'`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    "connect-src 'self' https: wss:",
+    "media-src 'self' blob: data: https:",
+    "worker-src 'self' blob:",
+  ].join("; ");
+}
+
+function createSecurityContext(request: NextRequest) {
+  const nonce = createNonce();
+  const csp = buildDocumentCsp(nonce);
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(NONCE_HEADER, nonce);
+  requestHeaders.set(CSP_HEADER, csp);
+  return { csp, requestHeaders };
+}
+
+function attachSecurityHeaders(response: NextResponse, csp: string) {
+  response.headers.set(CSP_HEADER, csp);
+  return response;
+}
+
+function nextWithSecurity(request: NextRequest) {
+  const { csp, requestHeaders } = createSecurityContext(request);
+  return attachSecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }), csp);
+}
+
+function redirectWithSecurity(request: NextRequest, destination: URL) {
+  const { csp } = createSecurityContext(request);
+  return attachSecurityHeaders(NextResponse.redirect(destination), csp);
+}
+
 function normalizeRole(role: string | null | undefined) {
   return String(role || "anonymous").toLowerCase();
 }
@@ -41,7 +93,7 @@ export async function middleware(request: NextRequest) {
   const routeAccess = describeRouteAccess(pathname);
 
   if (routeAccess.isPublic && !routeAccess.isAuthPage) {
-    return NextResponse.next();
+    return nextWithSecurity(request);
   }
 
   let session: VerifiedSession | null = null;
@@ -50,8 +102,8 @@ export async function middleware(request: NextRequest) {
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error("[middleware] session verification failed", error);
-    if (routeAccess.isAuthPage) return NextResponse.next();
-    const redirect = NextResponse.redirect(buildLoginRedirect(request));
+    if (routeAccess.isAuthPage) return nextWithSecurity(request);
+    const redirect = redirectWithSecurity(request, buildLoginRedirect(request));
     redirect.headers.set("x-waos-session-error", "verification_failed");
     redirect.cookies.delete(ACCESS_COOKIE);
     redirect.cookies.delete(REFRESH_COOKIE);
@@ -61,7 +113,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (routeAccess.isAuthPage) {
-    if (!session) return NextResponse.next();
+    if (!session) return nextWithSecurity(request);
     const destination = new URL(
       session.user.organizations.length > 1 && !session.selectedOrganizationId
         ? "/organizations?source=login"
@@ -70,7 +122,7 @@ export async function middleware(request: NextRequest) {
           : "/",
       request.url,
     );
-    const response = NextResponse.redirect(destination);
+    const response = redirectWithSecurity(request, destination);
     syncSessionCookies(response, request, {
       accessToken: session.accessToken,
       refreshToken: session.refreshToken,
@@ -79,7 +131,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (!session) {
-    const redirect = NextResponse.redirect(buildLoginRedirect(request));
+    const redirect = redirectWithSecurity(request, buildLoginRedirect(request));
     redirect.cookies.delete(ACCESS_COOKIE);
     redirect.cookies.delete(REFRESH_COOKIE);
     redirect.cookies.delete(ORG_COOKIE);
@@ -87,7 +139,7 @@ export async function middleware(request: NextRequest) {
     return redirect;
   }
 
-  const response = NextResponse.next();
+  const response = nextWithSecurity(request);
   const selectedOrgId = session.selectedOrganizationId && session.organizationIds.includes(session.selectedOrganizationId)
     ? session.selectedOrganizationId
     : null;
@@ -107,7 +159,7 @@ export async function middleware(request: NextRequest) {
       const destination = new URL("/organizations", request.url);
       destination.searchParams.set("source", "context-lock");
       destination.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
-      const redirect = NextResponse.redirect(destination);
+      const redirect = redirectWithSecurity(request, destination);
       syncSessionCookies(redirect, request, {
         accessToken: session.accessToken,
         refreshToken: session.refreshToken,
@@ -126,7 +178,7 @@ export async function middleware(request: NextRequest) {
   if (allowedRoles && !allowedRoles.includes(normalizeRole(session.user.global_role))) {
     const destination = new URL("/", request.url);
     destination.searchParams.set("denied", pathname);
-    const redirect = NextResponse.redirect(destination);
+    const redirect = redirectWithSecurity(request, destination);
     syncSessionCookies(redirect, request, {
       accessToken: session.accessToken,
       refreshToken: session.refreshToken,
@@ -139,5 +191,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: MIDDLEWARE_MATCHER,
 };

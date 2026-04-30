@@ -54,6 +54,8 @@ FORBIDDEN_SUFFIXES = {
     ".log",
 }
 
+BUILD_ENV_DIRS = {".venv", "venv", "env"}
+
 FORBIDDEN_EXACT_FILES = {
     ".env",
     ".env.local",
@@ -113,7 +115,9 @@ def iter_paths() -> list[Path]:
     paths: list[Path] = []
     for current, dirs, files in os.walk(ROOT):
         current_path = Path(current)
-        dirs[:] = sorted(dirs)
+        # Render can create a repository-level virtualenv before build checks run.
+        # Treat it as build-host state, not shipped source content.
+        dirs[:] = sorted(d for d in dirs if d not in BUILD_ENV_DIRS)
         files = sorted(files)
         for name in dirs:
             paths.append(current_path / name)

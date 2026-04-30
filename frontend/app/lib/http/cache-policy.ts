@@ -15,15 +15,21 @@ export const CONTENT_SECURITY_POLICY = [
   "worker-src 'self' blob:",
 ].join("; ");
 
-export const securityHeaders = [
+export const baseSecurityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+];
+
+export const securityHeaders = [
+  ...baseSecurityHeaders,
   { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
 ];
+
+export const documentSecurityHeaders = baseSecurityHeaders;
 
 const PRIVATE_ROUTE_SOURCES = [
   "/",
@@ -80,19 +86,19 @@ export const SEMISTATIC_CACHE_HEADERS = [
 ];
 
 export const PUBLIC_DOCUMENT_CACHE_HEADERS = [
-  ...securityHeaders,
+  ...documentSecurityHeaders,
   { key: "Cache-Control", value: "public, max-age=300, stale-while-revalidate=3600" },
   { key: "Vary", value: "Accept-Encoding" },
 ];
 
 export const AUTH_FLOW_CACHE_HEADERS = [
-  ...securityHeaders,
+  ...documentSecurityHeaders,
   { key: "Cache-Control", value: "no-store" },
   { key: "Vary", value: "Cookie, Accept-Encoding" },
 ];
 
 export const PRIVATE_APP_CACHE_HEADERS = [
-  ...securityHeaders,
+  ...documentSecurityHeaders,
   { key: "Cache-Control", value: "private, no-cache, max-age=0, must-revalidate" },
   { key: "Vary", value: "Cookie, Accept-Encoding" },
 ];

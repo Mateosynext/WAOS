@@ -4,6 +4,7 @@ set -Eeuo pipefail
 cd "$(dirname "$0")/.."
 
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
+export PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 
 echo "[waos-worker] running release-candidate validation"
 python scripts/validate_release_candidate.py

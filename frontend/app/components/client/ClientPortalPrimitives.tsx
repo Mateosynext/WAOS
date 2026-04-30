@@ -1,18 +1,18 @@
 import Link from "next/link";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { StatusPill } from "@/app/components/feedback";
 import { Badge, Icon } from "@/app/components/primitives/shared";
 
-const surfaceClass = "rounded-[28px] border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)]";
+const surfaceClass = "rounded-[28px] border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] shadow-[var(--shadow-soft)]";
 const subtleSurfaceClass = "rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--surface-subtle)]";
 
-export function ClientPanel({ children, className = "", style }: { children: ReactNode; className?: string; style?: CSSProperties }) {
-  return <div className={`${surfaceClass} ${className}`.trim()} style={{ boxShadow: "var(--shadow-soft)", ...style }}>{children}</div>;
+export function ClientPanel({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`${surfaceClass} ${className}`.trim()}>{children}</div>;
 }
 
 export function ClientSectionBlock({ title, subtitle, aside, children }: { title: string; subtitle?: string; aside?: ReactNode; children: ReactNode }) {
   return (
-    <section className={surfaceClass} style={{ boxShadow: "var(--shadow-soft)" }}>
+    <section className={surfaceClass}>
       <div className="flex flex-col gap-4 border-b border-[color:var(--border-soft)] px-5 py-5 sm:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>

@@ -36,6 +36,7 @@ REQ = [
     REPO / "frontend" / "vercel.json",
 ]
 BAD_DIRS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".next", "node_modules"}
+BUILD_ENV_DIRS = {".venv", "venv", "env"}
 BAD_SUFFIX = {".pyc", ".pyo"}
 
 
@@ -54,7 +55,11 @@ def main() -> None:
 
     offenders: list[str] = []
     for dirpath, dirnames, filenames in os.walk(REPO):
-        dirnames[:] = [d for d in dirnames if d != ".git"]
+        # Render may create a Python virtual environment under the repository
+        # root before this validation runs. That environment is build-host state,
+        # not part of the shipped source artifact, so skip it while still
+        # rejecting caches/build outputs inside the application tree.
+        dirnames[:] = [d for d in dirnames if d not in {".git", *BUILD_ENV_DIRS}]
         rel = Path(dirpath).relative_to(REPO)
         if any(part in BAD_DIRS for part in rel.parts):
             offenders.append(str(rel))

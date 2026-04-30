@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
 import AnalyticsTracker from "./components/AnalyticsTracker";
 import CookieConsentBanner from "./components/CookieConsentBanner";
 
@@ -25,11 +26,13 @@ const themeInitScript = `
   }
 })();`;
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html lang="es" suppressHydrationWarning>
       <body>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <a href="#main-content" className="skip-link">Saltar al contenido</a>
         <AnalyticsTracker />
         {children}
