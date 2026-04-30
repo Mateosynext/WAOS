@@ -87,11 +87,23 @@ SECRET_SCAN_EXTS = {
 }
 
 SECRET_PATTERNS = [
+    # High-confidence provider key formats are unsafe anywhere in scanned text.
     re.compile(r"sk-[A-Za-z0-9_-]{32,}"),
     re.compile(r"xox[baprs]-[A-Za-z0-9-]{20,}"),
     re.compile(r"AKIA[0-9A-Z]{16}"),
-    re.compile(r"(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*['\"]?(?!changeme|change-me|placeholder|example|dummy|test|your_|<|\$\{)[A-Za-z0-9_./+=:-]{20,}"),
 ]
+
+SECRET_NAME_RE = r"(?:api[_-]?key|secret|token|password)"
+SECRET_VALUE_RE = r"(?!(?:changeme|change-me|placeholder|example|dummy|test|your_|<|\$\{|https?://))[A-Za-z0-9_./+=:-]{20,}"
+SECRET_KEY_RE = rf"(?:[A-Za-z0-9_.-]+[_.-])?{SECRET_NAME_RE}"
+QUOTED_SECRET_ASSIGNMENT = re.compile(
+    rf"(?i)(?:^|[^A-Za-z0-9_]){SECRET_KEY_RE}\s*[:=]\s*(['\"]){SECRET_VALUE_RE}\1"
+)
+UNQUOTED_CONFIG_SECRET_ASSIGNMENT = re.compile(
+    rf"(?i)^\s*{SECRET_KEY_RE}\s*[:=]\s*{SECRET_VALUE_RE}\s*$"
+)
+CONFIG_SECRET_SUFFIXES = {".env", ".yaml", ".yml", ".toml", ".ini"}
+CONFIG_SECRET_FILENAMES = {".npmrc", ".yarnrc"}
 
 ALLOWLIST_SECRET_FILES = {
     "backend/.env.example",
@@ -151,6 +163,22 @@ def check_forbidden_artifacts(errors: list[str]) -> None:
             errors.append(f"generated/cache file shipped: {relative}")
 
 
+def _looks_like_secret_material(text: str, path: Path) -> bool:
+    if any(pattern.search(text) for pattern in SECRET_PATTERNS):
+        return True
+    is_config_like = (
+        path.suffix in CONFIG_SECRET_SUFFIXES
+        or path.name.startswith(".env")
+        or path.name in CONFIG_SECRET_FILENAMES
+    )
+    for line in text.splitlines():
+        if QUOTED_SECRET_ASSIGNMENT.search(line):
+            return True
+        if is_config_like and UNQUOTED_CONFIG_SECRET_ASSIGNMENT.search(line):
+            return True
+    return False
+
+
 def check_secret_leaks(errors: list[str]) -> None:
     for path in iter_paths():
         if not path.is_file():
@@ -158,7 +186,7 @@ def check_secret_leaks(errors: list[str]) -> None:
         relative = rel(path)
         if relative in ALLOWLIST_SECRET_FILES:
             continue
-        if path.suffix not in SECRET_SCAN_EXTS and path.name not in {".npmrc", ".yarnrc"}:
+        if path.suffix not in SECRET_SCAN_EXTS and path.name not in CONFIG_SECRET_FILENAMES:
             continue
         if path.stat().st_size > 1_000_000:
             continue
@@ -167,10 +195,8 @@ def check_secret_leaks(errors: list[str]) -> None:
         except OSError as exc:
             errors.append(f"cannot read {relative}: {exc}")
             continue
-        for pattern in SECRET_PATTERNS:
-            if pattern.search(text):
-                errors.append(f"possible secret material in {relative}")
-                break
+        if _looks_like_secret_material(text, path):
+            errors.append(f"possible secret material in {relative}")
 
 
 def check_packaging_contract(errors: list[str]) -> None:
