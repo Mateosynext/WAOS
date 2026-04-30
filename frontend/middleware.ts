@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { ACCESS_COOKIE, BOT_COOKIE, ORG_COOKIE, REFRESH_COOKIE, sessionCookieOptions } from "./app/lib/auth/cookies";
 import { verifyRequestSession } from "./app/lib/auth/edge-session";
 import type { VerifiedSession } from "./app/lib/auth/edge-session";
-import { describeRouteAccess, MIDDLEWARE_MATCHER } from "./app/lib/auth/route-policy";
+import { describeRouteAccess } from "./app/lib/auth/route-policy";
 
 const CSP_HEADER = "Content-Security-Policy";
 const NONCE_HEADER = "x-nonce";
@@ -191,5 +191,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: MIDDLEWARE_MATCHER,
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\..*).*)"],
 };

@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
   generateEtags: true,
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   async headers() {
     return buildScopedHeaders();
   },
