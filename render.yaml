@@ -6,7 +6,7 @@ services:
     runtime: python
     plan: standard
     rootDir: backend
-    buildCommand: export PYTHONDONTWRITEBYTECODE=1 && python scripts/normalize_release_permissions.py && pip install -r requirements.txt && python scripts/validate_render_env.py && python scripts/validate_release_candidate.py && python scripts/check_repo_hygiene.py && python scripts/release_gate.py
+    buildCommand: export PYTHONDONTWRITEBYTECODE=1 && python scripts/normalize_release_permissions.py && python scripts/check_release_source_hardening.py && pip install -r requirements.txt && python scripts/validate_render_env.py && python scripts/validate_release_candidate.py && python scripts/check_repo_hygiene.py && python scripts/release_gate.py
     startCommand: bash scripts/bootstrap.sh
     healthCheckPath: /livez
     envVars:
@@ -155,7 +155,7 @@ services:
     runtime: python
     plan: starter
     rootDir: backend
-    buildCommand: export PYTHONDONTWRITEBYTECODE=1 && python scripts/normalize_release_permissions.py && pip install -r requirements.txt && python scripts/validate_render_env.py && python scripts/validate_release_candidate.py && python scripts/check_repo_hygiene.py && python scripts/release_gate.py
+    buildCommand: export PYTHONDONTWRITEBYTECODE=1 && python scripts/normalize_release_permissions.py && python scripts/check_release_source_hardening.py && pip install -r requirements.txt && python scripts/validate_render_env.py && python scripts/validate_release_candidate.py && python scripts/check_repo_hygiene.py && python scripts/release_gate.py
     startCommand: bash scripts/worker_bootstrap.sh
     envVars:
       - key: PYTHON_VERSION
