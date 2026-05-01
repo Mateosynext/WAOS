@@ -25,6 +25,8 @@ NODE_CHECKS = [
     "validate-env.mjs",
 ]
 
+BACKEND_ONLY_RENDER_ENV_FLAG = "WAOS_RENDER_BACKEND_ONLY"
+
 LOCAL_IMPORT_EXTS = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"}
 LOCAL_IMPORT_IGNORED_DIRS = {"node_modules", ".next", "coverage", "test-results", "playwright-report"}
 STATIC_IMPORT_RE = re.compile(r"^\s*(?:import|export)\s+(?:[^'\"]*?\s+from\s+)?['\"]([^'\"]+)['\"]")
@@ -223,16 +225,29 @@ def run_ai_evals() -> None:
         raise SystemExit(code)
 
 
+def _is_backend_only_render_build() -> bool:
+    return os.environ.get(BACKEND_ONLY_RENDER_ENV_FLAG, "").strip().lower() in {"1", "true", "yes"}
+
+
 def run_frontend_guardrails() -> None:
     missing_node_checks = [script for script in NODE_CHECKS if not (FRONTEND / "scripts" / script).exists()]
     if missing_node_checks:
         raise SystemExit("[gate:fail] missing frontend guardrail scripts: " + ", ".join(missing_node_checks))
     if shutil.which("node") is None:
         raise SystemExit("[gate:fail] node is required to execute frontend guardrails")
+    backend_only_render = _is_backend_only_render_build()
     print(f"[gate] frontend guardrails running={len(NODE_CHECKS)}", flush=True)
+    skipped = 0
     for script in NODE_CHECKS:
+        if backend_only_render and script == "validate-env.mjs":
+            skipped += 1
+            print("[gate] frontend env validation skipped for backend-only Render deploy", flush=True)
+            continue
         run_node_script(script, FRONTEND)
-    print(f"[gate] frontend guardrails passed={len(NODE_CHECKS)}", flush=True)
+    if skipped:
+        print(f"[gate] frontend guardrails passed={len(NODE_CHECKS) - skipped}; skipped={skipped}", flush=True)
+    else:
+        print(f"[gate] frontend guardrails passed={len(NODE_CHECKS)}", flush=True)
 
 
 def main() -> int:
