@@ -38,6 +38,7 @@ jobs:
           python -m pip install -r backend/requirements.txt -r tools/requirements-ci.txt
       - name: Backend deterministic gates
         run: |
+          python backend/scripts/normalize_release_permissions.py
           python backend/scripts/validate_release_candidate.py
           python backend/scripts/check_repo_hygiene.py
           python backend/scripts/release_gate.py

@@ -20,6 +20,7 @@ REQUIRED_FILES = [
     "backend/scripts/check_repo_hygiene.py",
     "backend/scripts/release_gate.py",
     "backend/scripts/check_release_artifact_integrity.py",
+    "backend/scripts/normalize_release_permissions.py",
     "scripts/validate_release_in_ci.sh",
     "scripts/validate_zip_reproducible.sh",
     "frontend/package.json",

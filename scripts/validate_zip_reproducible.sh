@@ -92,6 +92,8 @@ if [[ ${#shipped_artifacts[@]} -gt 0 ]]; then
 fi
 
 cd "$SOURCE_ROOT"
+echo "[zip:run] normalizing executable bits in extracted ZIP at $SOURCE_ROOT"
+"${PYTHON_BIN:-/usr/bin/python3}" backend/scripts/normalize_release_permissions.py
 echo "[zip:run] validating extracted ZIP at $SOURCE_ROOT"
 bash scripts/validate_release_in_ci.sh
 echo "[zip:ok] extracted ZIP validation passed"

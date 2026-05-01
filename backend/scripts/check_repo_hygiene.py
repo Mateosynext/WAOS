@@ -9,6 +9,7 @@ REQUIRED_PATHS = [
     "frontend/app/page.tsx", "frontend/app/login/page.tsx", "frontend/app/bot-studio/page.tsx",
     "frontend/app/api/ai/route-helpers.ts", "scripts/validate_release_in_ci.sh",
     "scripts/validate_zip_reproducible.sh", "backend/scripts/check_release_artifact_integrity.py",
+    "backend/scripts/normalize_release_permissions.py",
     "MULTITENANT_SECURITY_FUZZ_REGISTER_2026-04-26.md",
 ]
 REQUIRED_SNIPPETS = {
@@ -18,6 +19,7 @@ REQUIRED_SNIPPETS = {
     "frontend/app/lib/api.ts": ["x-waos-org-id", "x-waos-bot-id"],
     "frontend/app/actions/bots.ts": ["Idempotency-Key", "client_request_id", "/api/v1/bots/creation-workflows"],
     "backend/scripts/check_release_artifact_integrity.py": ["FORBIDDEN_NAMES", "SECRET_PATTERNS", "EXECUTABLE_FILES"],
+    "backend/scripts/normalize_release_permissions.py": ["EXECUTABLE_FILES", "os.chmod", "[perms:mode]"],
     "scripts/validate_zip_reproducible.sh": ["validate_release_in_ci.sh", "shipped_artifacts"],
 }
 def main() -> int:
